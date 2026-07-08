@@ -16,6 +16,7 @@ $navItems = [
     'overview' => ['url' => 'dashboard', 'icon' => 'dashboard', 'label' => lang('dashboard')],
     'applications' => ['url' => 'dashboard/applications', 'icon' => 'pending_actions', 'label' => lang('my_applications')],
     'courses' => ['url' => 'dashboard/courses', 'icon' => 'menu_book', 'label' => lang('my_courses')],
+    'attendance' => ['url' => 'dashboard/attendance', 'icon' => 'fact_check', 'label' => lang('my_attendance')],
     'certificates' => ['url' => 'dashboard/certificates', 'icon' => 'verified', 'label' => lang('my_certificates')],
     'notifications' => ['url' => 'dashboard/notifications', 'icon' => 'notifications', 'label' => lang('notifications')],
     'profile' => ['url' => 'dashboard/profile', 'icon' => 'person', 'label' => lang('profile')],

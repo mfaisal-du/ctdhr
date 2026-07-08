@@ -84,10 +84,16 @@ dashboard_page_header([
                 </div>
             </div>
 
-            <a href="<?= e(url('courses/' . ($course['slug'] ?? ''))) ?>" class="courses-btn-secondary w-full justify-center">
-                <span class="material-symbols-outlined">open_in_new</span>
-                <?= e(lang('view_course')) ?>
-            </a>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <a href="<?= e(url('dashboard/attendance?course=' . urlencode((string) ($course['slug'] ?? '')))) ?>" class="courses-btn-secondary flex-1 justify-center">
+                    <span class="material-symbols-outlined">fact_check</span>
+                    <?= e(lang('view_attendance')) ?>
+                </a>
+                <a href="<?= e(url('courses/' . ($course['slug'] ?? ''))) ?>" class="courses-btn-secondary flex-1 justify-center">
+                    <span class="material-symbols-outlined">open_in_new</span>
+                    <?= e(lang('view_course')) ?>
+                </a>
+            </div>
         </div>
     </article>
     <?php endforeach; ?>

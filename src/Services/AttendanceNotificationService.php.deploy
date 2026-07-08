@@ -1,0 +1,82 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Models\Attendance;
+use CTDHR\Models\CourseAdmin;
+
+final class AttendanceNotificationService
+{
+    /**
+     * Notify participants when admin marks or updates session attendance.
+     *
+     * @param array<int, string> $newStatuses user_id => present|absent|excused
+     * @param array<int, array<string, mixed>> $previousAttendance indexed by user_id
+     */
+    public static function notifyParticipantsOfSessionMark(
+        int $courseId,
+        string $sessionDate,
+        array $newStatuses,
+        array $previousAttendance,
+        ?int $sessionNumber = null
+    ): void {
+        $course = CourseAdmin::findById($courseId);
+        if ($course === null || $newStatuses === []) {
+            return;
+        }
+
+        $sessionLabel = self::resolveSessionLabel($course, $sessionDate, $sessionNumber);
+        $courseTitleEn = (string) ($course['title_en'] ?? '');
+        $courseTitleAr = (string) ($course['title_ar'] ?? '');
+
+        foreach ($newStatuses as $userId => $status) {
+            $userId = (int) $userId;
+            if ($userId <= 0) {
+                continue;
+            }
+
+            $status = (string) $status;
+            if (!in_array($status, Attendance::SESSION_STATUSES, true)) {
+                continue;
+            }
+
+            $previousRow = $previousAttendance[$userId] ?? null;
+            $previousStatus = $previousRow !== null ? Attendance::rowStatus($previousRow) : null;
+            if ($previousStatus === $status) {
+                continue;
+            }
+
+            NotificationService::attendanceSessionMarked(
+                $userId,
+                $courseTitleEn,
+                $courseTitleAr,
+                $sessionLabel,
+                $status
+            );
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $course
+     */
+    private static function resolveSessionLabel(array $course, string $sessionDate, ?int $sessionNumber): string
+    {
+        foreach (attendance_session_entries($course) as $entry) {
+            if ($entry['key'] === $sessionDate) {
+                return (string) $entry['label'];
+            }
+        }
+
+        if ($sessionNumber !== null && $sessionNumber > 0) {
+            return lang('session_number', ['n' => (string) $sessionNumber]);
+        }
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $sessionDate) === 1) {
+            return format_date($sessionDate);
+        }
+
+        return $sessionDate;
+    }
+}

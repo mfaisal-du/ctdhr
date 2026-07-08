@@ -184,6 +184,12 @@ return [
     ],
     [
         'methods' => ['GET'],
+        'path' => '/dashboard/attendance',
+        'handler' => [DashboardController::class, 'attendance'],
+        'middleware' => [AuthMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
         'path' => '/dashboard/certificates',
         'handler' => [DashboardController::class, 'certificates'],
         'middleware' => [AuthMiddleware::class],

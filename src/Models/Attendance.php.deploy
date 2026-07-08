@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CTDHR\Models;
 
 use CTDHR\Config\Database;
+use CTDHR\Services\AttendanceNotificationService;
 use PDO;
 
 final class Attendance
@@ -555,7 +556,16 @@ final class Attendance
                 $errors[] = lang('import_session_locked', ['session' => $sessionKey]);
                 continue;
             }
+
+            $previousAttendance = self::getSessionAttendance($courseId, $sessionKey);
             self::markSessionStatuses($courseId, $sessionKey, $statuses, $markedBy, null);
+            AttendanceNotificationService::notifyParticipantsOfSessionMark(
+                $courseId,
+                $sessionKey,
+                $statuses,
+                $previousAttendance,
+                null
+            );
             $imported += count($statuses);
         }
 
@@ -654,5 +664,50 @@ final class Attendance
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * Approved courses with session history and certificate eligibility for the participant dashboard.
+     *
+     * @return array{courses: array<int, array<string, mixed>>, stats: array<string, int|float>}
+     */
+    public static function getUserAttendancePageData(int $userId): array
+    {
+        $courses = self::getUserAttendanceSummary($userId);
+        $threshold = (new Setting())->getInt('attendance_threshold', 75);
+        $totalMarked = 0;
+        $totalPresent = 0;
+        $totalScheduled = 0;
+
+        foreach ($courses as &$course) {
+            $courseId = (int) ($course['id'] ?? 0);
+            $course['sessions'] = self::getParticipantHistory($userId, $courseId);
+            $course['eligibility'] = self::getCertificateEligibility($userId, $courseId, $threshold);
+            $course['threshold'] = $threshold;
+
+            $sessionsMarked = (int) ($course['sessions_marked'] ?? 0);
+            $presentCount = (int) ($course['present_count'] ?? 0);
+            $scheduledSessions = (int) ($course['total_sessions'] ?? 0);
+
+            $totalMarked += $sessionsMarked;
+            $totalPresent += $presentCount;
+            $totalScheduled += $scheduledSessions > 0 ? $scheduledSessions : $sessionsMarked;
+        }
+        unset($course);
+
+        $denominator = max($totalScheduled, $totalMarked, 1);
+
+        return [
+            'courses' => $courses,
+            'stats' => [
+                'enrolled_courses' => count($courses),
+                'sessions_marked' => $totalMarked,
+                'sessions_present' => $totalPresent,
+                'overall_rate' => $totalMarked > 0
+                    ? round(($totalPresent / $denominator) * 100, 1)
+                    : 0.0,
+                'threshold' => $threshold,
+            ],
+        ];
     }
 }

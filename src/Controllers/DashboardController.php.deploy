@@ -72,6 +72,24 @@ final class DashboardController
     /**
      * @param array<string, string> $params
      */
+    public function attendance(array $params = []): void
+    {
+        $userId = $this->userId();
+        $pageData = Attendance::getUserAttendancePageData($userId);
+        $focusSlug = trim((string) ($_GET['course'] ?? ''));
+
+        view('dashboard.attendance', [
+            'pageTitle' => lang('my_attendance'),
+            'activeNav' => 'attendance',
+            'courses' => $pageData['courses'],
+            'stats' => $pageData['stats'],
+            'focusSlug' => $focusSlug,
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
     public function certificates(array $params = []): void
     {
         $userId = $this->userId();

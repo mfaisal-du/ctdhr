@@ -109,6 +109,52 @@ final class NotificationService
         Notification::markApplicationSubmittedResolved($userId, $courseTitleEn);
     }
 
+    public static function attendanceSessionMarked(
+        int $userId,
+        string $courseTitleEn,
+        string $courseTitleAr,
+        string $sessionLabel,
+        string $status
+    ): int {
+        $statusCopy = [
+            'present' => [
+                'Present',
+                'حاضر',
+                'Your attendance for "' . $courseTitleEn . '" (' . $sessionLabel . ') has been marked as Present.',
+                'تم تسجيل حضورك في دورة "' . $courseTitleAr . '" (' . $sessionLabel . ') كحاضر.',
+            ],
+            'absent' => [
+                'Absent',
+                'غائب',
+                'Your attendance for "' . $courseTitleEn . '" (' . $sessionLabel . ') has been marked as Absent.',
+                'تم تسجيل حضورك في دورة "' . $courseTitleAr . '" (' . $sessionLabel . ') كغائب.',
+            ],
+            'excused' => [
+                'Excused',
+                'معذور',
+                'Your attendance for "' . $courseTitleEn . '" (' . $sessionLabel . ') has been marked as Excused.',
+                'تم تسجيل حضورك في دورة "' . $courseTitleAr . '" (' . $sessionLabel . ') كمعذور.',
+            ],
+        ];
+
+        $copy = $statusCopy[$status] ?? [
+            'Updated',
+            'محدّث',
+            'Your attendance for "' . $courseTitleEn . '" (' . $sessionLabel . ') has been updated.',
+            'تم تحديث حضورك في دورة "' . $courseTitleAr . '" (' . $sessionLabel . ').',
+        ];
+
+        return self::createNotification(
+            $userId,
+            'attendance_marked',
+            'Attendance Updated',
+            'تحديث الحضور',
+            $copy[2],
+            $copy[3],
+            url('dashboard/attendance')
+        );
+    }
+
     /**
      * @param array<string, mixed> $user
      */
