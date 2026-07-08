@@ -60,17 +60,53 @@ final class NotificationService
             'pending' => ['Application Pending', 'الطلب قيد الانتظار'],
         ];
 
+        $statusMessages = [
+            'approved' => [
+                'Your application for "' . $courseTitleEn . '" has been approved. View your applications for next steps.',
+                'تم قبول طلبك للدورة "' . $courseTitleAr . '". يمكنك الاطلاع على الخطوات التالية من صفحة طلباتي.',
+            ],
+            'rejected' => [
+                'Your application for "' . $courseTitleEn . '" was not approved at this time.',
+                'لم تتم الموافقة على طلبك للدورة "' . $courseTitleAr . '" في الوقت الحالي.',
+            ],
+            'cancelled' => [
+                'Your application for "' . $courseTitleEn . '" has been cancelled.',
+                'تم إلغاء طلبك للدورة "' . $courseTitleAr . '".',
+            ],
+            'waitlisted' => [
+                'Your application for "' . $courseTitleEn . '" has been added to the waitlist.',
+                'تمت إضافة طلبك للدورة "' . $courseTitleAr . '" إلى قائمة الانتظار.',
+            ],
+            'pending' => [
+                'Your application for "' . $courseTitleEn . '" is pending review.',
+                'طلبك للدورة "' . $courseTitleAr . '" قيد المراجعة.',
+            ],
+        ];
+
         $labels = $statusLabels[$status] ?? ['Application Updated', 'تم تحديث الطلب'];
+        $messages = $statusMessages[$status] ?? [
+            'Your application for "' . $courseTitleEn . '" has been updated.',
+            'تم تحديث طلبك للدورة "' . $courseTitleAr . '".',
+        ];
 
         return self::createNotification(
             $userId,
             'application_status',
             $labels[0],
             $labels[1],
-            'Your application for "' . $courseTitleEn . '" is now ' . $status . '.',
-            'حالة طلبك للدورة "' . $courseTitleAr . '" أصبحت: ' . $status . '.',
+            $messages[0],
+            $messages[1],
             url('dashboard/applications')
         );
+    }
+
+    public static function resolveApplicationSubmitted(int $userId, string $courseTitleEn): void
+    {
+        if ($userId <= 0 || $courseTitleEn === '') {
+            return;
+        }
+
+        Notification::markApplicationSubmittedResolved($userId, $courseTitleEn);
     }
 
     /**

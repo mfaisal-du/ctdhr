@@ -202,6 +202,24 @@ return [
     ],
     [
         'methods' => ['GET'],
+        'path' => '/dashboard/notifications/poll',
+        'handler' => [DashboardController::class, 'pollNotifications'],
+        'middleware' => [AuthMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/dashboard/notifications/read-all',
+        'handler' => [DashboardController::class, 'markAllNotificationsRead'],
+        'middleware' => [AuthMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/dashboard/notifications/{id}/read',
+        'handler' => [DashboardController::class, 'markNotificationRead'],
+        'middleware' => [AuthMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
         'path' => '/dashboard/profile',
         'handler' => [DashboardController::class, 'profile'],
         'middleware' => [AuthMiddleware::class],

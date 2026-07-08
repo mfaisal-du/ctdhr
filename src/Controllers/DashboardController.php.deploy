@@ -112,6 +112,79 @@ final class DashboardController
         ]);
     }
 
+    public function pollNotifications(): void
+    {
+        $userId = $this->userId();
+
+        $this->json([
+            'unread_count' => Notification::unreadCount($userId),
+            'notifications' => $this->formatNotifications(Notification::findByUser($userId, 20)),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function markNotificationRead(array $params): void
+    {
+        $userId = $this->userId();
+        $id = (int) ($params['id'] ?? 0);
+
+        if ($id > 0) {
+            Notification::markRead($id, $userId);
+        }
+
+        $this->json([
+            'ok' => true,
+            'unread_count' => Notification::unreadCount($userId),
+        ]);
+    }
+
+    public function markAllNotificationsRead(): void
+    {
+        $userId = $this->userId();
+        Notification::markAllRead($userId);
+
+        $this->json([
+            'ok' => true,
+            'unread_count' => 0,
+        ]);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function formatNotifications(array $rows): array
+    {
+        $formatted = [];
+
+        foreach ($rows as $row) {
+            $formatted[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'type' => (string) ($row['type'] ?? ''),
+                'title' => localized($row, 'title'),
+                'message' => localized($row, 'message'),
+                'link' => (string) ($row['link'] ?? ''),
+                'is_read' => !empty($row['is_read']),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'time_label' => format_date((string) ($row['created_at'] ?? '')),
+            ];
+        }
+
+        return $formatted;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function json(array $payload): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($payload, JSON_THROW_ON_ERROR);
+        exit;
+    }
+
     /**
      * @param array<string, string> $params
      */

@@ -45,8 +45,14 @@ if ($dashboardUserId > 0) {
     <script defer src="<?= e(asset('vendor/alpine.min.js')) ?>"></script>
     <script src="<?= e(asset('vendor/sweetalert2.all.min.js')) ?>"></script>
     <style>[x-cloak]{display:none!important}</style>
+    <script>
+    window.__DASHBOARD_NOTIFICATIONS__ = <?= json_encode([
+        'pollUrl' => url('dashboard/notifications/poll'),
+        'initialCount' => $dashboardUnreadNotifications,
+    ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+    </script>
 </head>
-<body class="admin-shell admin-shell--user<?= $locale === 'ar' ? ' admin-shell--ar font-arabic' : '' ?> text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
+<body class="admin-shell admin-shell--user<?= $locale === 'ar' ? ' admin-shell--ar font-arabic' : '' ?> text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container" x-data="dashboardLayout()" x-init="init()" @keydown.escape.window="sidebarOpen = false">
 
 <div
     x-show="sidebarOpen"
@@ -90,8 +96,14 @@ if ($dashboardUserId > 0) {
         <a href="<?= e(url($item['url'])) ?>" class="<?= $section === $key ? 'admin-nav-link admin-nav-link-active' : 'admin-nav-link' ?>">
             <span class="admin-nav-link-icon material-symbols-outlined" style="<?= $section === $key ? "font-variation-settings: 'FILL' 1, 'wght' 500;" : '' ?>"><?= e($item['icon']) ?></span>
             <span class="truncate"><?= e($item['label']) ?></span>
-            <?php if ($key === 'notifications' && $dashboardUnreadNotifications > 0): ?>
-            <span class="admin-nav-badge" aria-label="<?= e(lang('unread_notifications')) ?>"><?= e((string) ($dashboardUnreadNotifications > 99 ? '99+' : $dashboardUnreadNotifications)) ?></span>
+            <?php if ($key === 'notifications'): ?>
+            <span
+                class="admin-nav-badge"
+                x-show="unreadCount > 0"
+                x-cloak
+                :aria-label="'<?= e(lang('unread_notifications')) ?>'"
+                x-text="unreadCount > 99 ? '99+' : unreadCount"
+            ></span>
             <?php endif; ?>
             <?php if ($section === $key): ?>
             <span class="admin-nav-link-indicator" aria-hidden="true"></span>
@@ -143,9 +155,13 @@ if ($dashboardUserId > 0) {
             </a>
             <a href="<?= e(url('dashboard/notifications')) ?>" class="admin-topbar-chip relative" title="<?= e(lang('notifications')) ?>">
                 <span class="material-symbols-outlined text-[18px]">notifications</span>
-                <?php if ($dashboardUnreadNotifications > 0): ?>
-                <span class="admin-topbar-notif-dot" aria-label="<?= e(lang('unread_notifications')) ?>"><?= e((string) min($dashboardUnreadNotifications, 99)) ?></span>
-                <?php endif; ?>
+                <span
+                    class="admin-topbar-notif-dot"
+                    x-show="unreadCount > 0"
+                    x-cloak
+                    :aria-label="'<?= e(lang('unread_notifications')) ?>'"
+                    x-text="unreadCount > 99 ? '99+' : unreadCount"
+                ></span>
             </a>
             <div class="admin-user-chip">
                 <span class="admin-user-avatar" aria-hidden="true"><?= e($userInitial) ?></span>
@@ -165,9 +181,12 @@ if ($dashboardUserId > 0) {
         <div class="admin-topbar-actions flex items-center gap-2 shrink-0">
             <a href="<?= e(url('dashboard/notifications')) ?>" class="admin-topbar-chip px-2.5 py-2 relative">
                 <span class="material-symbols-outlined text-[18px]">notifications</span>
-                <?php if ($dashboardUnreadNotifications > 0): ?>
-                <span class="admin-topbar-notif-dot"><?= e((string) min($dashboardUnreadNotifications, 9)) ?></span>
-                <?php endif; ?>
+                <span
+                    class="admin-topbar-notif-dot"
+                    x-show="unreadCount > 0"
+                    x-cloak
+                    x-text="unreadCount > 9 ? '9+' : unreadCount"
+                ></span>
             </a>
             <a href="<?= e(url($locale === 'ar' ? 'lang/en' : 'lang/ar')) ?>" class="admin-topbar-chip px-2.5 py-2">
                 <?= $locale === 'ar' ? 'EN' : 'ع' ?>
@@ -200,6 +219,7 @@ if ($dashboardUserId > 0) {
 </div>
 
 <script src="<?= e(asset('js/motion.js')) ?>" defer></script>
+<script src="<?= e(asset('js/dashboard-notifications.js')) ?>" defer></script>
 <script src="<?= e(asset('js/app.js')) ?>" defer></script>
 <?php if ($showToast && $flashSuccess): ?>
 <script>

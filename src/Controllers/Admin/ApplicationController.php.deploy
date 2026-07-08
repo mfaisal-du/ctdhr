@@ -6,15 +6,22 @@ namespace CTDHR\Controllers\Admin;
 
 use CTDHR\Models\Application;
 use CTDHR\Models\CourseAdmin;
+use CTDHR\Models\User;
 use CTDHR\Services\AuditService;
+use CTDHR\Services\EmailService;
+use CTDHR\Services\NotificationService;
 
 final class ApplicationController
 {
     private AuditService $audit;
+    private EmailService $email;
+    private User $users;
 
     public function __construct()
     {
         $this->audit = new AuditService();
+        $this->email = new EmailService();
+        $this->users = new User();
     }
 
     public function index(): void
@@ -62,7 +69,25 @@ final class ApplicationController
         }
 
         $reviewedBy = (int) ($_SESSION['user_id'] ?? 0);
-        $count = Application::bulkUpdateStatus($ids, $statusMap[$action], $reviewedBy);
+        $newStatus = $statusMap[$action];
+        $applications = [];
+
+        foreach ($ids as $applicationId) {
+            $application = Application::findById($applicationId);
+            if ($application !== null) {
+                $applications[] = $application;
+            }
+        }
+
+        $count = Application::bulkUpdateStatus($ids, $newStatus, $reviewedBy);
+
+        foreach ($applications as $application) {
+            $this->notifyApplicantOfStatusChange(
+                $application,
+                (string) ($application['status'] ?? 'pending'),
+                $newStatus
+            );
+        }
 
         $this->audit->log('application.bulk_' . $action, 'application', null, [
             'ids' => $ids,
@@ -99,13 +124,67 @@ final class ApplicationController
             redirect('admin/applications');
         }
 
-        Application::updateStatus($id, $statusMap[$action]);
+        $oldStatus = (string) ($application['status'] ?? 'pending');
+        $newStatus = $statusMap[$action];
+
+        Application::updateStatus($id, $newStatus);
+        $this->notifyApplicantOfStatusChange($application, $oldStatus, $newStatus);
+
         $this->audit->log('application.' . $action, 'application', $id, [
-            'status' => $statusMap[$action],
+            'status' => $newStatus,
+            'previous_status' => $oldStatus,
         ]);
 
         flash('success', lang('application_status_updated'));
         redirect('admin/applications');
+    }
+
+    /**
+     * @param array<string, mixed> $application
+     */
+    private function notifyApplicantOfStatusChange(array $application, string $oldStatus, string $newStatus): void
+    {
+        if ($oldStatus === $newStatus) {
+            return;
+        }
+
+        $userId = (int) ($application['user_id'] ?? 0);
+        if ($userId <= 0) {
+            return;
+        }
+
+        $user = $this->users->findById($userId);
+        if ($user === null) {
+            return;
+        }
+
+        $courseTitleEn = (string) ($application['title_en'] ?? '');
+        $courseTitleAr = (string) ($application['title_ar'] ?? '');
+        $course = [
+            'title_en' => $courseTitleEn,
+            'title_ar' => $courseTitleAr,
+            'slug' => (string) ($application['slug'] ?? ''),
+        ];
+
+        $applicationId = (int) ($application['id'] ?? 0);
+        $updatedApplication = $applicationId > 0 ? Application::findById($applicationId) : null;
+        if ($updatedApplication === null) {
+            $updatedApplication = $application;
+            $updatedApplication['status'] = $newStatus;
+        }
+
+        $this->email->sendApplicationStatusChange($user, $course, $updatedApplication, $oldStatus, $newStatus);
+
+        NotificationService::applicationStatusChanged(
+            $userId,
+            $courseTitleEn,
+            $courseTitleAr,
+            $newStatus
+        );
+
+        if ($oldStatus === 'pending') {
+            NotificationService::resolveApplicationSubmitted($userId, $courseTitleEn);
+        }
     }
 
     public function export(): void

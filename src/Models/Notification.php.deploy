@@ -136,4 +136,30 @@ final class Notification
 
         return $marked;
     }
+
+    public static function markApplicationSubmittedResolved(int $userId, string $courseTitleEn): int
+    {
+        if ($userId <= 0 || $courseTitleEn === '') {
+            return 0;
+        }
+
+        $db = Database::getInstance();
+        $coursePattern = '%"' . str_replace(['%', '_'], ['\\%', '\\_'], $courseTitleEn) . '"%';
+
+        $stmt = $db->prepare(
+            'UPDATE notifications
+             SET is_read = 1
+             WHERE user_id = :user_id
+               AND type = :type
+               AND is_read = 0
+               AND message_en LIKE :course_pattern'
+        );
+        $stmt->execute([
+            'user_id' => $userId,
+            'type' => 'application_submitted',
+            'course_pattern' => $coursePattern,
+        ]);
+
+        return $stmt->rowCount();
+    }
 }

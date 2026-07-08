@@ -292,6 +292,13 @@ final class CourseController
                     (string) $course['title_ar'],
                     'cancelled'
                 );
+
+                if ($oldStatus === 'pending') {
+                    NotificationService::resolveApplicationSubmitted(
+                        $userId,
+                        (string) $course['title_en']
+                    );
+                }
             }
         }
 
