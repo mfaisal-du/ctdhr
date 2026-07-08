@@ -168,18 +168,22 @@ dashboard_page_header([
                     <button
                         type="button"
                         class="dashboard-attendance-sessions-toggle"
-                        @click="toggleCourse(<?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>)"
-                        :aria-expanded="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>"
+                        @click="toggleCourse('<?= e($slug) ?>')"
+                        :aria-expanded="openCourse === '<?= e($slug) ?>'"
+                        aria-controls="attendance-sessions-<?= e($slug) ?>"
                     >
-                        <span class="material-symbols-outlined text-[18px]" x-text="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?> ? 'expand_less' : 'expand_more'"></span>
-                        <span x-text="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?> ? <?= json_encode(lang('hide_sessions'), JSON_UNESCAPED_UNICODE) ?> : <?= json_encode(lang('view_sessions'), JSON_UNESCAPED_UNICODE) ?>"></span>
+                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true" x-show="openCourse !== '<?= e($slug) ?>'">expand_more</span>
+                        <span class="material-symbols-outlined text-[18px]" aria-hidden="true" x-show="openCourse === '<?= e($slug) ?>'" x-cloak>expand_less</span>
+                        <span x-show="openCourse !== '<?= e($slug) ?>'"><?= e(lang('view_sessions')) ?></span>
+                        <span x-show="openCourse === '<?= e($slug) ?>'" x-cloak><?= e(lang('hide_sessions')) ?></span>
                     </button>
                 </div>
             </div>
         </div>
 
         <div
-            x-show="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>"
+            id="attendance-sessions-<?= e($slug) ?>"
+            x-show="openCourse === '<?= e($slug) ?>'"
             x-transition:enter="transition ease-out duration-200"
             x-transition:enter-start="opacity-0"
             x-transition:enter-end="opacity-100"
