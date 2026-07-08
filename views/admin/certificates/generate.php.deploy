@@ -1,0 +1,118 @@
+<?php declare(strict_types=1); ?>
+<div class="admin-module-page admin-module-page--form">
+<?php
+admin_page_header([
+    'icon' => 'verified',
+    'title' => lang('generate_certificates'),
+    'subtitle' => lang('generate_certificates_subtitle') ?? lang('select_course'),
+    'accent' => 'gold',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('certificates'), 'href' => url('admin/certificates')],
+        ['label' => lang('generate_certificates')],
+    ],
+]);
+?>
+
+<div class="courses-card mb-4">
+    <form method="GET" action="<?= e(url('admin/certificates/generate')) ?>" class="courses-filters">
+        <div class="courses-filter-group" style="flex:1">
+            <div class="admin-select-wrap" style="flex:1;max-width:100%">
+                <select name="course_id" class="admin-form-select" onchange="this.form.submit()" aria-label="<?= e(lang('select_course')) ?>">
+                    <option value=""><?= e(lang('select_course')) ?></option>
+                    <?php foreach ($courses as $c): ?>
+                    <option value="<?= (int) $c['id'] ?>" <?= !empty($course) && (int)$course['id'] === (int)$c['id'] ? 'selected' : '' ?>><?= e(localized($c, 'title')) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+    </form>
+</div>
+
+<?php if (!empty($course)): ?>
+<form method="POST" action="<?= e(url('admin/certificates/generate')) ?>" class="courses-form-card">
+    <?= csrf_field() ?>
+    <input type="hidden" name="course_id" value="<?= (int) $course['id'] ?>">
+
+    <section class="courses-form-section courses-form-section--general">
+        <div class="courses-form-section-head">
+            <div class="courses-form-section-icon"><span class="material-symbols-outlined">verified</span></div>
+            <div>
+                <h2><?= e(localized($course, 'title')) ?></h2>
+                <p><?= e(lang('generate_certificates')) ?></p>
+            </div>
+        </div>
+        <div class="courses-form-section-body">
+            <div class="courses-field mb-4">
+                <label class="courses-label"><?= e(lang('cert_template')) ?></label>
+                <div class="admin-select-wrap">
+                    <select name="template_id" class="admin-form-select">
+                        <?php foreach ($templates as $tpl): ?>
+                        <option value="<?= (int) $tpl['id'] ?>"><?= e($tpl['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+
+            <p class="courses-field-hint mb-3"><?= e(lang('eligibility_threshold_hint', ['threshold' => (string) ($attendanceThreshold ?? 75)])) ?></p>
+
+            <?php if (!empty($eligible)): ?>
+            <h3 class="courses-label mb-2"><?= e(lang('eligible_participants')) ?></h3>
+            <div class="courses-field courses-field--full mb-4 max-h-64 overflow-y-auto admin-eligible-list">
+                <?php foreach ($eligible as $p): ?>
+                <label class="courses-check admin-eligible-row">
+                    <input type="checkbox" name="user_ids[]" value="<?= (int) $p['id'] ?>" checked class="courses-checkbox">
+                    <span class="admin-eligible-row__name"><?= e(localized($p, 'full_name')) ?> (<?= e($p['email']) ?>)</span>
+                    <span class="attendance-rate-badge is-good"><?= (float) ($p['attendance_rate'] ?? 0) ?>%</span>
+                    <span class="attendance-rate-meta"><?= (int) ($p['sessions_present'] ?? 0) ?>/<?= (int) ($p['sessions_total'] ?? 0) ?></span>
+                </label>
+                <?php endforeach; ?>
+            </div>
+            <?php else: ?>
+            <div class="courses-empty-state courses-empty-state--info mb-4">
+                <span class="material-symbols-outlined">group_off</span>
+                <h3><?= e(lang('no_eligible_participants')) ?></h3>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($existing)): ?>
+            <h3 class="courses-label mb-2"><?= e(lang('ineligible_or_issued')) ?></h3>
+            <div class="courses-field courses-field--full mb-4 max-h-48 overflow-y-auto admin-ineligible-list">
+                <?php foreach ($existing as $p): ?>
+                <div class="admin-ineligible-row">
+                    <span><?= e(localized($p, 'full_name')) ?></span>
+                    <?php if (!empty($p['existing_cert'])): ?>
+                    <span class="courses-badge courses-badge--sent"><?= e(lang('already_issued')) ?> — <?= e((string) ($p['existing_cert']['cert_number'] ?? '')) ?></span>
+                    <?php else: ?>
+                    <span class="courses-badge courses-badge--pending-email"><?= e((string) ($p['ineligible_reason'] ?? lang('ineligible'))) ?></span>
+                    <span class="attendance-rate-badge is-mid"><?= (float) ($p['attendance_rate'] ?? 0) ?>%</span>
+                    <?php endif; ?>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($eligible)): ?>
+            <label class="courses-check mb-4">
+                <input type="checkbox" name="send_email" class="courses-checkbox">
+                <?= e(lang('send_email_after_generate')) ?>
+            </label>
+            <?php endif; ?>
+        </div>
+    </section>
+
+    <?php if (!empty($eligible)): ?>
+    <div class="courses-form-action-bar">
+        <div></div>
+        <div class="courses-form-action-bar__actions">
+            <a href="<?= e(url('admin/certificates')) ?>" class="courses-btn-cancel"><?= e(lang('cancel')) ?></a>
+            <button type="submit" class="courses-btn-save">
+                <span class="material-symbols-outlined courses-btn-icon text-[18px]">verified</span>
+                <?= e(lang('generate')) ?>
+            </button>
+        </div>
+    </div>
+    <?php endif; ?>
+</form>
+<?php endif; ?>
+</div>

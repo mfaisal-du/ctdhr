@@ -1,0 +1,195 @@
+<?php declare(strict_types=1);
+
+$course = $course ?? [];
+$isEdit = !empty($course['id']);
+$sessionDates = '';
+if (!empty($course['session_dates'])) {
+    $decoded = is_string($course['session_dates']) ? json_decode($course['session_dates'], true) : $course['session_dates'];
+    if (is_array($decoded)) {
+        $sessionDates = implode("\n", $decoded);
+    }
+}
+$defaultStatus = $isEdit ? (string) ($course['status'] ?? 'draft') : 'accepting_applications';
+$defaultAudience = (string) ($course['audience'] ?? 'all');
+if (!in_array($defaultAudience, ['all', 'faculty', 'staff', 'students'], true)) {
+    $defaultAudience = 'all';
+}
+$defaultParticipantScope = (string) ($course['participant_scope'] ?? 'du_internal');
+if (!in_array($defaultParticipantScope, ['du_internal', 'external_only', 'both'], true)) {
+    $defaultParticipantScope = 'du_internal';
+}
+$defaultLanguage = (string) ($course['language'] ?? 'en');
+if (!in_array($defaultLanguage, ['en', 'ar', 'both'], true)) {
+    $defaultLanguage = 'en';
+}
+$descEn = normalize_course_text((string) ($course['description_en'] ?? ''));
+$descAr = arabic_display_value((string) ($course['description_ar'] ?? ''), (string) ($course['description_en'] ?? ''));
+?>
+
+<section class="courses-form-section courses-form-section--general" id="section-general">
+    <header class="courses-form-section-head">
+        <span class="courses-form-section-icon material-symbols-outlined">info</span>
+        <div>
+            <h2><?= e(lang('settings_tab_general')) ?></h2>
+            <p><?= e(lang('course_details')) ?></p>
+        </div>
+    </header>
+    <div class="courses-form-section-body">
+        <div class="courses-form-grid">
+            <div class="courses-field">
+                <label class="courses-label" for="title_en"><?= e(lang('course_title')) ?> (EN) <span class="courses-req">*</span></label>
+                <input type="text" id="title_en" name="title_en" value="<?= e(normalize_course_text((string)($course['title_en'] ?? old('title_en')))) ?>" required class="courses-input" data-validate="required">
+                <span class="courses-field-error" id="error-title_en" role="alert"></span>
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="title_ar"><?= e(lang('course_title')) ?> (AR) <span class="courses-req">*</span></label>
+                <input type="text" id="title_ar" name="title_ar" value="<?= e(arabic_display_value((string)($course['title_ar'] ?? ''), (string)($course['title_en'] ?? ''))) ?>" required dir="rtl" class="courses-input" data-validate="required">
+                <span class="courses-field-error" id="error-title_ar" role="alert"></span>
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="slug"><?= e(lang('slug')) ?></label>
+                <input type="text" id="slug" name="slug" value="<?= e(normalize_course_text((string)($course['slug'] ?? ''))) ?>" class="courses-input" placeholder="<?= e(lang('auto_generated')) ?>">
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="category_id"><?= e(lang('categories')) ?> <span class="courses-req">*</span></label>
+                <div class="admin-select-wrap">
+                    <select id="category_id" name="category_id" required class="admin-form-select" data-validate="category">
+                        <option value=""><?= e(lang('select_category')) ?></option>
+                        <?php foreach ($categories as $cat): ?>
+                        <option value="<?= (int) $cat['id'] ?>" <?= (int)($course['category_id'] ?? 0) === (int)$cat['id'] ? 'selected' : '' ?>><?= e(localized($cat, 'name')) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <span class="courses-field-error" id="error-category_id" role="alert"></span>
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="status"><?= e(lang('status')) ?></label>
+                <div class="admin-select-wrap">
+                    <select id="status" name="status" class="admin-form-select">
+                        <?php foreach ($statuses as $st): ?>
+                        <option value="<?= e($st) ?>" <?= $defaultStatus === $st ? 'selected' : '' ?>><?= e(course_status_label($st)) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="participant_scope"><?= e(lang('participant_scope')) ?></label>
+                <div class="admin-select-wrap">
+                    <select id="participant_scope" name="participant_scope" class="admin-form-select">
+                        <?php foreach (['du_internal', 'external_only', 'both'] as $scope): ?>
+                        <option value="<?= e($scope) ?>" <?= $defaultParticipantScope === $scope ? 'selected' : '' ?>><?= e(participant_scope_label($scope)) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <p class="courses-hint courses-hint--inline"><?= e(lang('participant_scope_hint')) ?></p>
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="audience"><?= e(lang('audience')) ?> <span class="text-outline text-label-sm">(<?= e(lang('du_audience_only')) ?>)</span></label>
+                <div class="admin-select-wrap">
+                    <select id="audience" name="audience" class="admin-form-select">
+                        <?php foreach (['all','faculty','staff','students'] as $aud): ?>
+                        <option value="<?= e($aud) ?>" <?= $defaultAudience === $aud ? 'selected' : '' ?>><?= e(audience_label($aud)) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="language"><?= e(lang('language')) ?></label>
+                <div class="admin-select-wrap">
+                    <select id="language" name="language" class="admin-form-select">
+                        <option value="en" <?= $defaultLanguage === 'en' ? 'selected' : '' ?>><?= e(lang('english')) ?></option>
+                        <option value="ar" <?= $defaultLanguage === 'ar' ? 'selected' : '' ?>><?= e(lang('arabic')) ?></option>
+                        <option value="both" <?= $defaultLanguage === 'both' ? 'selected' : '' ?>><?= e(lang('bilingual')) ?></option>
+                    </select>
+                </div>
+            </div>
+            <div class="courses-field courses-field--full">
+                <p class="courses-hint">
+                    <span class="material-symbols-outlined">visibility</span>
+                    <?= e(normalize_course_text(lang('course_public_status_hint'))) ?>
+                </p>
+            </div>
+            <div class="courses-field courses-field--checks">
+                <label class="courses-check"><input type="checkbox" name="is_featured" <?= !empty($course['is_featured']) ? 'checked' : '' ?>><span><?= e(lang('featured')) ?></span></label>
+                <label class="courses-check"><input type="checkbox" name="is_certificate_eligible" <?= ($course['is_certificate_eligible'] ?? 1) ? 'checked' : '' ?>><span><?= e(lang('certificate_eligible')) ?></span></label>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="courses-form-section courses-form-section--schedule" id="section-schedule">
+    <header class="courses-form-section-head">
+        <span class="courses-form-section-icon material-symbols-outlined">calendar_month</span>
+        <div>
+            <h2><?= e(lang('schedule')) ?></h2>
+            <p><?= e(lang('start_date')) ?> &amp; <?= e(lang('venue')) ?></p>
+        </div>
+    </header>
+    <div class="courses-form-section-body">
+        <div class="courses-form-grid">
+            <div class="courses-field">
+                <label class="courses-label" for="duration_hours"><?= e(lang('duration')) ?> (<?= e(lang('hours')) ?>)</label>
+                <input type="number" step="0.5" id="duration_hours" name="duration_hours" value="<?= e((string)($course['duration_hours'] ?? '')) ?>" class="courses-input">
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="start_date"><?= e(lang('start_date')) ?></label>
+                <input type="date" id="start_date" name="start_date" value="<?= e($course['start_date'] ?? '') ?>" class="courses-input">
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="end_date"><?= e(lang('end_date')) ?></label>
+                <input type="date" id="end_date" name="end_date" value="<?= e($course['end_date'] ?? '') ?>" class="courses-input">
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="application_deadline"><?= e(lang('deadline')) ?></label>
+                <input type="date" id="application_deadline" name="application_deadline" value="<?= e($course['application_deadline'] ?? '') ?>" class="courses-input">
+            </div>
+            <div class="courses-field">
+                <label class="courses-label"><?= e(lang('capacity')) ?></label>
+                <div class="courses-inline">
+                    <input type="number" name="min_participants" placeholder="Min" value="<?= e((string)($course['min_participants'] ?? '')) ?>" class="courses-input">
+                    <input type="number" name="max_participants" placeholder="Max" value="<?= e((string)($course['max_participants'] ?? '')) ?>" class="courses-input">
+                </div>
+            </div>
+            <div class="courses-field courses-field--full">
+                <label class="courses-label" for="session_dates"><?= e(lang('session_dates')) ?></label>
+                <textarea id="session_dates" name="session_dates" rows="3" placeholder="YYYY-MM-DD (one per line)" class="courses-input courses-textarea"><?= e($sessionDates) ?></textarea>
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="venue_en"><?= e(lang('venue')) ?> (EN)</label>
+                <input type="text" id="venue_en" name="venue_en" value="<?= e(normalize_course_text((string)($course['venue_en'] ?? ''))) ?>" class="courses-input">
+            </div>
+            <div class="courses-field">
+                <label class="courses-label" for="venue_ar"><?= e(lang('venue')) ?> (AR)</label>
+                <input type="text" id="venue_ar" name="venue_ar" value="<?= e(arabic_display_value((string)($course['venue_ar'] ?? ''), (string)($course['venue_en'] ?? ''))) ?>" dir="rtl" class="courses-input">
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="courses-form-section courses-form-section--content" id="section-content">
+    <header class="courses-form-section-head">
+        <span class="courses-form-section-icon material-symbols-outlined">description</span>
+        <div>
+            <h2><?= e(lang('course_description')) ?></h2>
+            <p><?= e(lang('bilingual')) ?></p>
+        </div>
+    </header>
+    <div class="courses-form-section-body">
+        <div class="courses-form-grid courses-form-grid--single">
+            <div class="courses-field">
+                <label class="courses-label"><?= e(lang('course_description')) ?> (EN)</label>
+                <div class="courses-editor" data-editor="description_en" data-dir="ltr">
+                    <div class="courses-editor-area"></div>
+                    <textarea name="description_en" class="courses-editor-source"><?= e($descEn) ?></textarea>
+                </div>
+            </div>
+            <div class="courses-field">
+                <label class="courses-label"><?= e(lang('course_description')) ?> (AR)</label>
+                <div class="courses-editor" data-editor="description_ar" data-dir="rtl">
+                    <div class="courses-editor-area"></div>
+                    <textarea name="description_ar" class="courses-editor-source"><?= e($descAr) ?></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

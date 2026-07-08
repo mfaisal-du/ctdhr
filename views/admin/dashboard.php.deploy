@@ -1,0 +1,982 @@
+<?php declare(strict_types=1);
+
+admin_page_header([
+    'icon' => 'dashboard',
+    'title' => lang('admin_dashboard'),
+    'subtitle' => str_replace(':name', (string) ($_SESSION['user_name'] ?? ''), lang('welcome_back')),
+    'accent' => 'primary',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard')],
+    ],
+    'actions' => '<a href="' . e(url('admin/dashboard/print')) . '" class="courses-btn-secondary courses-btn-secondary--sm" target="_blank" rel="noopener">'
+        . '<span class="material-symbols-outlined">print</span>' . e(lang('print_dashboard_report')) . '</a>',
+]);
+
+$statCards = [
+    [
+        'theme' => 'blue',
+        'icon' => 'school',
+        'iconClass' => 'admin-stat-card-icon-primary',
+        'label' => lang('total_courses'),
+        'value' => (int) ($metrics['total_courses'] ?? 0),
+    ],
+    [
+        'theme' => 'green',
+        'icon' => 'group',
+        'iconClass' => 'admin-stat-card-icon-secondary',
+        'label' => lang('total_users'),
+        'value' => (int) ($metrics['total_users'] ?? 0),
+    ],
+    [
+        'theme' => 'sky',
+        'icon' => 'assignment',
+        'iconClass' => 'admin-stat-card-icon-sky',
+        'label' => lang('total_applications'),
+        'value' => (int) ($metrics['total_applications'] ?? 0),
+        'meta' => (int) ($metrics['pending_applications'] ?? 0) > 0
+            ? lang('pending') . ': ' . (int) ($metrics['pending_applications'] ?? 0)
+            : null,
+    ],
+    [
+        'theme' => 'gold',
+        'icon' => 'verified',
+        'iconClass' => 'admin-stat-card-icon-gold',
+        'label' => lang('total_certificates'),
+        'value' => (int) ($metrics['total_certificates'] ?? 0),
+    ],
+];
+
+$dashboardInsights = $dashboardInsights ?? [];
+$dashboardAnalytics = $dashboardAnalytics ?? [];
+$applicationsChart = $applicationsChart ?? ['labels' => [], 'data' => []];
+$coursesChart = $coursesChart ?? ['labels' => [], 'data' => []];
+$applicationsStatusChart = $applicationsStatusChart ?? ['labels' => [], 'data' => []];
+$certificatesChart = $certificatesChart ?? ['labels' => [], 'data' => []];
+
+$pendingAging = $dashboardAnalytics['pendingAging'] ?? ['total' => 0, 'buckets' => [], 'labels' => [], 'data' => []];
+$topCourses = $dashboardAnalytics['topCourses'] ?? ['courses' => [], 'labels' => [], 'data' => []];
+$funnel = $dashboardAnalytics['funnel'] ?? ['stages' => [], 'labels' => [], 'data' => []];
+$capacity = $dashboardAnalytics['capacity'] ?? ['courses' => [], 'labels' => [], 'data' => []];
+$upcomingDeadlines = $dashboardAnalytics['upcomingDeadlines'] ?? [];
+$attendance = $dashboardAnalytics['attendance'] ?? ['total' => 0, 'present' => 0, 'absent' => 0, 'excused' => 0, 'rate' => 0, 'labels' => [], 'data' => []];
+$certificatesThisMonth = (int) ($dashboardAnalytics['certificatesThisMonth'] ?? 0);
+$userGrowth = $dashboardAnalytics['userGrowth'] ?? ['labels' => [], 'data' => []];
+
+$hasAppsTrend = count($applicationsChart['labels'] ?? []) > 0;
+$hasCoursesStatus = count($coursesChart['labels'] ?? []) > 0;
+$hasAppsStatus = count($applicationsStatusChart['labels'] ?? []) > 0;
+$hasCertsTrend = count($certificatesChart['labels'] ?? []) > 0;
+$hasPendingAging = (int) ($pendingAging['total'] ?? 0) > 0;
+$hasTopCourses = count($topCourses['labels'] ?? []) > 0;
+$hasFunnel = array_sum($funnel['data'] ?? []) > 0;
+$hasCapacity = count($capacity['courses'] ?? []) > 0;
+$hasAttendance = (int) ($attendance['total'] ?? 0) > 0;
+$hasUserGrowth = array_sum($userGrowth['data'] ?? []) > 0;
+
+$insightIconClasses = [
+    'amber' => 'admin-insight-card-icon--amber',
+    'green' => 'admin-insight-card-icon--green',
+    'blue' => 'admin-insight-card-icon--blue',
+    'sky' => 'admin-insight-card-icon--sky',
+    'violet' => 'admin-insight-card-icon--violet',
+];
+?>
+
+<div class="admin-dashboard">
+    <section class="admin-dashboard-kpi" aria-label="<?= e(lang('admin_dashboard')) ?>">
+        <div class="admin-stat-grid">
+            <?php foreach ($statCards as $card): ?>
+            <article class="admin-stat-card admin-stat-card--<?= e($card['theme']) ?>">
+                <div class="admin-stat-card-head">
+                    <div class="admin-stat-card-icon <?= e($card['iconClass']) ?>" aria-hidden="true">
+                        <span class="material-symbols-outlined"><?= e($card['icon']) ?></span>
+                    </div>
+                    <span class="admin-stat-card-dot" aria-hidden="true"></span>
+                </div>
+                <div class="admin-stat-card-body">
+                    <p class="admin-stat-label"><?= e($card['label']) ?></p>
+                    <p class="admin-stat-value" data-count="<?= (int) $card['value'] ?>">0</p>
+                </div>
+                <div class="admin-stat-card-foot">
+                    <?php if (!empty($card['meta'])): ?>
+                    <span class="admin-stat-meta">
+                        <span class="material-symbols-outlined">pending</span>
+                        <?= e($card['meta']) ?>
+                    </span>
+                    <?php else: ?>
+                    <span class="admin-stat-meta admin-stat-meta--placeholder" aria-hidden="true">—</span>
+                    <?php endif; ?>
+                </div>
+            </article>
+            <?php endforeach; ?>
+        </div>
+    </section>
+
+    <?php if ($dashboardInsights !== []): ?>
+    <section class="admin-dashboard-insights" aria-label="<?= e(lang('dashboard_insights')) ?>">
+        <div class="admin-dashboard-section-head">
+            <h2 class="admin-dashboard-section-title"><?= e(lang('dashboard_insights')) ?></h2>
+        </div>
+        <div class="admin-insight-grid">
+            <?php foreach ($dashboardInsights as $index => $insight):
+                $theme = (string) ($insight['theme'] ?? 'blue');
+                $iconClass = $insightIconClasses[$theme] ?? 'admin-insight-card-icon--blue';
+            ?>
+            <a href="<?= e((string) ($insight['url'] ?? '#')) ?>" class="admin-insight-card admin-insight-card--<?= e($theme) ?>" style="animation-delay: <?= e((string) (0.04 + ($index * 0.06))) ?>s">
+                <div class="admin-insight-card-head">
+                    <div class="admin-insight-card-icon <?= e($iconClass) ?>" aria-hidden="true">
+                        <span class="material-symbols-outlined"><?= e((string) ($insight['icon'] ?? 'insights')) ?></span>
+                    </div>
+                    <span class="admin-insight-card-arrow material-symbols-outlined" aria-hidden="true">arrow_outward</span>
+                </div>
+                <div class="admin-insight-card-body">
+                    <p class="admin-insight-label"><?= e((string) ($insight['title'] ?? '')) ?></p>
+                    <p class="admin-insight-value">
+                        <span data-count="<?= (int) ($insight['value'] ?? 0) ?>">0</span><?= e((string) ($insight['suffix'] ?? '')) ?>
+                    </p>
+                </div>
+                <?php if (!empty($insight['meta'])): ?>
+                <p class="admin-insight-meta"><?= e((string) $insight['meta']) ?></p>
+                <?php endif; ?>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php endif; ?>
+
+    <section class="admin-dashboard-operations" aria-label="<?= e(lang('analytics_operations')) ?>">
+        <div class="admin-dashboard-section-head">
+            <h2 class="admin-dashboard-section-title"><?= e(lang('analytics_operations')) ?></h2>
+        </div>
+        <div class="admin-dashboard-charts-grid admin-dashboard-charts-grid--ops">
+            <div class="admin-panel admin-dashboard-panel admin-dashboard-panel--split">
+                <div class="admin-panel-header">
+                    <div>
+                        <h3 class="admin-panel-title">
+                            <span class="admin-panel-title-icon admin-panel-title-icon--amber">
+                                <span class="material-symbols-outlined">hourglass_top</span>
+                            </span>
+                            <?= e(lang('pending_applications_aging')) ?>
+                        </h3>
+                        <p class="admin-panel-subtitle"><?= e(lang('pending_applications_aging_desc')) ?></p>
+                    </div>
+                    <a href="<?= e(url('admin/applications?status=pending')) ?>" class="admin-panel-link">
+                        <?= e(lang('view_all_applications')) ?>
+                        <span class="material-symbols-outlined">chevron_right</span>
+                    </a>
+                </div>
+                <div class="admin-panel-body">
+                    <?php if (!$hasPendingAging): ?>
+                    <p class="admin-dashboard-empty">
+                        <span class="material-symbols-outlined">task_alt</span>
+                        <?= e(lang('insight_pending_clear_meta')) ?>
+                    </p>
+                    <?php else: ?>
+                    <div class="admin-aging-layout">
+                        <div class="admin-aging-buckets">
+                            <?php foreach ($pendingAging['buckets'] as $bucket): ?>
+                            <div class="admin-aging-bucket admin-aging-bucket--<?= e((string) ($bucket['severity'] ?? 'ok')) ?>">
+                                <span class="admin-aging-bucket-label"><?= e((string) ($bucket['label'] ?? '')) ?></span>
+                                <span class="admin-aging-bucket-count"><?= (int) ($bucket['count'] ?? 0) ?></span>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="admin-chart-stage admin-chart-stage--sm">
+                            <canvas id="pendingAgingChart"></canvas>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <div>
+                        <h3 class="admin-panel-title">
+                            <span class="admin-panel-title-icon admin-panel-title-icon--gold">
+                                <span class="material-symbols-outlined">event_upcoming</span>
+                            </span>
+                            <?= e(lang('upcoming_course_deadlines')) ?>
+                        </h3>
+                    </div>
+                    <a href="<?= e(url('admin/courses')) ?>" class="admin-panel-link">
+                        <?= e(lang('view_all_courses')) ?>
+                        <span class="material-symbols-outlined">chevron_right</span>
+                    </a>
+                </div>
+                <div class="admin-panel-body">
+                    <?php if ($upcomingDeadlines === []): ?>
+                    <p class="admin-dashboard-empty">
+                        <span class="material-symbols-outlined">calendar_month</span>
+                        <?= e(lang('no_upcoming_deadlines')) ?>
+                    </p>
+                    <?php else: ?>
+                    <ul class="admin-deadline-list">
+                        <?php foreach ($upcomingDeadlines as $item):
+                            $daysLeft = (int) ($item['days_left'] ?? 0);
+                            $daysLabel = $daysLeft === 0
+                                ? lang('days_left_today')
+                                : str_replace(':count', (string) $daysLeft, lang('days_left'));
+                        ?>
+                        <li class="admin-deadline-item">
+                            <a href="<?= e((string) ($item['url'] ?? '#')) ?>" class="admin-deadline-link">
+                                <span class="admin-deadline-urgency admin-deadline-urgency--<?= e((string) ($item['urgency'] ?? 'normal')) ?>" aria-hidden="true"></span>
+                                <span class="admin-deadline-content">
+                                    <span class="admin-deadline-title"><?= e((string) ($item['title'] ?? '')) ?></span>
+                                    <span class="admin-deadline-meta">
+                                        <span class="admin-deadline-type"><?= e((string) ($item['type_label'] ?? '')) ?></span>
+                                        <span aria-hidden="true">·</span>
+                                        <?= e((string) ($item['date_label'] ?? '')) ?>
+                                    </span>
+                                </span>
+                                <span class="admin-deadline-badge admin-deadline-badge--<?= e((string) ($item['urgency'] ?? 'normal')) ?>">
+                                    <?= e($daysLabel) ?>
+                                </span>
+                            </a>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-dashboard-performance" aria-label="<?= e(lang('analytics_performance')) ?>">
+        <div class="admin-dashboard-section-head">
+            <h2 class="admin-dashboard-section-title"><?= e(lang('analytics_performance')) ?></h2>
+        </div>
+        <div class="admin-dashboard-charts-grid">
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--primary">
+                            <span class="material-symbols-outlined">leaderboard</span>
+                        </span>
+                        <?= e(lang('top_courses_by_applications')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <?php if (!$hasTopCourses): ?>
+                    <p class="admin-chart-empty">
+                        <span class="material-symbols-outlined">bar_chart</span>
+                        <?= e(lang('chart_no_data')) ?>
+                    </p>
+                    <?php else: ?>
+                    <ul class="admin-rank-list admin-rank-list--compact">
+                        <?php $rankIndex = 0; foreach ($topCourses['courses'] as $course):
+                            if ((int) ($course['count'] ?? 0) <= 0) {
+                                continue;
+                            }
+                            $rankIndex++;
+                        ?>
+                        <li class="admin-rank-item">
+                            <span class="admin-rank-index"><?= $rankIndex ?></span>
+                            <a href="<?= e((string) ($course['url'] ?? '#')) ?>" class="admin-rank-link">
+                                <span class="admin-rank-title"><?= e((string) ($course['title'] ?? '')) ?></span>
+                                <span class="admin-rank-count"><?= e(str_replace(':count', (string) (int) ($course['count'] ?? 0), lang('applications_count'))) ?></span>
+                            </a>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <div class="admin-chart-stage admin-chart-stage--sm admin-chart-stage--mt">
+                        <canvas id="topCoursesChart"></canvas>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--secondary">
+                            <span class="material-symbols-outlined">filter_alt</span>
+                        </span>
+                        <?= e(lang('application_funnel')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <?php if (!$hasFunnel): ?>
+                    <p class="admin-chart-empty">
+                        <span class="material-symbols-outlined">filter_alt</span>
+                        <?= e(lang('chart_no_data')) ?>
+                    </p>
+                    <?php else: ?>
+                    <div class="admin-funnel-stages">
+                        <?php foreach ($funnel['stages'] as $stage): ?>
+                        <div class="admin-funnel-stage">
+                            <span class="admin-funnel-stage-dot" style="background: <?= e((string) ($stage['color'] ?? '#284194')) ?>"></span>
+                            <span class="admin-funnel-stage-label"><?= e((string) ($stage['label'] ?? '')) ?></span>
+                            <span class="admin-funnel-stage-count"><?= (int) ($stage['count'] ?? 0) ?></span>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <div class="admin-chart-stage admin-chart-stage--sm admin-chart-stage--mt">
+                        <canvas id="funnelChart"></canvas>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--sky">
+                            <span class="material-symbols-outlined">event_seat</span>
+                        </span>
+                        <?= e(lang('course_capacity_utilization')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <?php if (!$hasCapacity): ?>
+                    <p class="admin-chart-empty">
+                        <span class="material-symbols-outlined">event_seat</span>
+                        <?= e(lang('chart_no_data')) ?>
+                    </p>
+                    <?php else: ?>
+                    <ul class="admin-capacity-list">
+                        <?php foreach ($capacity['courses'] as $course):
+                            $percent = (int) ($course['percent'] ?? 0);
+                            $barClass = $percent >= 90 ? 'critical' : ($percent >= 70 ? 'warning' : 'normal');
+                        ?>
+                        <li class="admin-capacity-item">
+                            <a href="<?= e((string) ($course['url'] ?? '#')) ?>" class="admin-capacity-link">
+                                <div class="admin-capacity-head">
+                                    <span class="admin-capacity-title"><?= e((string) ($course['title'] ?? '')) ?></span>
+                                    <span class="admin-capacity-percent"><?= $percent ?>%</span>
+                                </div>
+                                <div class="admin-capacity-track" role="presentation">
+                                    <span class="admin-capacity-bar admin-capacity-bar--<?= e($barClass) ?>" style="width: <?= $percent ?>%"></span>
+                                </div>
+                                <span class="admin-capacity-meta">
+                                    <?= e(str_replace(
+                                        [':approved', ':max'],
+                                        [(string) (int) ($course['approved'] ?? 0), (string) (int) ($course['max'] ?? 0)],
+                                        lang('capacity_seats')
+                                    )) ?>
+                                </span>
+                            </a>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--violet">
+                            <span class="material-symbols-outlined">fact_check</span>
+                        </span>
+                        <?= e(lang('attendance_overview')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <?php if (!$hasAttendance): ?>
+                    <p class="admin-chart-empty">
+                        <span class="material-symbols-outlined">fact_check</span>
+                        <?= e(lang('chart_no_data')) ?>
+                    </p>
+                    <?php else: ?>
+                    <div class="admin-attendance-summary">
+                        <div class="admin-attendance-rate">
+                            <span class="admin-attendance-rate-value" data-count="<?= (int) ($attendance['rate'] ?? 0) ?>">0</span><span class="admin-attendance-rate-suffix">%</span>
+                            <span class="admin-attendance-rate-label"><?= e(lang('attendance_rate')) ?></span>
+                        </div>
+                        <div class="admin-attendance-breakdown">
+                            <span><?= e(lang('attendance_present')) ?>: <strong><?= (int) ($attendance['present'] ?? 0) ?></strong></span>
+                            <span><?= e(lang('attendance_absent')) ?>: <strong><?= (int) ($attendance['absent'] ?? 0) ?></strong></span>
+                            <span><?= e(lang('attendance_excused')) ?>: <strong><?= (int) ($attendance['excused'] ?? 0) ?></strong></span>
+                        </div>
+                    </div>
+                    <div class="admin-chart-stage admin-chart-stage--sm admin-chart-stage--mt">
+                        <canvas id="attendanceChart"></canvas>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="admin-panel admin-dashboard-panel admin-dashboard-panel--highlight">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--gold">
+                            <span class="material-symbols-outlined">verified</span>
+                        </span>
+                        <?= e(lang('certificates_this_month')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <div class="admin-cert-month">
+                        <p class="admin-cert-month-value" data-count="<?= $certificatesThisMonth ?>">0</p>
+                        <p class="admin-cert-month-meta">
+                            <?= e(str_replace(':count', (string) (int) ($metrics['total_certificates'] ?? 0), lang('insight_certificates_month_meta'))) ?>
+                        </p>
+                        <a href="<?= e(url('admin/certificates')) ?>" class="admin-cert-month-link">
+                            <?= e(lang('total_certificates')) ?>
+                            <span class="material-symbols-outlined">arrow_forward</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--green">
+                            <span class="material-symbols-outlined">group_add</span>
+                        </span>
+                        <?= e(lang('user_growth')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <div class="admin-chart-stage admin-chart-stage--sm<?= $hasUserGrowth ? '' : ' admin-chart-stage--empty' ?>">
+                        <?php if (!$hasUserGrowth): ?>
+                        <p class="admin-chart-empty">
+                            <span class="material-symbols-outlined">group_add</span>
+                            <?= e(lang('chart_no_data')) ?>
+                        </p>
+                        <?php endif; ?>
+                        <canvas id="userGrowthChart"<?= $hasUserGrowth ? '' : ' class="is-hidden"' ?>></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-dashboard-analytics" aria-label="<?= e(lang('analytics_overview')) ?>">
+        <div class="admin-dashboard-section-head">
+            <h2 class="admin-dashboard-section-title"><?= e(lang('analytics_overview')) ?></h2>
+        </div>
+        <div class="admin-dashboard-charts-grid">
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--primary">
+                            <span class="material-symbols-outlined">trending_up</span>
+                        </span>
+                        <?= e(lang('applications_trend')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <div class="admin-chart-stage admin-chart-stage--sm<?= $hasAppsTrend ? '' : ' admin-chart-stage--empty' ?>">
+                        <?php if (!$hasAppsTrend): ?>
+                        <p class="admin-chart-empty">
+                            <span class="material-symbols-outlined">bar_chart</span>
+                            <?= e(lang('chart_no_data')) ?>
+                        </p>
+                        <?php endif; ?>
+                        <canvas id="applicationsChart"<?= $hasAppsTrend ? '' : ' class="is-hidden"' ?>></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--secondary">
+                            <span class="material-symbols-outlined">donut_large</span>
+                        </span>
+                        <?= e(lang('courses_by_status')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <div class="admin-chart-stage admin-chart-stage--sm<?= $hasCoursesStatus ? '' : ' admin-chart-stage--empty' ?>">
+                        <?php if (!$hasCoursesStatus): ?>
+                        <p class="admin-chart-empty">
+                            <span class="material-symbols-outlined">donut_large</span>
+                            <?= e(lang('chart_no_data')) ?>
+                        </p>
+                        <?php endif; ?>
+                        <canvas id="coursesChart"<?= $hasCoursesStatus ? '' : ' class="is-hidden"' ?>></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--gold">
+                            <span class="material-symbols-outlined">pie_chart</span>
+                        </span>
+                        <?= e(lang('applications_by_status')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <div class="admin-chart-stage admin-chart-stage--sm<?= $hasAppsStatus ? '' : ' admin-chart-stage--empty' ?>">
+                        <?php if (!$hasAppsStatus): ?>
+                        <p class="admin-chart-empty">
+                            <span class="material-symbols-outlined">pie_chart</span>
+                            <?= e(lang('chart_no_data')) ?>
+                        </p>
+                        <?php endif; ?>
+                        <canvas id="applicationsStatusChart"<?= $hasAppsStatus ? '' : ' class="is-hidden"' ?>></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-panel admin-dashboard-panel">
+                <div class="admin-panel-header">
+                    <h3 class="admin-panel-title">
+                        <span class="admin-panel-title-icon admin-panel-title-icon--sky">
+                            <span class="material-symbols-outlined">verified</span>
+                        </span>
+                        <?= e(lang('certificates_trend')) ?>
+                    </h3>
+                </div>
+                <div class="admin-panel-body">
+                    <div class="admin-chart-stage admin-chart-stage--sm<?= $hasCertsTrend ? '' : ' admin-chart-stage--empty' ?>">
+                        <?php if (!$hasCertsTrend): ?>
+                        <p class="admin-chart-empty">
+                            <span class="material-symbols-outlined">show_chart</span>
+                            <?= e(lang('chart_no_data')) ?>
+                        </p>
+                        <?php endif; ?>
+                        <canvas id="certificatesChart"<?= $hasCertsTrend ? '' : ' class="is-hidden"' ?>></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="admin-dashboard-activity" aria-label="<?= e(lang('recent_activity')) ?>">
+        <div class="admin-panel admin-dashboard-panel admin-dashboard-panel--activity">
+            <div class="admin-panel-header">
+                <h3 class="admin-panel-title">
+                    <span class="admin-panel-title-icon admin-panel-title-icon--sky">
+                        <span class="material-symbols-outlined">history</span>
+                    </span>
+                    <?= e(lang('recent_activity')) ?>
+                </h3>
+            </div>
+            <div class="admin-panel-body">
+                <?php if (empty($recentActivity)): ?>
+                    <p class="admin-dashboard-empty">
+                        <span class="material-symbols-outlined">inbox</span>
+                        <?= e(lang('no_activity')) ?>
+                    </p>
+                <?php else: ?>
+                    <div class="admin-activity-list">
+                        <?php foreach ($recentActivity as $log): ?>
+                            <div class="admin-activity-item">
+                                <div class="admin-activity-icon">
+                                    <span class="material-symbols-outlined">history_edu</span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="admin-activity-title"><?= e($log['action']) ?></p>
+                                    <p class="admin-activity-meta">
+                                        <?= e($log['username'] ?? lang('system')) ?>
+                                        <span aria-hidden="true">·</span>
+                                        <?= e($log['created_at']) ?>
+                                    </p>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+window.__ADMIN_DASHBOARD_CHARTS__ = {
+    apps: <?= json_encode($applicationsChart ?? ['labels' => [], 'data' => []], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    courses: <?= json_encode($coursesChart ?? ['labels' => [], 'data' => []], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    appsStatus: <?= json_encode($applicationsStatusChart ?? ['labels' => [], 'data' => []], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    certificates: <?= json_encode($certificatesChart ?? ['labels' => [], 'data' => []], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    pendingAging: <?= json_encode(['labels' => $pendingAging['labels'] ?? [], 'data' => $pendingAging['data'] ?? []], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    topCourses: <?= json_encode(['labels' => $topCourses['labels'] ?? [], 'data' => $topCourses['data'] ?? []], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    funnel: <?= json_encode(['labels' => $funnel['labels'] ?? [], 'data' => $funnel['data'] ?? [], 'colors' => array_column($funnel['stages'] ?? [], 'color')], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    attendance: <?= json_encode(['labels' => $attendance['labels'] ?? [], 'data' => $attendance['data'] ?? []], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    userGrowth: <?= json_encode($userGrowth ?? ['labels' => [], 'data' => []], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+    labels: {
+        applications: <?= json_encode(lang('applications'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+        certificates: <?= json_encode(lang('certificates'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+        users: <?= json_encode(lang('total_users'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+        utilization: <?= json_encode(lang('course_capacity_utilization'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>
+    },
+    rtl: <?= is_rtl() ? 'true' : 'false' ?>,
+    flags: {
+        apps: <?= $hasAppsTrend ? 'true' : 'false' ?>,
+        courses: <?= $hasCoursesStatus ? 'true' : 'false' ?>,
+        appsStatus: <?= $hasAppsStatus ? 'true' : 'false' ?>,
+        certificates: <?= $hasCertsTrend ? 'true' : 'false' ?>,
+        pendingAging: <?= $hasPendingAging ? 'true' : 'false' ?>,
+        topCourses: <?= $hasTopCourses ? 'true' : 'false' ?>,
+        funnel: <?= $hasFunnel ? 'true' : 'false' ?>,
+        attendance: <?= $hasAttendance ? 'true' : 'false' ?>,
+        userGrowth: <?= $hasUserGrowth ? 'true' : 'false' ?>
+    }
+};
+</script>
+<script>
+(function () {
+    'use strict';
+
+    function animateCounters() {
+        var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        document.querySelectorAll('[data-count]').forEach(function (el) {
+            var target = parseInt(el.getAttribute('data-count') || '0', 10);
+            if (prefersReducedMotion || target === 0) {
+                el.textContent = String(target);
+                return;
+            }
+            var duration = 700;
+            var start = performance.now();
+            function tick(now) {
+                var progress = Math.min((now - start) / duration, 1);
+                var eased = 1 - Math.pow(1 - progress, 3);
+                el.textContent = String(Math.round(target * eased));
+                if (progress < 1) requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+        });
+    }
+
+    function doughnutLegendOptions(cfg) {
+        return {
+            position: window.matchMedia('(min-width: 1024px)').matches ? 'right' : 'bottom',
+            align: 'center',
+            rtl: !!cfg.rtl,
+            labels: {
+                boxWidth: 8,
+                padding: 8,
+                usePointStyle: true,
+                font: { size: 9 },
+                generateLabels: function (chart) {
+                    var data = chart.data;
+                    if (!data.labels || !data.datasets.length) {
+                        return [];
+                    }
+                    return data.labels.map(function (label, index) {
+                        var value = data.datasets[0].data[index];
+                        return {
+                            text: label + ' (' + value + ')',
+                            fillStyle: data.datasets[0].backgroundColor[index],
+                            strokeStyle: '#ffffff',
+                            lineWidth: 1,
+                            hidden: false,
+                            index: index
+                        };
+                    });
+                }
+            }
+        };
+    }
+
+    function horizontalBarOptions(cfg, maxTicks) {
+        return {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(66, 90, 173, 0.06)' },
+                    ticks: { precision: 0, maxTicksLimit: maxTicks || 5 }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { font: { size: 10 }, autoSkip: false }
+                }
+            }
+        };
+    }
+
+    function createChart(canvasId, config) {
+        var canvas = document.getElementById(canvasId);
+        if (!canvas || canvas.classList.contains('is-hidden')) {
+            return null;
+        }
+        try {
+            var chart = new Chart(canvas, config);
+            window.requestAnimationFrame(function () {
+                chart.resize();
+            });
+            return chart;
+        } catch (error) {
+            console.error('Dashboard chart failed:', canvasId, error);
+            return null;
+        }
+    }
+
+    function initDashboardCharts() {
+        if (typeof Chart === 'undefined' || !window.__ADMIN_DASHBOARD_CHARTS__) {
+            return false;
+        }
+
+        var cfg = window.__ADMIN_DASHBOARD_CHARTS__;
+        var brandColors = {
+            primary: '#284194',
+            secondary: '#30872F',
+            sky: '#00B0FF',
+            magenta: '#D81B60',
+            gold: '#FFD600',
+            primaryLight: '#425AAD',
+            amber: '#D97706',
+            violet: '#7C3AED'
+        };
+
+        Chart.defaults.font.family = cfg.rtl ? "'Cairo', sans-serif" : "'Inter', 'Cairo', sans-serif";
+        Chart.defaults.font.size = 11;
+        Chart.defaults.color = '#5c6478';
+
+        if (cfg.flags.pendingAging) {
+            createChart('pendingAgingChart', {
+                type: 'bar',
+                data: {
+                    labels: cfg.pendingAging.labels,
+                    datasets: [{
+                        data: cfg.pendingAging.data,
+                        backgroundColor: ['rgba(48, 135, 47, 0.75)', 'rgba(0, 176, 255, 0.75)', 'rgba(217, 119, 6, 0.8)', 'rgba(216, 27, 96, 0.8)'],
+                        borderRadius: 6,
+                        maxBarThickness: 32
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { maxRotation: 45, minRotation: 0, font: { size: 9 } } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(66, 90, 173, 0.06)' }, ticks: { precision: 0, maxTicksLimit: 4 } }
+                    }
+                }
+            });
+        }
+
+        if (cfg.flags.topCourses) {
+            createChart('topCoursesChart', {
+                type: 'bar',
+                data: {
+                    labels: cfg.topCourses.labels,
+                    datasets: [{
+                        label: cfg.labels.applications,
+                        data: cfg.topCourses.data,
+                        backgroundColor: 'rgba(40, 65, 148, 0.65)',
+                        borderColor: brandColors.primary,
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        maxBarThickness: 22
+                    }]
+                },
+                options: horizontalBarOptions(cfg, 5)
+            });
+        }
+
+        if (cfg.flags.funnel) {
+            var funnelColors = cfg.funnel.colors && cfg.funnel.colors.length
+                ? cfg.funnel.colors
+                : [brandColors.primary, brandColors.secondary, brandColors.sky, brandColors.gold];
+            createChart('funnelChart', {
+                type: 'bar',
+                data: {
+                    labels: cfg.funnel.labels,
+                    datasets: [{
+                        data: cfg.funnel.data,
+                        backgroundColor: funnelColors.map(function (c) { return c + 'CC'; }),
+                        borderRadius: 6,
+                        maxBarThickness: 28
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 9 } } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(66, 90, 173, 0.06)' }, ticks: { precision: 0, maxTicksLimit: 5 } }
+                    }
+                }
+            });
+        }
+
+        if (cfg.flags.attendance) {
+            createChart('attendanceChart', {
+                type: 'doughnut',
+                data: {
+                    labels: cfg.attendance.labels,
+                    datasets: [{
+                        data: cfg.attendance.data,
+                        backgroundColor: [brandColors.secondary, brandColors.magenta, brandColors.amber],
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: 4 },
+                    plugins: { legend: doughnutLegendOptions(cfg) },
+                    cutout: '58%'
+                }
+            });
+        }
+
+        if (cfg.flags.userGrowth) {
+            createChart('userGrowthChart', {
+                type: 'line',
+                data: {
+                    labels: cfg.userGrowth.labels,
+                    datasets: [{
+                        label: cfg.labels.users,
+                        data: cfg.userGrowth.data,
+                        borderColor: brandColors.secondary,
+                        backgroundColor: 'rgba(48, 135, 47, 0.12)',
+                        fill: true,
+                        tension: 0.35,
+                        pointBackgroundColor: brandColors.sky,
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 1.5,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 10 } } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(66, 90, 173, 0.06)' }, ticks: { precision: 0, maxTicksLimit: 5 } }
+                    }
+                }
+            });
+        }
+
+        if (cfg.flags.apps) {
+            createChart('applicationsChart', {
+                type: 'line',
+                data: {
+                    labels: cfg.apps.labels,
+                    datasets: [{
+                        label: cfg.labels.applications,
+                        data: cfg.apps.data,
+                        borderColor: brandColors.primary,
+                        backgroundColor: 'rgba(40, 65, 148, 0.12)',
+                        fill: true,
+                        tension: 0.35,
+                        pointBackgroundColor: brandColors.sky,
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 1.5,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 10 } } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(66, 90, 173, 0.06)' }, ticks: { precision: 0, maxTicksLimit: 5 } }
+                    }
+                }
+            });
+        }
+
+        if (cfg.flags.courses) {
+            createChart('coursesChart', {
+                type: 'doughnut',
+                data: {
+                    labels: cfg.courses.labels,
+                    datasets: [{
+                        data: cfg.courses.data,
+                        backgroundColor: [brandColors.primary, brandColors.primaryLight, brandColors.secondary, brandColors.sky, brandColors.gold, brandColors.magenta, '#9B59B6'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: 4 },
+                    plugins: { legend: doughnutLegendOptions(cfg) },
+                    cutout: '62%'
+                }
+            });
+        }
+
+        if (cfg.flags.appsStatus) {
+            createChart('applicationsStatusChart', {
+                type: 'doughnut',
+                data: {
+                    labels: cfg.appsStatus.labels,
+                    datasets: [{
+                        data: cfg.appsStatus.data,
+                        backgroundColor: [brandColors.gold, brandColors.secondary, brandColors.magenta, brandColors.sky, '#9B59B6'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: { padding: 4 },
+                    plugins: { legend: doughnutLegendOptions(cfg) },
+                    cutout: '62%'
+                }
+            });
+        }
+
+        if (cfg.flags.certificates) {
+            createChart('certificatesChart', {
+                type: 'bar',
+                data: {
+                    labels: cfg.certificates.labels,
+                    datasets: [{
+                        label: cfg.labels.certificates,
+                        data: cfg.certificates.data,
+                        backgroundColor: 'rgba(0, 176, 255, 0.55)',
+                        borderColor: brandColors.sky,
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        maxBarThickness: 28
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 10 } } },
+                        y: { beginAtZero: true, grid: { color: 'rgba(66, 90, 173, 0.06)' }, ticks: { precision: 0, maxTicksLimit: 5 } }
+                    }
+                }
+            });
+        }
+
+        return true;
+    }
+
+    function waitForChartLibrary(attempt) {
+        attempt = attempt || 0;
+        if (initDashboardCharts()) {
+            return;
+        }
+        if (attempt < 40) {
+            window.setTimeout(function () {
+                waitForChartLibrary(attempt + 1);
+            }, 100);
+        }
+    }
+
+    function boot() {
+        animateCounters();
+        waitForChartLibrary(0);
+    }
+
+    if (document.readyState === 'complete') {
+        boot();
+    } else {
+        window.addEventListener('load', boot);
+    }
+})();
+</script>

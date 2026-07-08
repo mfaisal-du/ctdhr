@@ -1,0 +1,27 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Middleware;
+
+final class CsrfMiddleware
+{
+    public function handle(callable $next): void
+    {
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+        if (in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+            $tokenName = config('csrf_token_name', '_token');
+            $sessionToken = $_SESSION[$tokenName] ?? '';
+            $requestToken = $_POST[$tokenName] ?? $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+
+            if (empty($sessionToken) || !hash_equals($sessionToken, (string) $requestToken)) {
+                http_response_code(419);
+                flash('error', lang('csrf_invalid'));
+                redirect('/');
+            }
+        }
+
+        $next();
+    }
+}

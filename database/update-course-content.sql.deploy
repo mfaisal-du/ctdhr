@@ -1,0 +1,158 @@
+-- Rich course descriptions, outcomes, and session schedules for public course detail pages
+USE ctdhr_portal;
+
+UPDATE courses SET
+    description_en = 'The Advanced Data Analytics for Educators program equips Dhofar University faculty with practical skills to collect, analyse, and visualise academic data for evidence-based teaching and research decisions.
+
+Participants work through real university datasets using modern analytics workflows-from descriptive statistics to interactive dashboards-while learning how to communicate insights clearly to colleagues and leadership.
+
+Delivered in CTDHR Training Hall A, this intensive workshop blends guided labs, peer discussion, and applied exercises aligned with DU''s commitment to digital academic excellence.',
+    description_ar = 'برنامج تحليلات البيانات المتقدمة للتربويين يزوّد أعضاء هيئة التدريس في جامعة ظفار بمهارات عملية لجمع وتحليل وتصوير البيانات الأكاديمية لاتخاذ قرارات تعليمية وبحثية مبنية على الأدلة.
+
+يشتغل المشاركون على مجموعات بيانات جامعية حقيقية باستخدام مسارات تحليل حديثة-من الإحصاء الوصفي إلى لوحات المتابعة التفاعلية-مع تعلم كيفية إيصال النتائج بوضوح للزملاء والإدارة.
+
+يُقدَّم البرنامج في قاعة التدريب CTDHR أ، ويجمع بين المختبرات الإرشادية والنقاش الجماعي والتمارين التطبيقية بما يتماشى مع التزام الجامعة بالتميز الأكاديمي الرقمي.',
+    learning_outcomes_en = 'Build interactive dashboards for course and research performance tracking
+Apply statistical methods to interpret student engagement data
+Design ethical data collection practices for academic environments
+Present analytics findings to departmental stakeholders with clarity
+Integrate visualization tools into curriculum planning workflows',
+    learning_outcomes_ar = 'بناء لوحات متابعة تفاعلية لأداء المقررات والبحث
+تطبيق أساليب إحصائية لتفسير بيانات مشاركة الطلاب
+تصميم ممارسات أخلاقية لجمع البيانات في البيئات الأكاديمية
+عرض نتائج التحليلات لأصحاب المصلحة بشكل واضح
+دمج أدوات التصور في تخطيط المناهج',
+    instructor_names_en = 'Dr. Ahmed Al-Mahri',
+    instructor_names_ar = 'د. أحمد المهري',
+    session_dates = '["Day 01 | 9:00 AM - 1:00 PM | Data Foundations & Ethics - Introduction to academic analytics and responsible data use","Day 02 | 9:00 AM - 1:00 PM | Visualization Lab - Hands-on dashboard design with university datasets","Day 03 | 9:00 AM - 1:00 PM | Applied Analytics - Faculty case studies and action planning"]'
+WHERE slug = 'advanced-data-analytics-educators';
+
+UPDATE courses SET
+    description_en = 'The Leadership Excellence Workshop strengthens the people-centred leadership capabilities of Dhofar University professionals who guide teams, departments, and cross-functional initiatives.
+
+Through case studies drawn from higher-education settings in the Gulf region, participants explore communication, delegation, conflict resolution, and strategic decision-making in a collaborative learning environment.
+
+This CTDHR programme is designed for current and aspiring leaders who want to cultivate high-trust teams and deliver measurable institutional outcomes.',
+    description_ar = 'ورشة التميز في القيادة تعزز القدرات القيادية المرتكزة على الإنسان لدى العاملين في جامعة ظفار الذين يقودون الفرق والأقسام والمبادرات المشتركة.
+
+من خلال دراسات حالة مستمدة من بيئات التعليم العالي في منطقة الخليج، يستكشف المشاركون التواصل والتفويض وحل النزاعات واتخاذ القرار الاستراتيجي في بيئة تعلم تشاركية.
+
+يستهدف برنامج CTDHR القادة الحاليين والطامحين لبناء فرق عالية الثقة وتحقيق نتائج مؤسسية ملموسة.',
+    learning_outcomes_en = 'Develop a personal leadership philosophy aligned with university values
+Facilitate productive team meetings and performance conversations
+Apply conflict-resolution frameworks in academic workplaces
+Create actionable development plans for direct reports
+Strengthen cross-department collaboration and stakeholder influence',
+    learning_outcomes_ar = 'تطوير فلسفة قيادية شخصية متوافقة مع قيم الجامعة
+تيسير اجتماعات فرق منتجة وحوارات الأداء
+تطبيق أطر حل النزاعات في بيئات العمل الأكاديمية
+إعداد خطط تطوير قابلة للتنفيذ للمرؤوسين
+تعزيز التعاون بين الأقسام والتأثير مع أصحاب المصلحة',
+    instructor_names_en = 'Ms. Fatima Al-Zadjali',
+    instructor_names_ar = 'أ. فاطمة الزدجالي',
+    session_dates = '["Day 01 | 9:00 AM - 12:30 PM | Leadership Mindset - Values, vision, and trust-building","Day 02 | 9:00 AM - 12:30 PM | People Skills - Communication, feedback, and delegation","Day 03 | 9:00 AM - 12:30 PM | Leading Change - Strategy execution and team resilience"]'
+WHERE slug = 'leadership-excellence-workshop';
+
+UPDATE courses SET
+    description_en = 'Academic English Communication helps Dhofar University faculty refine the writing, presentation, and discussion skills required for international research, conferences, and bilingual teaching environments.
+
+The course focuses on clarity, structure, and academic tone across abstracts, journal submissions, grant proposals, and classroom delivery-with personalised feedback from experienced language specialists.
+
+Participants leave with practical templates, revision strategies, and greater confidence when presenting DU scholarship to global audiences.',
+    description_ar = 'دورة التواصل الأكاديمي باللغة الإنجليزية تساعد أعضاء هيئة التدريس في جامعة ظفار على صقل مهارات الكتابة والعرض والنقاش اللازمة للبحث الدولي والمؤتمرات والتدريس ثنائي اللغة.
+
+تركز الدورة على الوضوح والبنية والأسلوب الأكاديمي في الملخصات والأوراق البحثية ومقترحات المنح والتقديم الصفي-مع ملاحظات شخصية من مختصين لغويين.
+
+يخرج المشاركون بقوالب عملية واستراتيجيات مراجعة وثقة أكبر عند عرض إنتاج الجامعة لجماهير عالمية.',
+    learning_outcomes_en = 'Structure research abstracts and manuscripts to international standards
+Deliver confident academic presentations with effective visual support
+Use precise academic vocabulary in written and spoken contexts
+Peer-review writing with constructive editorial feedback
+Prepare conference submissions and respond to reviewer comments',
+    learning_outcomes_ar = 'هيكلة الملخصات والمخطوعات البحثية وفق المعايير الدولية
+تقديم عروض أكاديمية واثقة بدعم بصري فعال
+استخدام مفردات أكاديمية دقيقة في الكتابة والتحدث
+مراجعة الكتابات بين الأقران بملاحظات بناءة
+إعداد مشاركات المؤتمرات والرد على ملاحظات المحكمين',
+    instructor_names_en = 'Dr. Sarah Al-Habsi',
+    instructor_names_ar = 'د. سارة الحبسي',
+    session_dates = '["Week 1 | Mon & Wed | Academic Writing Studio - Abstracts, structure, and clarity","Week 2 | Mon & Wed | Presentation Skills - Delivery, visuals, and Q&A","Week 3 | Mon & Wed | Publication Pathways - Journals, grants, and revision cycles"]'
+WHERE slug = 'academic-english-communication';
+
+UPDATE courses SET
+    description_en = 'Digital Tools for Modern Classrooms introduces faculty to the platforms, apps, and assessment techniques that make blended and technology-enhanced learning effective at Dhofar University.
+
+From LMS workflows to interactive content and digital rubrics, participants experiment with tools that increase student engagement while reducing administrative friction in everyday teaching.
+
+This completed CTDHR cohort demonstrated measurable improvements in course design quality and digital confidence across multiple colleges.',
+    description_ar = 'دورة الأدوات الرقمية للفصول الحديثة تقدّم للتربويين المنصات والتطبيقات وأساليب التقييم التي تجعل التعلم المدمج والمعزز بالتقنية فعالاً في جامعة ظفار.
+
+من مسارات نظام إدارة التعلم إلى المحتوى التفاعلي والمعايير الرقمية، يجرّب المشاركون أدوات ترفع مشاركة الطلاب وتقلل العبء الإداري في التدريس اليومي.
+
+أظهرت هذه الدفعة المكتملة من CTDHR تحسناً ملموساً في جودة تصميم المقررات والثقة الرقمية عبر عدة كليات.',
+    learning_outcomes_en = 'Configure LMS modules for blended delivery and learner analytics
+Create interactive learning objects and formative assessments
+Apply digital rubrics and feedback loops to improve student outcomes
+Evaluate ed-tech tools for accessibility and pedagogical fit
+Develop a personal toolkit for sustainable technology-enhanced teaching',
+    learning_outcomes_ar = 'إعداد وحدات نظام التعلم للتقديم المدمج وتحليلات المتعلمين
+إنشاء محتوى تعليمي تفاعلي وتقييمات بنائية
+تطبيق معايير رقمية وحلقات تغذية راجعة لتحسين نتائج الطلاب
+تقييم أدوات التعليم التقني من حيث الوصول والملاءمة التربوية
+تطوير مجموعة أدوات شخصية للتدريس المستدام المعزز بالتقنية',
+    instructor_names_en = 'Eng. Khalid Al-Balushi',
+    instructor_names_ar = 'م. خالد البلوشي',
+    session_dates = '["Session 1 | LMS Foundations - Course setup, content organisation, and student access","Session 2 | Interactive Teaching - Polls, boards, and collaborative activities","Session 3 | Digital Assessment - Rubrics, analytics, and continuous improvement"]'
+WHERE slug = 'digital-tools-modern-classrooms';
+
+UPDATE courses SET
+    description_en = 'Workplace Health & Safety Fundamentals provides essential training for Dhofar University staff on hazard awareness, emergency response, and regulatory compliance in academic and administrative environments.
+
+The programme combines classroom instruction with practical scenarios covering fire safety, ergonomics, chemical handling, and incident reporting procedures relevant to campus operations.
+
+CTDHR delivers this course in Arabic to ensure every employee understands their role in maintaining a safe, healthy workplace for students, visitors, and colleagues.',
+    description_ar = 'دورة أساسيات الصحة والسلامة المهنية تقدّم تدريباً أساسياً لموظفي جامعة ظفار حول الوعي بالمخاطر والاستجابة للطوارئ والامتثال التنظيمي في البيئات الأكاديمية والإدارية.
+
+يجمع البرنامج بين التعليم النظري والسيناريوهات العملية التي تشمل السلامة من الحرائق وبيئة العمل والتعامل مع المواد الكيميائية وإجراءات الإبلاغ عن الحوادث في الحرم الجامعي.
+
+يقدّم CTDHR هذه الدورة بالعربية لضمان فهم كل موظف لدوره في الحفاظ على بيئة عمل آمنة وصحية للطلاب والزوار والزملاء.',
+    learning_outcomes_en = 'Identify common workplace hazards across university facilities
+Follow DU emergency evacuation and incident reporting protocols
+Apply ergonomic principles to reduce office and lab injuries
+Understand responsibilities under institutional H&S policies
+Participate effectively in safety drills and risk assessments',
+    learning_outcomes_ar = 'تحديد مخاطر العمل الشائعة في مرافق الجامعة
+اتباع بروتوكولات الإخلاء والإبلاغ عن الحوادث في الجامعة
+تطبيق مبادئ بيئة العمل للحد من إصابات المكاتب والمختبرات
+فهم المسؤوليات بموجب سياسات الصحة والسلامة المؤسسية
+المشاركة الفعالة في تدريبات السلامة وتقييمات المخاطر',
+    instructor_names_en = 'Mr. Yousuf Al-Mamari',
+    instructor_names_ar = 'أ. يوسف المعمري',
+    session_dates = '["Module 1 | Hazard Awareness - Campus risks, signage, and prevention","Module 2 | Emergency Response - Fire, medical, and evacuation procedures","Module 3 | Compliance & Culture - Reporting, ergonomics, and safety leadership"]'
+WHERE slug = 'workplace-health-safety-fundamentals';
+
+UPDATE courses SET
+    description_en = 'The Research Methodology Masterclass advances faculty research skills through structured exploration of design, ethics, data collection, analysis, and publication strategy at Dhofar University.
+
+Participants refine their proposals, strengthen methodological rigour, and learn how to navigate peer review, open-access publishing, and interdisciplinary collaboration in competitive academic landscapes.
+
+Now in progress at the Research Center, this CTDHR masterclass supports DU scholars who are preparing journal articles, graduate supervision, and funded research projects.',
+    description_ar = 'الإتقان في منهجية البحث يرفع مهارات البحث لدى أعضاء هيئة التدريس عبر استكشاف منظم للتصميم والأخلاقيات وجمع البيانات والتحليل واستراتيجية النشر في جامعة ظفار.
+
+يصقل المشاركون مقترحاتهم ويعززون الدقة المنهجية ويتعلمون التعامل مع مراجعة الأقران والنشر المفتوح والتعاون بين التخصصات في بيئات أكاديمية تنافسية.
+
+تُقدَّم هذه الدورة حالياً في مركز البحوث، وتدعم باحثي الجامعة الذين يعدّون أوراقاً علمية وإشرافاً دراسياً ومشاريع بحثية ممولة.',
+    learning_outcomes_en = 'Design robust quantitative and qualitative research frameworks
+Address ethical review requirements and informed consent processes
+Select appropriate analysis techniques for research questions
+Develop publication strategies for targeted journals and conferences
+Mentor student researchers using structured methodology guidance',
+    learning_outcomes_ar = 'تصميم أطر بحث كمية ونوعية متينة
+استيفاء متطلبات المراجعة الأخلاقية وعمليات الموافقة المستنيرة
+اختيار تقنيات التحليل المناسبة لأسئلة البحث
+وضع استراتيجيات نشر تستهدف دوريات ومؤتمرات محددة
+إرشاد طلاب البحث بإرشاد منهجي منظم',
+    instructor_names_en = 'Prof. Salma Al-Harthi',
+    instructor_names_ar = 'أ.د. سلمى الحارثي',
+    session_dates = '["Week 1 | Research Design - Questions, frameworks, and feasibility","Week 2 | Ethics & Data - Consent, collection, and quality assurance","Week 3 | Analysis & Dissemination - Interpretation, writing, and publication planning"]'
+WHERE slug = 'research-methodology-masterclass';

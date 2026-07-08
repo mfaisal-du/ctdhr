@@ -1,0 +1,222 @@
+<?php declare(strict_types=1);
+
+$locale = $_SESSION['locale'] ?? config('locale', 'en');
+$dir = $locale === 'ar' ? 'rtl' : 'ltr';
+$pageTitle = $pageTitle ?? lang('dashboard');
+$section = dashboard_section();
+$flashSuccess = flash('success');
+$flashError = flash('error');
+$flashInfo = flash('info');
+$showToast = flash('toast');
+$userName = (string) ($_SESSION['user_name'] ?? '');
+$userInitial = $userName !== '' ? mb_strtoupper(mb_substr($userName, 0, 1)) : 'U';
+$userRole = (string) ($_SESSION['user_role'] ?? 'staff');
+
+$navItems = [
+    'overview' => ['url' => 'dashboard', 'icon' => 'dashboard', 'label' => lang('dashboard')],
+    'applications' => ['url' => 'dashboard/applications', 'icon' => 'pending_actions', 'label' => lang('my_applications')],
+    'courses' => ['url' => 'dashboard/courses', 'icon' => 'menu_book', 'label' => lang('my_courses')],
+    'certificates' => ['url' => 'dashboard/certificates', 'icon' => 'verified', 'label' => lang('my_certificates')],
+    'notifications' => ['url' => 'dashboard/notifications', 'icon' => 'notifications', 'label' => lang('notifications')],
+    'profile' => ['url' => 'dashboard/profile', 'icon' => 'person', 'label' => lang('profile')],
+];
+
+$sectionLabels = [];
+foreach ($navItems as $key => $item) {
+    $sectionLabels[$key] = $item['label'];
+}
+$currentSectionLabel = $sectionLabels[$section] ?? lang('dashboard');
+
+$dashboardUserId = (int) ($_SESSION['user_id'] ?? 0);
+$dashboardUnreadNotifications = 0;
+if ($dashboardUserId > 0) {
+    $dashboardUnreadNotifications = \CTDHR\Models\Notification::unreadCount($dashboardUserId);
+}
+?>
+<!DOCTYPE html>
+<html lang="<?= e($locale) ?>" dir="<?= e($dir) ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+    <title><?= e($pageTitle) ?> | <?= e(lang('app_name')) ?></title>
+    <link rel="stylesheet" href="<?= e(asset('css/fonts.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/output.css')) ?>">
+    <script defer src="<?= e(asset('vendor/alpine.min.js')) ?>"></script>
+    <script src="<?= e(asset('vendor/sweetalert2.all.min.js')) ?>"></script>
+    <style>[x-cloak]{display:none!important}</style>
+</head>
+<body class="admin-shell admin-shell--user<?= $locale === 'ar' ? ' admin-shell--ar font-arabic' : '' ?> text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
+
+<div
+    x-show="sidebarOpen"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    @click="sidebarOpen = false"
+    class="admin-sidebar-backdrop lg:hidden"
+    x-cloak
+    aria-hidden="true"
+></div>
+
+<aside
+    id="dashboard-sidebar"
+    class="admin-sidebar fixed top-0 h-full w-[272px] z-50 flex flex-col transition-transform duration-300 ease-out <?= is_rtl() ? 'right-0 translate-x-full lg:translate-x-0' : 'left-0 -translate-x-full lg:translate-x-0' ?>"
+    :class="{ 'translate-x-0': sidebarOpen }"
+    :aria-hidden="!sidebarOpen"
+    @click.outside="if (window.innerWidth < 1024) sidebarOpen = false"
+>
+    <div class="admin-sidebar-rainbow" aria-hidden="true"></div>
+    <div class="admin-sidebar-veil" aria-hidden="true"></div>
+
+    <div class="relative z-10 px-5 pt-5 pb-4">
+        <a href="<?= e(url('dashboard')) ?>" class="admin-sidebar-brand group">
+            <div class="admin-sidebar-brand-icon admin-sidebar-brand-icon--user" aria-hidden="true">
+                <span class="material-symbols-outlined">space_dashboard</span>
+            </div>
+            <div class="min-w-0">
+                <h1 class="font-headline-sm text-headline-sm text-white leading-tight truncate"><?= e(lang('dashboard')) ?></h1>
+                <p class="text-white/55 font-label-sm truncate"><?= e(lang('app_name')) ?></p>
+            </div>
+        </a>
+    </div>
+
+    <nav class="relative z-10 flex-1 flex flex-col px-3 gap-0.5 overflow-y-auto custom-scrollbar" aria-label="<?= e(lang('dashboard')) ?>">
+        <p class="admin-nav-section-label px-3 pt-1 pb-2"><?= e(lang('dashboard')) ?></p>
+        <?php foreach ($navItems as $key => $item): ?>
+        <a href="<?= e(url($item['url'])) ?>" class="<?= $section === $key ? 'admin-nav-link admin-nav-link-active' : 'admin-nav-link' ?>">
+            <span class="admin-nav-link-icon material-symbols-outlined" style="<?= $section === $key ? "font-variation-settings: 'FILL' 1, 'wght' 500;" : '' ?>"><?= e($item['icon']) ?></span>
+            <span class="truncate"><?= e($item['label']) ?></span>
+            <?php if ($key === 'notifications' && $dashboardUnreadNotifications > 0): ?>
+            <span class="admin-nav-badge" aria-label="<?= e(lang('unread_notifications')) ?>"><?= e((string) ($dashboardUnreadNotifications > 99 ? '99+' : $dashboardUnreadNotifications)) ?></span>
+            <?php endif; ?>
+            <?php if ($section === $key): ?>
+            <span class="admin-nav-link-indicator" aria-hidden="true"></span>
+            <?php endif; ?>
+        </a>
+        <?php endforeach; ?>
+    </nav>
+
+    <div class="relative z-10 mt-auto px-3 pt-3 pb-4 border-t border-white/10 flex flex-col gap-0.5">
+        <p class="admin-nav-section-label px-3 pt-2 pb-1"><?= e(lang('quick_actions')) ?></p>
+        <a href="<?= e(url('courses')) ?>" class="admin-nav-link">
+            <span class="admin-nav-link-icon material-symbols-outlined">explore</span>
+            <span class="truncate"><?= e(lang('browse_courses')) ?></span>
+        </a>
+        <a href="<?= e(url('/')) ?>" class="admin-nav-link">
+            <span class="admin-nav-link-icon material-symbols-outlined">public</span>
+            <span class="truncate"><?= e(lang('home')) ?></span>
+        </a>
+        <?php if ($userRole === 'admin'): ?>
+        <a href="<?= e(url('admin')) ?>" class="admin-nav-link">
+            <span class="admin-nav-link-icon material-symbols-outlined">admin_panel_settings</span>
+            <span class="truncate"><?= e(lang('admin_panel')) ?></span>
+        </a>
+        <?php endif; ?>
+        <form method="POST" action="<?= e(url('logout')) ?>" class="m-0 mt-3">
+            <?= csrf_field() ?>
+            <button type="submit" class="admin-logout-btn">
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">logout</span>
+                <span><?= e(lang('logout')) ?></span>
+            </button>
+        </form>
+    </div>
+</aside>
+
+<div class="admin-content-wrap min-h-screen flex flex-col">
+    <header class="admin-topbar hidden lg:flex items-center justify-between gap-4 sticky top-0 z-30">
+        <div class="min-w-0">
+            <p class="admin-topbar-eyebrow"><?= e(lang('dashboard')) ?></p>
+            <h2 class="admin-topbar-title truncate"><?= e($currentSectionLabel) ?></h2>
+        </div>
+        <div class="admin-topbar-actions flex items-center gap-2 shrink-0">
+            <a href="<?= e(url('courses')) ?>" class="admin-topbar-chip" title="<?= e(lang('browse_courses')) ?>">
+                <span class="material-symbols-outlined text-[18px]">explore</span>
+                <span class="hidden xl:inline"><?= e(lang('browse_courses')) ?></span>
+            </a>
+            <a href="<?= e(url($locale === 'ar' ? 'lang/en' : 'lang/ar')) ?>" class="admin-topbar-chip">
+                <span class="material-symbols-outlined text-[18px]">translate</span>
+                <span><?= $locale === 'ar' ? 'EN' : 'عربي' ?></span>
+            </a>
+            <a href="<?= e(url('dashboard/notifications')) ?>" class="admin-topbar-chip relative" title="<?= e(lang('notifications')) ?>">
+                <span class="material-symbols-outlined text-[18px]">notifications</span>
+                <?php if ($dashboardUnreadNotifications > 0): ?>
+                <span class="admin-topbar-notif-dot" aria-label="<?= e(lang('unread_notifications')) ?>"><?= e((string) min($dashboardUnreadNotifications, 99)) ?></span>
+                <?php endif; ?>
+            </a>
+            <div class="admin-user-chip">
+                <span class="admin-user-avatar" aria-hidden="true"><?= e($userInitial) ?></span>
+                <span class="admin-user-name truncate max-w-[10rem]"><?= e($userName) ?></span>
+            </div>
+        </div>
+    </header>
+
+    <header class="admin-mobile-bar lg:hidden flex items-center justify-between gap-3 sticky top-0 z-30">
+        <button type="button" @click="sidebarOpen = !sidebarOpen" class="admin-mobile-menu-btn" :aria-expanded="sidebarOpen" aria-controls="dashboard-sidebar">
+            <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div class="min-w-0 flex-1 text-center">
+            <p class="font-label-sm text-on-surface-variant"><?= e(lang('dashboard')) ?></p>
+            <p class="font-label-md text-primary truncate"><?= e($currentSectionLabel) ?></p>
+        </div>
+        <div class="admin-topbar-actions flex items-center gap-2 shrink-0">
+            <a href="<?= e(url('dashboard/notifications')) ?>" class="admin-topbar-chip px-2.5 py-2 relative">
+                <span class="material-symbols-outlined text-[18px]">notifications</span>
+                <?php if ($dashboardUnreadNotifications > 0): ?>
+                <span class="admin-topbar-notif-dot"><?= e((string) min($dashboardUnreadNotifications, 9)) ?></span>
+                <?php endif; ?>
+            </a>
+            <a href="<?= e(url($locale === 'ar' ? 'lang/en' : 'lang/ar')) ?>" class="admin-topbar-chip px-2.5 py-2">
+                <?= $locale === 'ar' ? 'EN' : 'ع' ?>
+            </a>
+        </div>
+    </header>
+
+    <main class="admin-main flex-1">
+        <?php if ($flashSuccess && !$showToast): ?>
+        <div class="admin-flash admin-flash-success" role="status">
+            <span class="material-symbols-outlined admin-flash-icon">check_circle</span>
+            <span><?= e($flashSuccess) ?></span>
+        </div>
+        <?php endif; ?>
+        <?php if ($flashError): ?>
+        <div class="admin-flash admin-flash-error" role="alert">
+            <span class="material-symbols-outlined admin-flash-icon">error</span>
+            <span><?= e($flashError) ?></span>
+        </div>
+        <?php endif; ?>
+        <?php if ($flashInfo): ?>
+        <div class="admin-flash admin-flash-info" role="status">
+            <span class="material-symbols-outlined admin-flash-icon">info</span>
+            <span><?= e($flashInfo) ?></span>
+        </div>
+        <?php endif; ?>
+
+        <?php if (isset($content)) { echo $content; } ?>
+    </main>
+</div>
+
+<script src="<?= e(asset('js/motion.js')) ?>" defer></script>
+<script src="<?= e(asset('js/app.js')) ?>" defer></script>
+<?php if ($showToast && $flashSuccess): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: <?= json_encode($flashSuccess, JSON_UNESCAPED_UNICODE) ?>,
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true,
+        });
+    }
+});
+</script>
+<?php endif; ?>
+</body>
+</html>

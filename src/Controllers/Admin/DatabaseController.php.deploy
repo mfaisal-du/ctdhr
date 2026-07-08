@@ -1,0 +1,94 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Services\AuditService;
+use CTDHR\Services\DatabaseAdminService;
+use RuntimeException;
+
+final class DatabaseController
+{
+    private DatabaseAdminService $databaseAdmin;
+    private AuditService $audit;
+
+    public function __construct()
+    {
+        $this->databaseAdmin = new DatabaseAdminService();
+        $this->audit = new AuditService();
+    }
+
+    public function index(): void
+    {
+        admin_view('admin.database.index', [
+            'pageTitle' => lang('database_tools'),
+            'modules' => DatabaseAdminService::resetModules(),
+            'backups' => $this->databaseAdmin->listBackups(),
+            'backupDir' => 'C:/xampp/htdocs/CTDHR_Portal/Backup',
+        ]);
+    }
+
+    public function backup(): void
+    {
+        try {
+            $filename = $this->databaseAdmin->createBackup();
+            $this->audit->log('database.backup', 'database', null, ['file' => $filename]);
+            flash('success', lang('db_backup_success', ['file' => $filename]));
+        } catch (RuntimeException $e) {
+            flash('error', $e->getMessage());
+        }
+
+        redirect('admin/database');
+    }
+
+    public function reset(): void
+    {
+        $modules = $_POST['modules'] ?? [];
+        if (!is_array($modules)) {
+            $modules = [];
+        }
+
+        $modules = array_map('strval', $modules);
+        $allowed = array_keys(DatabaseAdminService::resetModules());
+        $modules = array_values(array_intersect($modules, $allowed));
+
+        if ($modules === []) {
+            flash('error', lang('db_reset_none_selected'));
+            redirect('admin/database');
+        }
+
+        if (empty($_POST['confirm_reset'])) {
+            flash('error', lang('db_reset_confirm_required'));
+            redirect('admin/database');
+        }
+
+        try {
+            $this->databaseAdmin->resetModulesData($modules);
+            $this->audit->log('database.reset', 'database', null, ['modules' => $modules]);
+            flash('success', lang('db_reset_success'));
+        } catch (RuntimeException $e) {
+            flash('error', $e->getMessage());
+        }
+
+        redirect('admin/database');
+    }
+
+    public function seedDemo(): void
+    {
+        if (empty($_POST['confirm_seed'])) {
+            flash('error', lang('db_seed_confirm_required'));
+            redirect('admin/database');
+        }
+
+        try {
+            $this->databaseAdmin->seedDemoData();
+            $this->audit->log('database.seed_demo', 'database', null);
+            flash('success', lang('db_seed_success'));
+        } catch (RuntimeException $e) {
+            flash('error', $e->getMessage());
+        }
+
+        redirect('admin/database');
+    }
+}

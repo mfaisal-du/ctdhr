@@ -1,0 +1,463 @@
+<?php declare(strict_types=1);
+
+$result = $result ?? ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
+$stats = $stats ?? ['pending' => 0, 'approved_week' => 0, 'rejected_week' => 0, 'oldest_wait_days' => null];
+$filters = $filters ?? ['search' => '', 'waiting' => ''];
+$tab = ($tab ?? 'pending') === 'history' ? 'history' : 'pending';
+$highlightId = (int) ($highlightId ?? 0);
+
+$oldestKpi = ($stats['oldest_wait_days'] ?? null) !== null
+    ? pending_wait_label((int) $stats['oldest_wait_days'])
+    : '—';
+
+$queryParams = static function (array $extra = []) use ($tab, $filters): string {
+    $params = array_merge([
+        'tab' => $tab !== 'pending' ? $tab : null,
+        'search' => $filters['search'] ?? '',
+        'waiting' => $filters['waiting'] ?? '',
+    ], $extra);
+
+    return http_build_query(array_filter($params, static fn ($value): bool => $value !== null && $value !== ''));
+};
+
+$exportBtn = '<a href="' . e(url('admin/users/pending/export?' . $queryParams())) . '" class="courses-btn-secondary courses-btn-secondary--sm">'
+    . '<span class="material-symbols-outlined">download</span>'
+    . e(lang('export_csv'))
+    . '</a>';
+?>
+
+<div class="admin-module-page" x-data="pendingExternalModals()">
+<?php
+admin_page_header([
+    'icon' => 'person_add',
+    'title' => lang('pending_external_accounts'),
+    'subtitle' => lang('pending_external_subtitle'),
+    'accent' => 'gold',
+    'actions' => $tab === 'pending' ? $exportBtn : '',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('users'), 'href' => url('admin/users')],
+        ['label' => lang('pending_external_accounts')],
+    ],
+]);
+?>
+
+<div class="courses-kpi-grid">
+    <?php foreach ([
+        ['gold', 'pending', lang('status_pending'), (int) ($stats['pending'] ?? 0)],
+        ['green', 'check_circle', lang('external_approved_this_week'), (int) ($stats['approved_week'] ?? 0)],
+        ['sky', 'cancel', lang('external_rejected_this_week'), (int) ($stats['rejected_week'] ?? 0)],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+    <div class="courses-kpi courses-kpi--blue">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined">schedule</span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value text-headline-sm"><?= e($oldestKpi) ?></span>
+            <span class="courses-kpi-label"><?= e(lang('external_oldest_pending')) ?></span>
+        </div>
+    </div>
+</div>
+
+<div class="admin-page-tabs">
+    <a href="<?= e(url('admin/users/pending?' . $queryParams(['tab' => null, 'page' => null]))) ?>"
+       class="admin-page-tab<?= $tab === 'pending' ? ' admin-page-tab--active' : '' ?>">
+        <span class="material-symbols-outlined text-[18px]">inbox</span>
+        <?= e(lang('external_pending_tab')) ?>
+        <?php if ((int) ($stats['pending'] ?? 0) > 0): ?>
+        <span class="admin-page-tab-badge"><?= (int) $stats['pending'] ?></span>
+        <?php endif; ?>
+    </a>
+    <a href="<?= e(url('admin/users/pending?' . $queryParams(['tab' => 'history', 'page' => null, 'search' => null, 'waiting' => null]))) ?>"
+       class="admin-page-tab<?= $tab === 'history' ? ' admin-page-tab--active' : '' ?>">
+        <span class="material-symbols-outlined text-[18px]">history</span>
+        <?= e(lang('external_history_tab')) ?>
+    </a>
+</div>
+
+<?php $externalApproveForms = ''; ?>
+
+<?php if ($tab === 'pending'): ?>
+<div class="courses-card">
+    <form method="GET" action="<?= e(url('admin/users/pending')) ?>" class="courses-filters">
+        <div class="courses-search">
+            <span class="material-symbols-outlined">search</span>
+            <input type="search" name="search" value="<?= e($filters['search'] ?? '') ?>" placeholder="<?= e(lang('search_placeholder')) ?>" class="courses-search-input" autocomplete="off">
+        </div>
+        <div class="courses-filter-group">
+            <div class="admin-select-wrap admin-select-wrap--sm admin-select-wrap--filter">
+                <select name="waiting" class="admin-form-select courses-filter-select" aria-label="<?= e(lang('waiting_time')) ?>">
+                    <option value=""><?= e(lang('waiting_filter_all')) ?></option>
+                    <option value="over_3" <?= ($filters['waiting'] ?? '') === 'over_3' ? 'selected' : '' ?>><?= e(lang('waiting_filter_over_3')) ?></option>
+                    <option value="over_7" <?= ($filters['waiting'] ?? '') === 'over_7' ? 'selected' : '' ?>><?= e(lang('waiting_filter_over_7')) ?></option>
+                </select>
+            </div>
+            <button type="submit" class="courses-btn-filter">
+                <span class="material-symbols-outlined">filter_list</span>
+                <?= e(lang('filter')) ?>
+            </button>
+            <?php if (!empty($filters['search']) || !empty($filters['waiting'])): ?>
+            <a href="<?= e(url('admin/users/pending')) ?>" class="courses-clear"><?= e(lang('clear_filters')) ?></a>
+            <?php endif; ?>
+        </div>
+    </form>
+
+    <div class="admin-results-bar">
+        <span><?= e(str_replace([':shown', ':total'], [(string) count($result['items']), (string) ($result['total'] ?? 0)], lang('results_count'))) ?></span>
+    </div>
+
+    <div class="courses-table-container">
+        <table class="courses-table courses-table--auto">
+            <thead>
+                <tr>
+                    <th><?= e(lang('full_name')) ?></th>
+                    <th><?= e(lang('email')) ?></th>
+                    <th><?= e(lang('organization')) ?></th>
+                    <th><?= e(lang('waiting_time')) ?></th>
+                    <th><?= e(lang('registered_at')) ?></th>
+                    <th class="courses-th-actions"><?= e(lang('actions')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($result['items'])): ?>
+                <tr>
+                    <td colspan="6" class="courses-empty">
+                        <span class="material-symbols-outlined">check_circle</span>
+                        <p><?= e(!empty($filters['search']) || !empty($filters['waiting']) ? lang('no_users') : lang('external_queue_clear')) ?></p>
+                    </td>
+                </tr>
+                <?php else: foreach ($result['items'] as $user):
+                    $userId = (int) $user['id'];
+                    $waitDays = pending_wait_days((string) ($user['created_at'] ?? ''));
+                    $waitUrgency = pending_wait_urgency($waitDays);
+                    $isVerified = !empty($user['email_verified_at']);
+                    $externalApproveForms .= '<form id="approve-user-' . $userId . '" method="POST" action="'
+                        . e(url('admin/users/' . $userId . '/approve')) . '" class="hidden">'
+                        . csrf_field()
+                        . '</form>';
+                ?>
+                <tr id="external-user-<?= $userId ?>" class="<?= $highlightId === $userId ? 'admin-row-highlight' : '' ?>">
+                    <td class="courses-td-title"><?= e(localized($user, 'full_name')) ?></td>
+                    <td class="courses-td-muted">
+                        <span class="block"><?= e((string) ($user['email'] ?? '')) ?></span>
+                        <span class="courses-link-meta"><?= e($isVerified ? lang('email_verified') : lang('email_not_verified')) ?></span>
+                    </td>
+                    <td><?= e($user['organization_en'] ?? '—') ?></td>
+                    <td>
+                        <span class="admin-wait-badge admin-wait-badge--<?= e($waitUrgency) ?>">
+                            <span class="material-symbols-outlined text-[14px]">schedule</span>
+                            <?= e(pending_wait_label($waitDays)) ?>
+                        </span>
+                    </td>
+                    <td class="courses-td-date"><?= e(format_date((string) ($user['created_at'] ?? ''))) ?></td>
+                    <td class="courses-td-actions">
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button"
+                                    class="courses-action"
+                                    title="<?= e(lang('view_details')) ?>"
+                                    data-user-id="<?= $userId ?>"
+                                    data-user-name="<?= e(localized($user, 'full_name')) ?>"
+                                    data-user-email="<?= e((string) ($user['email'] ?? '')) ?>"
+                                    data-user-org="<?= e((string) ($user['organization_en'] ?? '')) ?>"
+                                    data-user-phone="<?= e((string) ($user['phone'] ?? '')) ?>"
+                                    data-user-registered="<?= e(format_date((string) ($user['created_at'] ?? ''))) ?>"
+                                    data-user-verified="<?= e($isVerified ? lang('email_verified') : lang('email_not_verified')) ?>"
+                                    data-user-wait="<?= e(pending_wait_label($waitDays)) ?>"
+                                    data-user-wait-days="<?= $waitDays ?>"
+                                    @click="openDetail($el)">
+                                <span class="material-symbols-outlined">visibility</span>
+                            </button>
+                            <button type="button"
+                                    class="courses-action courses-action--approve"
+                                    title="<?= e(lang('approve')) ?>"
+                                    data-user-id="<?= $userId ?>"
+                                    data-user-name="<?= e(localized($user, 'full_name')) ?>"
+                                    data-user-email="<?= e((string) ($user['email'] ?? '')) ?>"
+                                    @click="openApprove($el)">
+                                <span class="material-symbols-outlined">check</span>
+                            </button>
+                            <button type="button"
+                                    class="courses-action courses-action--reject"
+                                    title="<?= e(lang('reject')) ?>"
+                                    data-user-id="<?= $userId ?>"
+                                    data-user-name="<?= e(localized($user, 'full_name')) ?>"
+                                    @click="openReject($el)">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if (($result['pages'] ?? 1) > 1): ?>
+    <footer class="courses-list-pagination">
+        <span><?= e(lang('page')) ?> <?= (int) $result['page'] ?> / <?= (int) $result['pages'] ?></span>
+        <div class="courses-page-links">
+            <?php for ($p = 1; $p <= min($result['pages'], 7); $p++): ?>
+            <a href="?<?= e($queryParams(['page' => $p])) ?>"
+               class="courses-page-num<?= $p === $result['page'] ? ' is-active' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+        </div>
+    </footer>
+    <?php endif; ?>
+</div>
+<?= $externalApproveForms ?>
+
+<?php else: ?>
+<div class="courses-card">
+    <div class="courses-table-container">
+        <table class="courses-table courses-table--auto">
+            <thead>
+                <tr>
+                    <th><?= e(lang('full_name')) ?></th>
+                    <th><?= e(lang('email')) ?></th>
+                    <th><?= e(lang('organization')) ?></th>
+                    <th><?= e(lang('status')) ?></th>
+                    <th><?= e(lang('reviewed_at')) ?></th>
+                    <th><?= e(lang('reviewed_by')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($result['items'])): ?>
+                <tr>
+                    <td colspan="6" class="courses-empty">
+                        <span class="material-symbols-outlined">history</span>
+                        <p><?= e(lang('no_reviewed_external_accounts')) ?></p>
+                    </td>
+                </tr>
+                <?php else: foreach ($result['items'] as $user):
+                    $status = (string) ($user['account_status'] ?? '');
+                    $reviewedAt = $status === 'rejected'
+                        ? ($user['updated_at'] ?? $user['approved_at'] ?? null)
+                        : ($user['approved_at'] ?? null);
+                ?>
+                <tr>
+                    <td class="courses-td-title"><?= e(localized($user, 'full_name')) ?></td>
+                    <td class="courses-td-muted"><?= e((string) ($user['email'] ?? '')) ?></td>
+                    <td><?= e($user['organization_en'] ?? '—') ?></td>
+                    <td>
+                        <span class="courses-badge courses-badge--<?= e($status === 'active' ? 'approved' : 'rejected') ?>">
+                            <?= e($status === 'active' ? lang('status_approved') : lang('status_rejected')) ?>
+                        </span>
+                    </td>
+                    <td class="courses-td-date"><?= e(format_date($reviewedAt !== null ? (string) $reviewedAt : null)) ?></td>
+                    <td class="courses-td-muted"><?= e(localized([
+                        'full_name_en' => (string) ($user['reviewer_name_en'] ?? ''),
+                        'full_name_ar' => (string) ($user['reviewer_name_ar'] ?? ''),
+                    ], 'full_name') ?: '—') ?></td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if (($result['pages'] ?? 1) > 1): ?>
+    <footer class="courses-list-pagination">
+        <span><?= e(lang('page')) ?> <?= (int) $result['page'] ?> / <?= (int) $result['pages'] ?></span>
+        <div class="courses-page-links">
+            <?php for ($p = 1; $p <= min($result['pages'], 7); $p++): ?>
+            <a href="?<?= e($queryParams(['tab' => 'history', 'page' => $p])) ?>"
+               class="courses-page-num<?= $p === $result['page'] ? ' is-active' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+        </div>
+    </footer>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
+<div x-show="detailOpen" x-cloak x-transition.opacity class="admin-modal-backdrop" @keydown.escape.window="detailOpen = false">
+    <div class="admin-modal admin-modal--lg" role="dialog" aria-modal="true" @click.outside="detailOpen = false">
+        <div class="admin-modal-header">
+            <div class="admin-modal-header-icon">
+                <span class="material-symbols-outlined">person</span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h3 class="font-label-md text-on-surface"><?= e(lang('external_account_details')) ?></h3>
+                <p class="text-body-sm text-on-surface-variant truncate" x-text="detailUser.name"></p>
+            </div>
+            <button type="button" class="admin-modal-close" @click="detailOpen = false" aria-label="<?= e(lang('close')) ?>">
+                <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+        </div>
+        <div class="admin-modal-body">
+            <dl class="admin-detail-grid">
+                <div><dt><?= e(lang('email')) ?></dt><dd x-text="detailUser.email"></dd></div>
+                <div><dt><?= e(lang('organization')) ?></dt><dd x-text="detailUser.org || '—'"></dd></div>
+                <div><dt><?= e(lang('phone')) ?></dt><dd x-text="detailUser.phone || '—'"></dd></div>
+                <div><dt><?= e(lang('registered_at')) ?></dt><dd x-text="detailUser.registered"></dd></div>
+                <div><dt><?= e(lang('email_verified')) ?></dt><dd x-text="detailUser.verified"></dd></div>
+                <div><dt><?= e(lang('waiting_time')) ?></dt><dd x-text="detailUser.wait"></dd></div>
+            </dl>
+        </div>
+        <div class="admin-modal-footer">
+            <button type="button" class="courses-btn-ghost" @click="detailOpen = false"><?= e(lang('close')) ?></button>
+            <button type="button" class="courses-bulk-btn courses-bulk-btn--reject" @click="detailOpen = false; openRejectFromDetail()">
+                <span class="material-symbols-outlined text-[18px]">cancel</span>
+                <?= e(lang('reject')) ?>
+            </button>
+            <button type="submit"
+                    class="courses-bulk-btn courses-bulk-btn--approve"
+                    :form="detailUser.id ? ('approve-user-' + detailUser.id) : null"
+                    :disabled="!detailUser.id"
+                    @click="detailOpen = false">
+                <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                <?= e(lang('approve')) ?>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div x-show="approveId !== null" x-cloak x-transition.opacity class="admin-modal-backdrop" @keydown.escape.window="approveId = null">
+    <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="approve-external-title" @click.outside="approveId = null">
+        <div class="admin-modal-header">
+            <div class="admin-modal-header-icon admin-modal-header-icon--success">
+                <span class="material-symbols-outlined">person_check</span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h3 id="approve-external-title" class="font-label-md text-on-surface"><?= e(lang('approve_external_account')) ?></h3>
+                <p class="text-body-sm text-on-surface-variant truncate" x-text="approveName"></p>
+            </div>
+            <button type="button" class="admin-modal-close" @click="approveId = null" aria-label="<?= e(lang('close')) ?>">
+                <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+        </div>
+        <div class="admin-modal-body">
+            <p class="text-body-sm text-on-surface-variant leading-relaxed"><?= e(lang('confirm_approve_external')) ?></p>
+            <div class="mt-4 rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3">
+                <p class="text-label-sm text-on-surface-variant mb-1"><?= e(lang('email')) ?></p>
+                <p class="font-label-md text-on-surface break-all" x-text="approveEmail"></p>
+            </div>
+        </div>
+        <div class="admin-modal-footer">
+            <button type="button" class="courses-btn-ghost" @click="approveId = null"><?= e(lang('cancel')) ?></button>
+            <button type="submit"
+                    class="courses-bulk-btn courses-bulk-btn--approve"
+                    :form="approveId ? ('approve-user-' + approveId) : null"
+                    :disabled="!approveId">
+                <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                <?= e(lang('approve')) ?>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div x-show="rejectId !== null" x-cloak x-transition.opacity class="admin-modal-backdrop" @keydown.escape.window="rejectId = null">
+    <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="reject-external-title" @click.outside="rejectId = null">
+        <div class="admin-modal-header">
+            <div class="admin-modal-header-icon admin-modal-header-icon--edit">
+                <span class="material-symbols-outlined">person_off</span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h3 id="reject-external-title" class="font-label-md text-on-surface"><?= e(lang('reject_external_account')) ?></h3>
+                <p class="text-body-sm text-on-surface-variant truncate" x-text="rejectName"></p>
+            </div>
+            <button type="button" class="admin-modal-close" @click="rejectId = null" aria-label="<?= e(lang('close')) ?>">
+                <span class="material-symbols-outlined text-[20px]">close</span>
+            </button>
+        </div>
+        <form x-ref="rejectForm" method="POST" action="#" class="admin-modal-form">
+            <?= csrf_field() ?>
+            <div class="admin-modal-body space-y-unit-md">
+                <div class="flex flex-wrap gap-2">
+                    <?php foreach ([
+                        'rejection_template_incomplete',
+                        'rejection_template_duplicate',
+                        'rejection_template_ineligible',
+                    ] as $templateKey): ?>
+                    <button type="button"
+                            class="admin-reason-chip"
+                            @click="rejectionReason = <?= json_encode(lang($templateKey), JSON_UNESCAPED_UNICODE) ?>">
+                        <?= e(lang($templateKey)) ?>
+                    </button>
+                    <?php endforeach; ?>
+                </div>
+                <label class="courses-label" for="rejection_reason"><?= e(lang('rejection_reason')) ?></label>
+                <textarea id="rejection_reason" name="rejection_reason" x-model="rejectionReason" required rows="3" class="courses-input courses-textarea" placeholder="<?= e(lang('rejection_reason_placeholder')) ?>"></textarea>
+            </div>
+            <div class="admin-modal-footer">
+                <button type="button" class="courses-btn-ghost" @click="rejectId = null"><?= e(lang('cancel')) ?></button>
+                <button type="submit" class="courses-bulk-btn courses-bulk-btn--reject">
+                    <span class="material-symbols-outlined text-[18px]">cancel</span>
+                    <?= e(lang('reject')) ?>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('alpine:init', function () {
+    Alpine.data('pendingExternalModals', function () {
+        return {
+            rejectId: null,
+            rejectName: '',
+            rejectionReason: '',
+            approveId: null,
+            approveName: '',
+            approveEmail: '',
+            detailOpen: false,
+            detailUser: {},
+            approveBaseUrl: <?= json_encode(url('admin/users')) ?>,
+            openDetail: function (btn) {
+                this.detailUser = {
+                    id: parseInt(btn.dataset.userId, 10) || null,
+                    name: btn.dataset.userName || '',
+                    email: btn.dataset.userEmail || '',
+                    org: btn.dataset.userOrg || '',
+                    phone: btn.dataset.userPhone || '',
+                    registered: btn.dataset.userRegistered || '',
+                    verified: btn.dataset.userVerified || '',
+                    wait: btn.dataset.userWait || '',
+                };
+                this.detailOpen = true;
+            },
+            openApprove: function (btn) {
+                this.approveId = parseInt(btn.dataset.userId, 10) || null;
+                this.approveName = btn.dataset.userName || '';
+                this.approveEmail = btn.dataset.userEmail || '';
+            },
+            openReject: function (btn) {
+                this.rejectId = parseInt(btn.dataset.userId, 10) || null;
+                this.rejectName = btn.dataset.userName || '';
+                this.rejectionReason = '';
+                this.syncRejectFormAction();
+            },
+            openRejectFromDetail: function () {
+                if (!this.detailUser.id) {
+                    return;
+                }
+                this.rejectId = this.detailUser.id;
+                this.rejectName = this.detailUser.name || '';
+                this.rejectionReason = '';
+                this.syncRejectFormAction();
+            },
+            syncRejectFormAction: function () {
+                var form = this.$refs.rejectForm;
+                if (!form || !this.rejectId) {
+                    return;
+                }
+                form.action = this.approveBaseUrl + '/' + this.rejectId + '/reject';
+            },
+        };
+    });
+});
+
+<?php if ($highlightId > 0 && $tab === 'pending'): ?>
+document.addEventListener('DOMContentLoaded', function () {
+    var row = document.getElementById('external-user-<?= $highlightId ?>');
+    if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+});
+<?php endif; ?>
+</script>
+</div>

@@ -1,0 +1,88 @@
+<?php declare(strict_types=1);
+
+$verifyEmail = $email ?? ($_SESSION['pending_verify_email'] ?? '');
+$participantType = $participantType ?? ($_SESSION['pending_participant_type'] ?? 'du');
+$isExternal = $participantType === 'external';
+$devOtp = $_SESSION['dev_otp_hint'] ?? null;
+
+ob_start();
+?>
+<div class="auth-form-page p-unit-lg md:p-unit-xl">
+    <div class="auth-form-hero mb-unit-xl">
+        <div class="w-16 h-16 mx-auto mb-unit-md rounded-full bg-primary-container/20 flex items-center justify-center">
+            <span class="material-symbols-outlined text-primary text-3xl" style="font-variation-settings: 'FILL' 1;">shield</span>
+        </div>
+        <h1 class="auth-form-hero-title mb-unit-sm"><?= e(lang('verify_email')) ?></h1>
+        <p class="auth-form-hero-subtitle"><?= e($isExternal ? lang('verify_external_subtitle') : lang('verify_subtitle')) ?></p>
+        <?php if ($verifyEmail !== ''): ?>
+        <p class="text-primary font-label-md mt-unit-sm"><?= e($verifyEmail) ?></p>
+        <?php endif; ?>
+    </div>
+
+    <?php if ($devOtp !== null && config('debug')): ?>
+    <div class="rounded-xl bg-accent-sky/10 border border-accent-sky/30 px-unit-md py-unit-sm mb-unit-lg text-body-sm text-on-surface">
+        <span class="material-symbols-outlined text-accent-sky text-sm align-middle me-1">developer_mode</span>
+        <?= e(lang('dev_otp_hint', ['code' => (string) $devOtp])) ?>
+    </div>
+    <?php endif; ?>
+
+    <form method="POST" action="<?= e(url('verify')) ?>" class="space-y-unit-md" x-data="otpInput()">
+        <?= csrf_field() ?>
+
+        <?php if ($verifyEmail !== ''): ?>
+        <input type="hidden" name="email" value="<?= e($verifyEmail) ?>">
+        <?php else: ?>
+        <div>
+            <label for="email" class="block text-label-sm text-on-surface-variant mb-unit-xs"><?= e(lang('email')) ?></label>
+            <input type="email" id="email" name="email" required placeholder="name@du.edu.om" class="stitch-input">
+        </div>
+        <?php endif; ?>
+
+        <div>
+            <label for="otp_code" class="block text-label-sm text-on-surface-variant mb-unit-xs text-center"><?= e(lang('otp_code')) ?></label>
+            <input type="text" id="otp_code" name="otp_code" required maxlength="6" pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code" placeholder="000000"
+                   x-ref="otp" @input="formatOtp($event)"
+                   class="stitch-input text-center text-2xl font-bold tracking-[0.5em]">
+        </div>
+
+        <button type="submit" class="btn-primary w-full py-3"><?= e(lang('confirm')) ?></button>
+    </form>
+
+    <form method="POST" action="<?= e(url('verify/resend')) ?>" class="mt-unit-md text-center">
+        <?= csrf_field() ?>
+        <?php if ($verifyEmail !== ''): ?>
+        <input type="hidden" name="email" value="<?= e($verifyEmail) ?>">
+        <?php endif; ?>
+        <button type="submit" class="text-body-sm text-primary font-label-md hover:underline cursor-pointer bg-transparent border-0">
+            <span class="material-symbols-outlined text-sm align-middle">refresh</span>
+            <?= e(lang('resend_otp')) ?>
+        </button>
+    </form>
+
+    <?php
+    $footLinks = [];
+    $footBack = [
+        'label' => lang('back_to_login'),
+        'href' => url('login'),
+    ];
+    require view_path('auth/components/auth-foot-nav.php');
+    ?>
+</div>
+
+<script>
+function otpInput() {
+    return {
+        formatOtp(event) {
+            event.target.value = event.target.value.replace(/\D/g, '').slice(0, 6);
+        }
+    };
+}
+document.addEventListener('DOMContentLoaded', function() {
+    const otpField = document.getElementById('otp_code');
+    if (otpField) otpField.focus();
+});
+</script>
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('verify_email');
+require view_path('layouts/auth.php');

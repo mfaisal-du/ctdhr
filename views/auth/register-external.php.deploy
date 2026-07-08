@@ -1,0 +1,173 @@
+<?php declare(strict_types=1);
+
+ob_start();
+?>
+<div class="auth-register-page p-unit-lg md:p-unit-xl" x-data="registerExternalForm()">
+    <div class="auth-form-hero">
+        <div class="auth-form-hero-icon auth-form-hero-icon--external">
+            <span class="material-symbols-outlined">groups</span>
+        </div>
+        <h1 class="auth-form-hero-title"><?= e(lang('register_external')) ?></h1>
+        <p class="auth-form-hero-subtitle"><?= e(lang('register_external_subtitle')) ?></p>
+    </div>
+
+    <div class="auth-info-callout auth-info-callout--external" role="note">
+        <div class="auth-info-callout-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">info</span>
+        </div>
+        <p class="auth-info-callout-text"><?= e(lang('external_register_notice')) ?></p>
+    </div>
+
+    <form method="POST"
+          action="<?= e(url('register/external')) ?>"
+          class="auth-form-fields space-y-unit-md"
+          @submit="if (!canSubmit()) { $event.preventDefault(); }">
+        <?= csrf_field() ?>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-unit-md">
+            <div class="md:col-span-2">
+                <label for="full_name" class="auth-field-label"><?= e(lang('full_name')) ?></label>
+                <input type="text" id="full_name" name="full_name" value="<?= e(old('full_name')) ?>" required autocomplete="name" class="stitch-input">
+            </div>
+
+            <div class="md:col-span-2">
+                <label for="organization" class="auth-field-label"><?= e(lang('organization')) ?></label>
+                <input type="text" id="organization" name="organization" value="<?= e(old('organization')) ?>" required autocomplete="organization" class="stitch-input">
+            </div>
+
+            <div class="auth-field-group" :class="(emailInvalid || duEmailBlocked) && 'auth-field-group--invalid'">
+                <label for="email" class="auth-field-label"><?= e(lang('email')) ?></label>
+                <div class="relative auth-field-input" x-ref="emailWrap">
+                    <span class="material-symbols-outlined absolute top-1/2 -translate-y-1/2 <?= is_rtl() ? 'right-3' : 'left-3' ?> text-outline text-sm">mail</span>
+                    <input type="email"
+                           id="email"
+                           name="email"
+                           x-model="email"
+                           @input="touched.email = true"
+                           @blur="touched.email = true; if (emailInvalid || duEmailBlocked) shakeField($refs.emailWrap)"
+                           required
+                           autocomplete="email"
+                           placeholder="you@organization.com"
+                           :class="(emailInvalid || duEmailBlocked) ? 'stitch-input stitch-input--error <?= is_rtl() ? 'pr-10' : 'pl-10' ?>' : 'stitch-input <?= is_rtl() ? 'pr-10' : 'pl-10' ?>'"
+                           :aria-invalid="emailInvalid || duEmailBlocked">
+                </div>
+                <?php
+                $show = 'duEmailBlocked';
+                $message = lang('external_du_email_not_allowed');
+                require view_path('auth/components/auth-field-error.php');
+                $show = 'emailInvalid && !duEmailBlocked';
+                $message = lang('external_email_invalid');
+                require view_path('auth/components/auth-field-error.php');
+                ?>
+            </div>
+
+            <div>
+                <label for="phone" class="auth-field-label">
+                    <?= e(lang('phone')) ?> <span class="auth-field-optional">(<?= e(lang('optional')) ?>)</span>
+                </label>
+                <input type="tel" id="phone" name="phone" value="<?= e(old('phone')) ?>" autocomplete="tel" class="stitch-input">
+            </div>
+
+            <div>
+                <label for="password" class="auth-field-label"><?= e(lang('password')) ?></label>
+                <input type="password"
+                       id="password"
+                       name="password"
+                       x-model="password"
+                       @input="touched.password = true"
+                       required
+                       minlength="8"
+                       autocomplete="new-password"
+                       class="stitch-input">
+                <p class="auth-field-hint"><?= e(lang('password_hint')) ?></p>
+            </div>
+
+            <div class="auth-field-group" :class="passwordMismatch && 'auth-field-group--invalid'">
+                <label for="confirm_password" class="auth-field-label"><?= e(lang('confirm_password')) ?></label>
+                <div class="auth-field-input" x-ref="confirmWrap">
+                    <input type="password"
+                           id="confirm_password"
+                           name="confirm_password"
+                           x-model="confirmPassword"
+                           @input="touched.confirmPassword = true"
+                           @blur="touched.confirmPassword = true; if (passwordMismatch) shakeField($refs.confirmWrap)"
+                           required
+                           minlength="8"
+                           autocomplete="new-password"
+                           :class="passwordMismatch ? 'stitch-input stitch-input--error' : 'stitch-input'"
+                           :aria-invalid="passwordMismatch">
+                </div>
+                <?php
+                $show = 'passwordMismatch';
+                $message = lang('password_mismatch_inline');
+                require view_path('auth/components/auth-field-error.php');
+                ?>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary w-full py-3 mt-unit-sm" :disabled="!canSubmit()"><?= e(lang('sign_up')) ?></button>
+    </form>
+
+    <?php
+    $footLinks = [[
+        'icon' => 'login',
+        'prompt' => lang('have_account'),
+        'label' => lang('sign_in'),
+        'href' => url('login/external'),
+        'variant' => 'external',
+    ]];
+    $footBack = [
+        'label' => lang('back_to_register_chooser'),
+        'href' => url('register'),
+    ];
+    require view_path('auth/components/auth-foot-nav.php');
+    ?>
+</div>
+
+<script>
+function registerExternalForm() {
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const duEmailPattern = /@du\.edu\.om$/i;
+
+    return {
+        email: <?= json_encode(old('email', ''), JSON_UNESCAPED_UNICODE) ?>,
+        password: '',
+        confirmPassword: '',
+        touched: {
+            email: <?= json_encode(old('email', '') !== '') ?>,
+            password: false,
+            confirmPassword: false
+        },
+        get emailInvalid() {
+            if (!this.touched.email || !this.email) return false;
+            return !emailPattern.test(this.email.trim());
+        },
+        get duEmailBlocked() {
+            if (!this.touched.email || !this.email) return false;
+            return duEmailPattern.test(this.email.trim());
+        },
+        get passwordMismatch() {
+            if (!this.touched.confirmPassword || !this.confirmPassword) return false;
+            return this.password !== this.confirmPassword;
+        },
+        canSubmit() {
+            const value = this.email.trim();
+            if (!value || !emailPattern.test(value) || duEmailPattern.test(value)) return false;
+            if (this.password.length < 8) return false;
+            if (this.password !== this.confirmPassword) return false;
+            return true;
+        },
+        shakeField(el) {
+            if (!el) return;
+            el.classList.remove('auth-field-input--shake');
+            void el.offsetWidth;
+            el.classList.add('auth-field-input--shake');
+        }
+    };
+}
+</script>
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('register_external');
+$authCardWidth = 'lg';
+require view_path('layouts/auth.php');

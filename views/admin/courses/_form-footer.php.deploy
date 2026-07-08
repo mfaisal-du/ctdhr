@@ -1,0 +1,17 @@
+<?php declare(strict_types=1); ?>
+<div class="courses-form-action-bar" id="courseFormActionBar">
+    <div class="courses-form-action-bar__status">
+        <span class="courses-unsaved-badge courses-unsaved-badge--hidden" id="unsavedBadge">
+            <span class="material-symbols-outlined">edit_note</span>
+            <?= e(lang('unsaved_changes')) ?>
+        </span>
+    </div>
+    <div class="courses-form-action-bar__actions">
+        <a href="<?= e(url('admin/courses')) ?>" class="courses-btn-cancel" id="courseFormCancel"><?= e(lang('cancel')) ?></a>
+        <button type="submit" class="courses-btn-save" form="courseForm" id="courseFormSave">
+            <span class="material-symbols-outlined courses-btn-icon">save</span>
+            <span class="courses-btn-label"><?= e(lang('save')) ?></span>
+            <span class="courses-btn-spinner" aria-hidden="true"></span>
+        </button>
+    </div>
+</div>

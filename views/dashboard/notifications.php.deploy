@@ -1,0 +1,82 @@
+<?php declare(strict_types=1);
+
+/** @var array<int, array<string, mixed>> $notifications */
+$notifications = $notifications ?? [];
+$unreadCount = $unreadCount ?? 0;
+
+$headerActions = '';
+if ($unreadCount > 0) {
+    $headerActions .= '<a href="' . e(url('dashboard/notifications?mark_all=1')) . '" class="courses-btn-secondary">'
+        . '<span class="material-symbols-outlined">done_all</span>'
+        . e(lang('mark_all_read'))
+        . '</a>';
+}
+
+ob_start();
+?>
+
+<div class="admin-module-page admin-module-page--listing">
+<?php
+dashboard_page_header([
+    'icon' => 'notifications',
+    'title' => lang('notifications'),
+    'subtitle' => lang('notifications_subtitle', ['count' => (string) $unreadCount]),
+    'accent' => 'sky',
+    'actions' => $headerActions,
+]);
+?>
+
+<div class="courses-card">
+    <?php if ($notifications === []): ?>
+    <div class="admin-notif-page-empty">
+        <div class="admin-notif-empty-icon-wrap" aria-hidden="true">
+            <span class="material-symbols-outlined admin-notif-empty-icon">inbox</span>
+        </div>
+        <p class="admin-notif-empty-title"><?= e(lang('no_notifications')) ?></p>
+    </div>
+    <?php else: ?>
+    <ul class="admin-notif-page-list">
+        <?php foreach ($notifications as $notification): ?>
+        <?php $isUnread = empty($notification['is_read']); ?>
+        <li class="admin-notif-page-item<?= $isUnread ? ' admin-notif-page-item--unread' : '' ?>">
+            <div class="admin-notif-item-icon-wrap" aria-hidden="true">
+                <span class="material-symbols-outlined admin-notif-item-icon">notifications</span>
+            </div>
+            <div class="admin-notif-page-item-body">
+                <div class="admin-notif-page-item-top">
+                    <p class="admin-notif-item-title"><?= e(localized($notification, 'title')) ?></p>
+                    <?php if ($isUnread): ?>
+                    <span class="admin-notif-page-new-pill"><?= e(lang('new')) ?></span>
+                    <?php endif; ?>
+                </div>
+                <?php if (localized($notification, 'message') !== ''): ?>
+                <p class="admin-notif-item-message"><?= e(localized($notification, 'message')) ?></p>
+                <?php endif; ?>
+                <p class="admin-notif-item-time">
+                    <span class="material-symbols-outlined text-[13px]">schedule</span>
+                    <span><?= e(format_date((string) ($notification['created_at'] ?? ''))) ?></span>
+                </p>
+            </div>
+            <div class="admin-notif-page-item-actions">
+                <?php if (!empty($notification['link'])): ?>
+                <a href="<?= e((string) $notification['link']) ?>" class="courses-btn-secondary courses-btn-secondary--sm">
+                    <?= e(lang('view')) ?>
+                </a>
+                <?php endif; ?>
+                <?php if ($isUnread): ?>
+                <a href="<?= e(url('dashboard/notifications?mark_read=' . (int) ($notification['id'] ?? 0))) ?>" class="admin-notif-page-mark-read">
+                    <?= e(lang('mark_read')) ?>
+                </a>
+                <?php endif; ?>
+            </div>
+        </li>
+        <?php endforeach; ?>
+    </ul>
+    <?php endif; ?>
+</div>
+</div>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('notifications');
+require view_path('layouts/dashboard.php');

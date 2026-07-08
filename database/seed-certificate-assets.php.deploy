@@ -1,0 +1,117 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Generates full demo certificate PDFs (name, course, date, cert number, QR code).
+ * Run: php database/seed-certificate-assets.php.deploy
+ */
+
+$bootstrap = dirname(__DIR__) . '/bootstrap/app.php.deploy';
+if (!is_file($bootstrap)) {
+    $bootstrap = dirname(__DIR__) . '/bootstrap/app.php';
+}
+if (!is_file($bootstrap)) {
+    fwrite(STDERR, "Bootstrap not found.\n");
+    exit(1);
+}
+require_once $bootstrap;
+
+use CTDHR\Config\Database;
+use CTDHR\Services\CertificateService;
+
+$templateDir = CTDHR_UPLOADS_CERTIFICATES . '/templates';
+$qrDir = CTDHR_UPLOADS_CERTIFICATES . '/qr';
+$demoDir = CTDHR_UPLOADS_CERTIFICATES . '/demo';
+
+foreach ([$templateDir, $qrDir, $demoDir] as $dir) {
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+}
+
+$bgPath = $templateDir . '/default-bg.jpg';
+if (!is_file($bgPath) && extension_loaded('gd')) {
+    $img = imagecreatetruecolor(1200, 850);
+    $navy = imagecolorallocate($img, 30, 65, 148);
+    $gold = imagecolorallocate($img, 212, 175, 55);
+    $white = imagecolorallocate($img, 255, 255, 255);
+    imagefilledrectangle($img, 0, 0, 1200, 850, $navy);
+    imagefilledrectangle($img, 50, 50, 1150, 800, $gold);
+    imagefilledrectangle($img, 70, 70, 1130, 780, $white);
+    imagejpeg($img, $bgPath, 90);
+    imagedestroy($img);
+    echo "Created template background.\n";
+}
+
+$defaultMappings = '{"participant_name":{"x":0,"y":82,"size":22,"field":"participant_name","align":"C","width":297},"awarded_line":{"x":0,"y":108,"size":11,"text":"has successfully completed","align":"C","width":297,"style":""},"course_title":{"x":0,"y":120,"size":16,"field":"course_title","align":"C","width":297},"duration_hours":{"x":0,"y":138,"size":10,"field":"duration_hours","prefix":"Duration: ","suffix":" hours","align":"C","width":297,"style":""},"completion_date":{"x":0,"y":152,"size":10,"field":"completion_date","prefix":"Completion Date: ","align":"C","width":297,"style":""},"cert_number":{"x":0,"y":168,"size":10,"field":"cert_number","prefix":"Certificate No: ","align":"C","width":297,"style":""},"qr_code":{"x":248,"y":154,"size":40,"type":"qr"}}';
+
+$db = Database::getInstance();
+$db->exec(
+    "UPDATE certificate_templates
+     SET field_mappings = " . $db->quote($defaultMappings) . ",
+         background_path = 'uploads/certificates/templates/default-bg.jpg'
+     WHERE id = 1"
+);
+$db->exec(
+    "UPDATE certificates
+     SET pdf_path = REPLACE(pdf_path, 'storage/certificates/', 'uploads/certificates/')
+     WHERE pdf_path LIKE 'storage/certificates/%'"
+);
+
+$service = new CertificateService();
+$stmt = $db->query(
+    "SELECT * FROM certificates
+     WHERE cert_number LIKE 'CTDHR-2026-DEMO%'
+     ORDER BY id ASC"
+);
+
+$generated = 0;
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    if ($service->regeneratePdfForRecord($row)) {
+        $generated++;
+        echo "Generated certificate: {$row['cert_number']} ({$row['participant_name_en']})\n";
+        echo "  Verify: " . url('verify/' . $row['verification_token']) . "\n";
+    } else {
+        fwrite(STDERR, "Failed to generate: {$row['cert_number']}\n");
+    }
+}
+
+if ($generated === 0) {
+    $fallback = [
+        [
+            'cert_number' => 'CTDHR-2026-DEMO001',
+            'verification_token' => 'demo_verify_token_salmah_001',
+            'participant_name_en' => 'Salma Al-Harthi',
+            'participant_name_ar' => 'سلمى الحارثي',
+            'course_title_en' => 'Digital Tools for Modern Classrooms',
+            'course_title_ar' => 'الأدوات الرقمية للفصول الحديثة',
+            'completion_date' => date('Y-m-d', strtotime('-20 days')),
+            'duration_hours' => '18',
+            'pdf_path' => 'uploads/certificates/demo/CTDHR-2026-DEMO001.pdf',
+            'template_id' => 1,
+        ],
+        [
+            'cert_number' => 'CTDHR-2026-DEMO002',
+            'verification_token' => 'demo_verify_token_fatima_002',
+            'participant_name_en' => 'Fatima Al-Zadjali',
+            'participant_name_ar' => 'فاطمة الزدجالي',
+            'course_title_en' => 'Digital Tools for Modern Classrooms',
+            'course_title_ar' => 'الأدوات الرقمية للفصول الحديثة',
+            'completion_date' => date('Y-m-d', strtotime('-20 days')),
+            'duration_hours' => '18',
+            'pdf_path' => 'uploads/certificates/demo/CTDHR-2026-DEMO002.pdf',
+            'template_id' => 1,
+        ],
+    ];
+
+    $template = $service->getDefaultTemplate();
+    foreach ($fallback as $cert) {
+        if ($service->regeneratePdfForRecord($cert, $template)) {
+            $generated++;
+            echo "Generated fallback certificate: {$cert['cert_number']}\n";
+        }
+    }
+}
+
+echo "Done. {$generated} certificate(s) generated with QR codes.\n";

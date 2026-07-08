@@ -1,0 +1,134 @@
+<?php declare(strict_types=1);
+
+/** @var array<string, mixed> $user */
+$user = $user ?? [];
+$isExternal = ($user['participant_type'] ?? 'du') === 'external';
+$profileUpdated = !empty($profileUpdated);
+
+ob_start();
+?>
+
+<div class="admin-module-page">
+<?php
+dashboard_page_header([
+    'icon' => 'person',
+    'title' => lang('profile'),
+    'subtitle' => localized($user, 'full_name'),
+    'accent' => 'primary',
+]);
+?>
+
+<?php if ($profileUpdated): ?>
+<div class="admin-flash admin-flash-success mb-4" role="status">
+    <span class="material-symbols-outlined admin-flash-icon">check_circle</span>
+    <span><?= e(lang('profile_updated')) ?></span>
+</div>
+<?php endif; ?>
+
+<div class="courses-card max-w-3xl overflow-hidden p-0">
+    <div class="dashboard-profile-hero">
+        <div class="flex items-center gap-4">
+            <div class="admin-user-avatar w-16 h-16 text-xl" aria-hidden="true">
+                <?= e(mb_strtoupper(mb_substr(localized($user, 'full_name'), 0, 1))) ?>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h2 class="font-headline-sm text-headline-sm text-white"><?= e(localized($user, 'full_name')) ?></h2>
+                <p class="text-white/80 text-label-sm truncate"><?= e((string) ($user['email'] ?? '')) ?></p>
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <span class="courses-badge courses-badge--published" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;">
+                        <?= e(participant_type_label((string) ($user['participant_type'] ?? 'du'))) ?>
+                    </span>
+                    <?php if ($isExternal): ?>
+                    <span class="courses-badge courses-badge--published" style="background:rgba(255,255,255,0.15);border-color:transparent;color:#fff;">
+                        <?= e(account_status_label((string) ($user['account_status'] ?? 'active'))) ?>
+                    </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-6">
+        <?php if ($isExternal): ?>
+        <form method="POST" action="<?= e(url('dashboard/profile')) ?>" class="mb-8 pb-8 border-b border-outline-variant/20">
+            <?= csrf_field() ?>
+            <h3 class="font-label-md text-on-surface mb-4"><?= e(lang('external_profile_section')) ?></h3>
+
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('organization')) ?></dt>
+                    <dd class="text-on-surface font-label-md"><?= e((string) ($user['organization_en'] ?? '—')) ?></dd>
+                </div>
+                <div>
+                    <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('username')) ?></dt>
+                    <dd class="text-on-surface font-label-md"><?= e((string) ($user['username'] ?? '—')) ?></dd>
+                </div>
+            </dl>
+
+            <div class="mb-4">
+                <label for="phone" class="courses-label"><?= e(lang('phone')) ?></label>
+                <input type="tel" id="phone" name="phone" value="<?= e((string) ($user['phone'] ?? '')) ?>" class="courses-input">
+            </div>
+
+            <p class="text-label-sm text-on-surface-variant mb-4"><?= e(lang('external_profile_edit_note')) ?></p>
+            <button type="submit" class="courses-btn-create">
+                <span class="material-symbols-outlined">save</span>
+                <?= e(lang('save_profile')) ?>
+            </button>
+        </form>
+        <?php else: ?>
+        <p class="text-label-sm text-on-surface-variant mb-6"><?= e(lang('profile_readonly_note')) ?></p>
+        <?php endif; ?>
+
+        <dl class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <?php if (!$isExternal): ?>
+            <div>
+                <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('username')) ?></dt>
+                <dd class="text-on-surface font-label-md"><?= e((string) ($user['username'] ?? '—')) ?></dd>
+            </div>
+            <div>
+                <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('email')) ?></dt>
+                <dd class="text-on-surface font-label-md"><?= e((string) ($user['email'] ?? '—')) ?></dd>
+            </div>
+            <?php endif; ?>
+            <div>
+                <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('full_name')) ?></dt>
+                <dd class="text-on-surface font-label-md"><?= e(localized($user, 'full_name')) ?></dd>
+            </div>
+            <div>
+                <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('role')) ?></dt>
+                <dd class="text-on-surface font-label-md"><?= e(role_label((string) ($user['role'] ?? 'staff'))) ?></dd>
+            </div>
+            <?php if (!$isExternal): ?>
+            <div>
+                <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('department')) ?></dt>
+                <dd class="text-on-surface font-label-md"><?= e(localized($user, 'department') ?: '—') ?></dd>
+            </div>
+            <div>
+                <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('college')) ?></dt>
+                <dd class="text-on-surface font-label-md"><?= e(localized($user, 'college') ?: '—') ?></dd>
+            </div>
+            <div>
+                <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('phone')) ?></dt>
+                <dd class="text-on-surface font-label-md"><?= e((string) ($user['phone'] ?? '—')) ?></dd>
+            </div>
+            <div>
+                <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('employee_id')) ?></dt>
+                <dd class="text-on-surface font-label-md"><?= e((string) ($user['employee_id'] ?? '—')) ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($user['last_login_at'])): ?>
+            <div class="md:col-span-2">
+                <dt class="text-label-sm text-on-surface-variant uppercase tracking-wide mb-1"><?= e(lang('last_login')) ?></dt>
+                <dd class="text-on-surface font-label-md"><?= e(format_date((string) $user['last_login_at'])) ?></dd>
+            </div>
+            <?php endif; ?>
+        </dl>
+    </div>
+</div>
+</div>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('profile');
+require view_path('layouts/dashboard.php');

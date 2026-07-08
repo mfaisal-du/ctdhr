@@ -1,0 +1,218 @@
+<?php declare(strict_types=1);
+
+$result = $result ?? ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
+
+$pendingCount = 0;
+$approvedCount = 0;
+$rejectedCount = 0;
+foreach ($result['items'] as $app) {
+    $st = $app['status'] ?? 'pending';
+    if ($st === 'pending') $pendingCount++;
+    elseif ($st === 'approved') $approvedCount++;
+    elseif ($st === 'rejected') $rejectedCount++;
+}
+
+$exportBtn = '<a href="' . e(url('admin/applications/export?' . http_build_query($filters))) . '" class="courses-btn-secondary">'
+    . '<span class="material-symbols-outlined">download</span>'
+    . e(lang('export_csv'))
+    . '</a>';
+?>
+
+<div class="admin-module-page">
+<?php
+admin_page_header([
+    'icon' => 'group',
+    'title' => lang('applications'),
+    'subtitle' => lang('applications_manage_subtitle') ?? (lang('filter') . ' & ' . lang('export_csv')),
+    'accent' => 'secondary',
+    'actions' => $exportBtn,
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('applications')],
+    ],
+]);
+?>
+
+<div class="courses-kpi-grid">
+    <?php foreach ([
+        ['blue', 'inbox', lang('total_applications'), (int) ($result['total'] ?? count($result['items']))],
+        ['gold', 'pending', lang('status_pending'), $pendingCount],
+        ['green', 'check_circle', lang('status_approved'), $approvedCount],
+        ['sky', 'cancel', lang('status_rejected'), $rejectedCount],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card">
+    <form method="GET" action="<?= e(url('admin/applications')) ?>" class="courses-filters">
+        <div class="courses-search">
+            <span class="material-symbols-outlined">search</span>
+            <input type="search" name="search" value="<?= e($filters['search'] ?? '') ?>" placeholder="<?= e(lang('search_placeholder')) ?>" class="courses-search-input" autocomplete="off">
+        </div>
+        <div class="courses-filter-group">
+            <div class="admin-select-wrap admin-select-wrap--sm admin-select-wrap--filter">
+                <select name="status" class="admin-form-select courses-filter-select" aria-label="<?= e(lang('status')) ?>">
+                    <option value=""><?= e(lang('all_statuses')) ?></option>
+                    <?php foreach (['pending','approved','rejected','waitlisted','cancelled'] as $st): ?>
+                    <option value="<?= e($st) ?>" <?= ($filters['status'] ?? '') === $st ? 'selected' : '' ?>><?= e(lang('status_' . $st)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="admin-select-wrap admin-select-wrap--sm admin-select-wrap--filter admin-select-wrap--wide">
+                <select name="course_id" class="admin-form-select courses-filter-select" aria-label="<?= e(lang('courses')) ?>">
+                    <option value=""><?= e(lang('all_courses')) ?></option>
+                    <?php foreach ($courses as $c): ?>
+                    <option value="<?= (int) $c['id'] ?>" <?= (string)($filters['course_id'] ?? '') === (string)$c['id'] ? 'selected' : '' ?>><?= e(localized($c, 'title')) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button type="submit" class="courses-btn-filter">
+                <span class="material-symbols-outlined">filter_list</span>
+                <?= e(lang('filter')) ?>
+            </button>
+            <?php if (!empty($filters['search']) || !empty($filters['status']) || !empty($filters['course_id'])): ?>
+            <a href="<?= e(url('admin/applications')) ?>" class="courses-clear"><?= e(lang('clear_filters')) ?></a>
+            <?php endif; ?>
+        </div>
+    </form>
+
+    <?php $applicationStatusForms = ''; ?>
+    <form method="POST" action="<?= e(url('admin/applications/bulk')) ?>" id="bulkForm">
+        <?= csrf_field() ?>
+        <div class="courses-bulk-bar">
+            <button type="submit" name="bulk_action" value="approve" class="courses-bulk-btn courses-bulk-btn--approve" onclick="return validateBulkApplications(this.form);">
+                <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                <?= e(lang('bulk_approve')) ?>
+            </button>
+            <button type="submit" name="bulk_action" value="reject" class="courses-bulk-btn courses-bulk-btn--reject" onclick="return validateBulkApplications(this.form);">
+                <span class="material-symbols-outlined text-[18px]">cancel</span>
+                <?= e(lang('bulk_reject')) ?>
+            </button>
+            <button type="submit" name="bulk_action" value="waitlist" class="courses-bulk-btn courses-bulk-btn--waitlist" onclick="return validateBulkApplications(this.form);">
+                <span class="material-symbols-outlined text-[18px]">schedule</span>
+                <?= e(lang('bulk_waitlist')) ?>
+            </button>
+        </div>
+        <div class="courses-table-container">
+            <table class="courses-table courses-table--auto">
+                <thead>
+                    <tr>
+                        <th class="w-10">
+                            <input type="checkbox" class="courses-checkbox" id="selectAllApps" aria-label="<?= e(lang('select_all')) ?>">
+                        </th>
+                        <th><?= e(lang('participant_name')) ?></th>
+                        <th><?= e(lang('email')) ?></th>
+                        <th><?= e(lang('course_title')) ?></th>
+                        <th><?= e(lang('status')) ?></th>
+                        <th><?= e(lang('applied_at')) ?></th>
+                        <th class="courses-th-actions"><?= e(lang('actions')) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($result['items'])): ?>
+                    <tr>
+                        <td colspan="7" class="courses-empty">
+                            <span class="material-symbols-outlined">inbox</span>
+                            <p><?= e(lang('no_applications')) ?></p>
+                        </td>
+                    </tr>
+                    <?php else: foreach ($result['items'] as $app):
+                        $status = $app['status'] ?? 'pending';
+                        $appId = (int) $app['id'];
+                        $statusFormPrefix = 'app-status-' . $appId;
+                        $statusFormAction = e(url('admin/applications/' . $appId . '/status'));
+                        $csrfField = csrf_field();
+                    ?>
+                    <tr>
+                        <td><input type="checkbox" name="ids[]" value="<?= $appId ?>" class="app-check courses-checkbox"></td>
+                        <td class="courses-td-title"><span class="courses-link-title" style="cursor:default;text-decoration:none;"><?= e(localized($app, 'full_name')) ?></span></td>
+                        <td class="courses-td-muted"><?= e($app['email']) ?></td>
+                        <td><?= e(localized($app, 'course_title')) ?></td>
+                        <td><span class="courses-badge courses-badge--<?= e(str_replace('_', '-', $status)) ?>"><?= e(lang('status_' . $status)) ?></span></td>
+                        <td class="courses-td-date"><?= e($app['applied_at']) ?></td>
+                        <td class="courses-td-actions">
+                            <?php if (in_array($status, ['pending', 'waitlisted'], true)): ?>
+                            <div class="courses-actions-row">
+                                <button type="submit" form="<?= e($statusFormPrefix) ?>-approve" class="courses-action courses-action--approve" title="<?= e(lang('approve')) ?>">
+                                    <span class="material-symbols-outlined">check_circle</span>
+                                </button>
+                                <button type="submit" form="<?= e($statusFormPrefix) ?>-reject" class="courses-action courses-action--reject" title="<?= e(lang('reject')) ?>">
+                                    <span class="material-symbols-outlined">cancel</span>
+                                </button>
+                                <?php if ($status === 'pending'): ?>
+                                <button type="submit" form="<?= e($statusFormPrefix) ?>-waitlist" class="courses-action courses-action--waitlist" title="<?= e(lang('waitlist')) ?>">
+                                    <span class="material-symbols-outlined">schedule</span>
+                                </button>
+                                <?php
+                                $applicationStatusForms .= '<form id="' . e($statusFormPrefix) . '-waitlist" method="POST" action="' . $statusFormAction . '" class="hidden">'
+                                    . $csrfField
+                                    . '<input type="hidden" name="status_action" value="waitlist">'
+                                    . '</form>';
+                                endif; ?>
+                            </div>
+                            <?php
+                            $applicationStatusForms .= '<form id="' . e($statusFormPrefix) . '-approve" method="POST" action="' . $statusFormAction . '" class="hidden">'
+                                . $csrfField
+                                . '<input type="hidden" name="status_action" value="approve">'
+                                . '</form>'
+                                . '<form id="' . e($statusFormPrefix) . '-reject" method="POST" action="' . $statusFormAction . '" class="hidden">'
+                                . $csrfField
+                                . '<input type="hidden" name="status_action" value="reject">'
+                                . '</form>';
+                            else: ?>
+                            <span class="courses-td-muted">—</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </form>
+    <?= $applicationStatusForms ?>
+
+    <?php if (($result['pages'] ?? 1) > 1): ?>
+    <footer class="courses-list-pagination">
+        <span><?= e(lang('page')) ?> <?= (int) $result['page'] ?> / <?= (int) $result['pages'] ?></span>
+        <div class="courses-page-links">
+            <?php for ($p = 1; $p <= min($result['pages'], 7); $p++): ?>
+            <a href="?page=<?= $p ?>&search=<?= e(urlencode($filters['search'] ?? '')) ?>&status=<?= e(urlencode($filters['status'] ?? '')) ?>&course_id=<?= e(urlencode((string)($filters['course_id'] ?? ''))) ?>"
+               class="courses-page-num<?= $p === $result['page'] ? ' is-active' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+        </div>
+    </footer>
+    <?php endif; ?>
+</div>
+
+<script>
+function validateBulkApplications(form) {
+    if (!form) {
+        return false;
+    }
+    if (form.querySelectorAll('.app-check:checked').length === 0) {
+        alert('<?= e(lang('no_applications_selected')) ?>');
+        return false;
+    }
+    return true;
+}
+
+(function() {
+    const selectAll = document.getElementById('selectAllApps');
+    if (!selectAll) {
+        return;
+    }
+    selectAll.addEventListener('change', function() {
+        document.querySelectorAll('.app-check').forEach(function(checkbox) {
+            checkbox.checked = selectAll.checked;
+        });
+    });
+})();
+</script>
+</div>

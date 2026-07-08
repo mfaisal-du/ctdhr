@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Middleware;
+
+final class AuthMiddleware
+{
+    public function handle(callable $next): void
+    {
+        if (empty($_SESSION['user_id'])) {
+            flash('error', lang('auth_required'));
+            redirect('login');
+        }
+
+        $next();
+    }
+}

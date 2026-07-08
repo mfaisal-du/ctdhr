@@ -1,0 +1,235 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class Category
+{
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findAllActive(): array
+    {
+        $db = Database::getInstance();
+
+        $stmt = $db->query(
+            'SELECT id, name_en, name_ar, slug, description_en, description_ar, icon, color, card_image_path, display_order
+             FROM course_categories
+             WHERE is_active = 1 AND deleted_at IS NULL
+             ORDER BY display_order ASC, name_en ASC'
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findBySlug(string $slug): ?array
+    {
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            'SELECT id, name_en, name_ar, slug, description_en, description_ar, icon, color, card_image_path, display_order
+             FROM course_categories
+             WHERE slug = :slug AND is_active = 1 AND deleted_at IS NULL
+             LIMIT 1'
+        );
+        $stmt->execute(['slug' => $slug]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findById(int $id): ?array
+    {
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            'SELECT id, name_en, name_ar, slug, description_en, description_ar, icon, color, card_image_path, display_order
+             FROM course_categories
+             WHERE id = :id AND is_active = 1 AND deleted_at IS NULL
+             LIMIT 1'
+        );
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    public static function countActive(): int
+    {
+        $db = Database::getInstance();
+
+        return (int) $db->query(
+            'SELECT COUNT(*) FROM course_categories WHERE is_active = 1 AND deleted_at IS NULL'
+        )->fetchColumn();
+    }
+
+    /**
+     * Active categories with a count of publicly visible courses in each.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findAllActiveWithPublicCourseCounts(): array
+    {
+        $db = Database::getInstance();
+        $publicStatuses = [
+            'announced',
+            'accepting_applications',
+            'scheduled',
+            'in_progress',
+            'completed',
+        ];
+        $placeholders = implode(',', array_fill(0, count($publicStatuses), '?'));
+
+        $stmt = $db->prepare(
+            "SELECT cat.id,
+                    cat.name_en,
+                    cat.name_ar,
+                    cat.slug,
+                    cat.description_en,
+                    cat.description_ar,
+                    cat.icon,
+                    cat.color,
+                    cat.card_image_path,
+                    cat.display_order,
+                    COUNT(c.id) AS public_course_count
+             FROM course_categories cat
+             LEFT JOIN courses c
+                ON c.category_id = cat.id
+               AND c.deleted_at IS NULL
+               AND c.status IN ({$placeholders})
+             WHERE cat.is_active = 1 AND cat.deleted_at IS NULL
+             GROUP BY cat.id,
+                      cat.name_en,
+                      cat.name_ar,
+                      cat.slug,
+                      cat.description_en,
+                      cat.description_ar,
+                      cat.icon,
+                      cat.color,
+                      cat.card_image_path,
+                      cat.display_order
+             ORDER BY cat.display_order ASC, cat.name_en ASC"
+        );
+        $stmt->execute($publicStatuses);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        foreach ($rows as &$row) {
+            $row['public_course_count'] = (int) ($row['public_course_count'] ?? 0);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findAllAdmin(): array
+    {
+        $db = Database::getInstance();
+
+        return $db->query(
+            'SELECT * FROM course_categories WHERE deleted_at IS NULL ORDER BY display_order ASC, name_en ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findByIdAdmin(int $id): ?array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare('SELECT * FROM course_categories WHERE id = :id AND deleted_at IS NULL LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function create(array $data): int
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'INSERT INTO course_categories (name_en, name_ar, slug, description_en, description_ar, icon, color, display_order, is_active)
+             VALUES (:name_en, :name_ar, :slug, :description_en, :description_ar, :icon, :color, :display_order, :is_active)'
+        );
+        $stmt->execute([
+            'name_en' => $data['name_en'],
+            'name_ar' => $data['name_ar'],
+            'slug' => $data['slug'],
+            'description_en' => $data['description_en'] ?? null,
+            'description_ar' => $data['description_ar'] ?? null,
+            'icon' => $data['icon'] ?? null,
+            'color' => $data['color'] ?? null,
+            'display_order' => $data['display_order'] ?? 0,
+            'is_active' => $data['is_active'] ?? 1,
+        ]);
+
+        return (int) $db->lastInsertId();
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function update(int $id, array $data): bool
+    {
+        $db = Database::getInstance();
+        $allowed = ['name_en', 'name_ar', 'slug', 'description_en', 'description_ar', 'icon', 'color', 'card_image_path', 'display_order', 'is_active'];
+        $sets = [];
+        $params = ['id' => $id];
+
+        foreach ($data as $key => $value) {
+            if (!in_array($key, $allowed, true)) {
+                continue;
+            }
+            $sets[] = "{$key} = :{$key}";
+            $params[$key] = $value;
+        }
+
+        if ($sets === []) {
+            return false;
+        }
+
+        $stmt = $db->prepare('UPDATE course_categories SET ' . implode(', ', $sets) . ' WHERE id = :id AND deleted_at IS NULL');
+
+        return $stmt->execute($params);
+    }
+
+    public static function softDelete(int $id): bool
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare('UPDATE course_categories SET deleted_at = NOW(), is_active = 0 WHERE id = :id');
+
+        return $stmt->execute(['id' => $id]);
+    }
+
+    public static function slugExists(string $slug, ?int $excludeId = null): bool
+    {
+        $db = Database::getInstance();
+        $sql = 'SELECT COUNT(*) FROM course_categories WHERE slug = :slug AND deleted_at IS NULL';
+        $params = ['slug' => $slug];
+
+        if ($excludeId !== null) {
+            $sql .= ' AND id != :exclude_id';
+            $params['exclude_id'] = $excludeId;
+        }
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+}

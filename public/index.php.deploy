@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+$bootstrap = dirname(__DIR__) . '/bootstrap/app.php.deploy';
+if (!file_exists($bootstrap)) {
+    $bootstrap = dirname(__DIR__) . '/bootstrap/app.php';
+}
+require_once $bootstrap;
+
+use CTDHR\Helpers\Router;
+use CTDHR\Middleware\LanguageMiddleware;
+use CTDHR\Middleware\MaintenanceMiddleware;
+
+$router = new Router();
+$router->addMiddleware(LanguageMiddleware::class);
+$router->addMiddleware(MaintenanceMiddleware::class);
+
+$routesFile = CTDHR_ROUTES . '/web.php.deploy';
+if (!file_exists($routesFile)) {
+    $routesFile = CTDHR_ROUTES . '/web.php';
+}
+$routes = require $routesFile;
+$router->registerRoutes($routes);
+
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$uri = $_SERVER['REQUEST_URI'] ?? '/';
+
+$router->dispatch($method, $uri);

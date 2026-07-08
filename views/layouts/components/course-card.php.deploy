@@ -1,0 +1,121 @@
+<?php declare(strict_types=1);
+
+/** @var array<string, mixed> $course */
+$course = $course ?? [];
+$cardIndex = $cardIndex ?? 0;
+$accentStyle = rainbow_accent_style((int) $cardIndex);
+$categoryColor = $course['category_color'] ?? '#425AAD';
+$featured = !empty($course['is_featured']);
+$compact = !empty($compact);
+$status = (string) ($course['status'] ?? '');
+$statusOverlayClass = course_status_card_overlay_class($status);
+$slug = (string) ($course['slug'] ?? '');
+$detailUrl = url('courses/' . $slug);
+$showApply = $status === 'accepting_applications';
+$hasDuration = !empty($course['duration_hours']);
+$hasStartDate = !$hasDuration && !empty($course['start_date']);
+$hasAudience = !empty($course['audience']);
+?>
+<article class="course-card <?= $compact ? 'course-card-compact' : '' ?>"<?= empty($compact) ? ' data-stagger-item' : '' ?>>
+    <div class="course-card-accent"<?= $accentStyle !== '' ? ' style="' . e($accentStyle) . '"' : '' ?> aria-hidden="true"></div>
+
+    <a href="<?= e($detailUrl) ?>" class="course-card-media group/media cursor-pointer">
+        <div class="course-card-image-wrap">
+            <?php
+            $coverRelative = course_cover_relative($course, (int) $cardIndex);
+            if ($coverRelative !== null) {
+                echo portal_img([
+                    'path' => $coverRelative,
+                    'alt' => localized($course, 'title'),
+                    'sizes' => '(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 85vw',
+                    'class' => 'course-card-image',
+                ]);
+            } else {
+                echo '<img src="' . e(course_cover($course)) . '" alt="' . e(localized($course, 'title')) . '" class="course-card-image" loading="lazy" decoding="async" onerror="this.src=\'' . e(design_image('placeholder')) . '\'; this.onerror=null;">';
+            }
+            ?>
+            <div class="course-card-image-overlay" aria-hidden="true"></div>
+        </div>
+
+        <?php if ($status !== '' && $status !== 'draft' && $status !== 'cancelled'): ?>
+        <span class="course-card-status <?= e($statusOverlayClass) ?>">
+            <span class="course-card-status-dot" aria-hidden="true"></span>
+            <?= e(course_status_label($status)) ?>
+        </span>
+        <?php endif; ?>
+
+        <div class="course-card-badges">
+            <span class="course-card-category" style="--cat-color: <?= e($categoryColor) ?>">
+                <?php if (!empty($course['category_icon'])): ?>
+                <?= category_icon_element((string) $course['category_icon'], 'text-[14px]') ?>
+                <?php endif; ?>
+                <?= e(localized($course, 'category_name')) ?>
+            </span>
+            <?php if ($featured): ?>
+            <span class="course-card-featured">
+                <span class="material-symbols-outlined text-[12px]" style="font-variation-settings: 'FILL' 1;">star</span>
+                <?= e(lang('featured')) ?>
+            </span>
+            <?php endif; ?>
+        </div>
+    </a>
+
+    <div class="course-card-body" style="--cat-color: <?= e($categoryColor) ?>">
+        <?php if (!empty($course['language']) && $course['language'] !== 'both'): ?>
+        <span class="course-card-lang"><?= e(strtoupper((string) $course['language'])) ?></span>
+        <?php endif; ?>
+
+        <h3 class="course-card-title">
+            <a href="<?= e($detailUrl) ?>" class="cursor-pointer"><?= e(localized($course, 'title')) ?></a>
+        </h3>
+
+        <?php if ($hasDuration || $hasStartDate || $hasAudience): ?>
+        <div class="course-card-meta">
+            <?php if ($hasDuration): ?>
+            <span class="course-card-meta-pill course-card-meta-pill-time">
+                <span class="material-symbols-outlined" aria-hidden="true">schedule</span>
+                <span><?= e((string) $course['duration_hours']) ?> <?= e(lang('hours')) ?></span>
+            </span>
+            <?php elseif ($hasStartDate): ?>
+            <span class="course-card-meta-pill course-card-meta-pill-time">
+                <span class="material-symbols-outlined" aria-hidden="true">event</span>
+                <span><?= e(format_date((string) $course['start_date'])) ?></span>
+            </span>
+            <?php endif; ?>
+
+            <?php if ($hasAudience): ?>
+            <span class="course-card-meta-pill course-card-meta-pill-audience">
+                <span class="material-symbols-outlined" aria-hidden="true">groups</span>
+                <span><?= e(audience_label((string) $course['audience'])) ?></span>
+            </span>
+            <?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!$compact && localized($course, 'short_description')): ?>
+        <p class="course-card-desc"><?= e(localized($course, 'short_description')) ?></p>
+        <?php endif; ?>
+
+        <div class="course-card-footer">
+            <?php if (!empty($course['price']) && (float) $course['price'] > 0): ?>
+            <div class="course-card-footer-bar course-card-footer-bar-price">
+                <span class="course-card-footer-price">OMR <?= e(number_format((float) $course['price'], 0)) ?></span>
+                <a href="<?= e($detailUrl) ?>" class="course-card-footer-cta course-card-footer-cta-view">
+                    <?= e(lang('view_details')) ?>
+                    <span class="material-symbols-outlined text-[15px]"><?= is_rtl() ? 'arrow_back' : 'arrow_forward' ?></span>
+                </a>
+            </div>
+            <?php elseif ($showApply): ?>
+            <a href="<?= e($detailUrl) ?>" class="course-card-footer-cta course-card-footer-cta-apply course-card-footer-cta-full">
+                <?= e(lang('apply')) ?>
+                <span class="material-symbols-outlined text-[16px]"><?= is_rtl() ? 'arrow_back' : 'arrow_forward' ?></span>
+            </a>
+            <?php else: ?>
+            <a href="<?= e($detailUrl) ?>" class="course-card-footer-cta course-card-footer-cta-view course-card-footer-cta-full">
+                <?= e(lang('view_details')) ?>
+                <span class="material-symbols-outlined text-[16px]"><?= is_rtl() ? 'arrow_back' : 'arrow_forward' ?></span>
+            </a>
+            <?php endif; ?>
+        </div>
+    </div>
+</article>

@@ -1,0 +1,272 @@
+<?php declare(strict_types=1);
+
+$result = $result ?? ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
+$filters = $filters ?? [];
+$stats = $stats ?? ['total' => 0, 'emailed' => 0, 'pending' => 0];
+$courses = $courses ?? [];
+
+$hasActiveFilters = !empty($filters['search']) || !empty($filters['course_id']) || !empty($filters['email_status'])
+    || !empty($filters['date_from']) || !empty($filters['date_to']);
+$filterQuery = static function (array $extra = []) use ($filters): string {
+    return http_build_query(array_filter(array_merge($filters, $extra), static fn ($v) => $v !== '' && $v !== null));
+};
+
+$actions = '<div class="flex flex-wrap items-center gap-2">'
+    . '<a href="' . e(url('admin/certificates/generate')) . '" class="courses-btn-create">'
+    . '<span class="material-symbols-outlined">add_circle</span>'
+    . e(lang('generate_certificates'))
+    . '</a>'
+    . '<a href="' . e(url('admin/certificates/templates')) . '" class="courses-btn-secondary">'
+    . '<span class="material-symbols-outlined">description</span>'
+    . e(lang('cert_templates'))
+    . '</a></div>';
+?>
+
+<div class="admin-module-page admin-module-page--listing">
+<?php
+admin_page_header([
+    'icon' => 'verified',
+    'title' => lang('certificates'),
+    'subtitle' => lang('certificates_manage_subtitle'),
+    'accent' => 'gold',
+    'actions' => $actions,
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('certificates')],
+    ],
+]);
+?>
+
+<div class="courses-kpi-grid courses-kpi-grid--three" aria-label="<?= e(lang('certificates')) ?>">
+    <?php foreach ([
+        ['blue', 'verified', lang('total_certificates'), (int) ($stats['total'] ?? 0)],
+        ['green', 'mail', lang('emailed'), (int) ($stats['emailed'] ?? 0)],
+        ['sky', 'schedule_send', lang('pending_email'), (int) ($stats['pending'] ?? 0)],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card">
+    <div class="admin-quick-filters admin-quick-filters--gold">
+        <p class="admin-quick-filters__label">
+            <span class="material-symbols-outlined" aria-hidden="true">mail</span>
+            <?= e(lang('email_status')) ?>
+        </p>
+        <nav class="admin-quick-filters__track" aria-label="<?= e(lang('email_status')) ?>">
+            <?php foreach ([
+                ['', 'inbox', lang('filter_all_short')],
+                ['pending', 'schedule_send', lang('pending_email')],
+                ['sent', 'mark_email_read', lang('emailed')],
+            ] as [$esVal, $esIcon, $esLabel]): ?>
+            <a href="?<?= e($filterQuery(['email_status' => $esVal, 'page' => 1])) ?>"
+               class="admin-quick-filter<?= ($filters['email_status'] ?? '') === $esVal ? ' is-active' : '' ?>"
+               <?= ($filters['email_status'] ?? '') === $esVal ? 'aria-current="page"' : '' ?>>
+                <span class="material-symbols-outlined" aria-hidden="true"><?= e($esIcon) ?></span>
+                <?= e($esLabel) ?>
+            </a>
+            <?php endforeach; ?>
+        </nav>
+    </div>
+
+    <form method="GET" action="<?= e(url('admin/certificates')) ?>" class="courses-filters courses-filters--stacked" data-filter-persist="certificates-list">
+        <div class="courses-search">
+            <span class="material-symbols-outlined">search</span>
+            <input type="search" name="search" value="<?= e($filters['search'] ?? '') ?>" placeholder="<?= e(lang('cert_search_placeholder')) ?>" class="courses-search-input" autocomplete="off">
+        </div>
+        <div class="courses-filter-group">
+            <div class="admin-select-wrap admin-select-wrap--sm admin-select-wrap--filter admin-select-wrap--wide">
+                <select name="course_id" class="admin-form-select courses-filter-select" aria-label="<?= e(lang('courses')) ?>">
+                    <option value=""><?= e(lang('all_courses')) ?></option>
+                    <?php foreach ($courses as $c): ?>
+                    <option value="<?= (int) $c['id'] ?>" <?= (string)($filters['course_id'] ?? '') === (string)$c['id'] ? 'selected' : '' ?>>
+                        <?= e(localized($c, 'title')) ?> (<?= (int) ($c['cert_count'] ?? 0) ?>)
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <input type="date" name="date_from" value="<?= e($filters['date_from'] ?? '') ?>" class="admin-date-input" aria-label="<?= e(lang('date_from')) ?>">
+            <input type="date" name="date_to" value="<?= e($filters['date_to'] ?? '') ?>" class="admin-date-input" aria-label="<?= e(lang('date_to')) ?>">
+            <input type="hidden" name="email_status" value="<?= e($filters['email_status'] ?? '') ?>">
+            <button type="submit" class="courses-btn-filter">
+                <span class="material-symbols-outlined">filter_list</span>
+                <?= e(lang('filter')) ?>
+            </button>
+            <?php if ($hasActiveFilters): ?>
+            <a href="<?= e(url('admin/certificates')) ?>" class="courses-clear"><?= e(lang('clear_filters')) ?></a>
+            <?php endif; ?>
+        </div>
+    </form>
+
+    <div class="admin-results-bar">
+        <span><?= e(str_replace([':shown', ':total'], [(string) count($result['items']), (string) ($result['total'] ?? 0)], lang('results_count'))) ?></span>
+        <div class="admin-results-actions">
+            <form method="POST" action="<?= e(url('admin/certificates/bulk-email')) ?>" class="courses-inline-form">
+                <?= csrf_field() ?>
+                <input type="hidden" name="course_id" value="<?= e($filters['course_id'] ?? '') ?>">
+                <button type="submit" class="courses-btn-secondary courses-btn-secondary--sm" title="<?= e(lang('bulk_email_pending_hint')) ?>">
+                    <span class="material-symbols-outlined">mail</span><?= e(lang('bulk_email_pending')) ?>
+                </button>
+            </form>
+            <a href="<?= e(url('admin/certificates/bulk-download') . '?' . http_build_query(array_filter($filters))) ?>" class="courses-btn-secondary courses-btn-secondary--sm">
+                <span class="material-symbols-outlined">folder_zip</span><?= e(lang('bulk_download_zip')) ?>
+            </a>
+            <a href="<?= e(url('admin/certificates/export') . '?' . http_build_query(array_filter($filters))) ?>" class="courses-btn-secondary courses-btn-secondary--sm">
+                <span class="material-symbols-outlined">download</span><?= e(lang('export_csv')) ?>
+            </a>
+            <a href="<?= e(url('admin/certificates/issuance-report')) ?>" class="courses-btn-secondary courses-btn-secondary--sm">
+                <span class="material-symbols-outlined">summarize</span><?= e(lang('issuance_report')) ?>
+            </a>
+        </div>
+    </div>
+
+    <div class="courses-table-container">
+        <table class="courses-table courses-table--certificates">
+            <thead>
+                <tr>
+                    <th><?= e(lang('cert_number')) ?></th>
+                    <th><?= e(lang('participant_name')) ?></th>
+                    <th><?= e(lang('course_title')) ?></th>
+                    <th><?= e(lang('completion_date')) ?></th>
+                    <th><?= e(lang('valid_until')) ?></th>
+                    <th><?= e(lang('email_status')) ?></th>
+                    <th class="courses-th-actions"><?= e(lang('actions')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($result['items'])): ?>
+                <tr>
+                    <td colspan="7" class="courses-empty">
+                        <span class="material-symbols-outlined">verified</span>
+                        <p><?= e(lang('no_certificates_admin')) ?></p>
+                        <a href="<?= e(url('admin/certificates/generate')) ?>" class="courses-btn-create courses-empty-cta">
+                            <span class="material-symbols-outlined">add_circle</span>
+                            <?= e(lang('generate_certificates')) ?>
+                        </a>
+                    </td>
+                </tr>
+                <?php else: foreach ($result['items'] as $cert):
+                    $verifyUrl = url('verify/' . $cert['verification_token']);
+                ?>
+                <tr>
+                    <td><span class="courses-td-mono cert-number-cell"><?= e($cert['cert_number']) ?></span></td>
+                    <td>
+                        <span class="courses-td-name"><?= e($cert['participant_name_en']) ?></span>
+                        <span class="courses-link-meta"><?= e($cert['user_email'] ?? '') ?></span>
+                        <button type="button" class="courses-link-meta admin-timeline-link" data-timeline-url="<?= e(url('admin/participants/' . (int) $cert['user_id'] . '/timeline?course_id=' . (int) $cert['course_id'])) ?>"><?= e(lang('view_timeline')) ?></button>
+                    </td>
+                    <td class="courses-td-title"><span><?= e(localized($cert, 'course_title')) ?></span></td>
+                    <td class="courses-td-date"><?= e(format_date($cert['completion_date'])) ?></td>
+                    <td class="courses-td-date"><?= !empty($cert['valid_until']) ? e(format_date($cert['valid_until'])) : '—' ?></td>
+                    <td>
+                        <?php if (!empty($cert['revoked_at'])): ?>
+                        <span class="courses-badge courses-badge--pending-email"><?= e(lang('revoked')) ?></span>
+                        <?php elseif (!empty($cert['is_emailed'])): ?>
+                        <span class="courses-badge courses-badge--sent" title="<?= e((string) ($cert['last_email_status'] ?? '')) ?>">
+                            <span class="material-symbols-outlined text-[14px]">mail</span>
+                            <?= e(lang('emailed')) ?>
+                        </span>
+                        <?php if (!empty($cert['last_email_error'])): ?>
+                        <span class="courses-link-meta"><?= e((string) $cert['last_email_error']) ?></span>
+                        <?php endif; ?>
+                        <?php else: ?>
+                        <span class="courses-badge courses-badge--pending-email">
+                            <span class="material-symbols-outlined text-[14px]">schedule_send</span>
+                            <?= e(lang('pending_email')) ?>
+                        </span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="courses-td-actions">
+                        <div class="courses-actions-row">
+                            <a href="<?= e(url('admin/certificates/' . $cert['id'] . '/preview')) ?>" target="_blank" rel="noopener" class="courses-action" title="<?= e(lang('preview')) ?>">
+                                <span class="material-symbols-outlined">visibility</span>
+                            </a>
+                            <a href="<?= e(certificate_pdf_url((string) $cert['pdf_path'], (int) $cert['id'])) ?>" target="_blank" rel="noopener" class="courses-action" title="<?= e(lang('download')) ?>">
+                                <span class="material-symbols-outlined">download</span>
+                            </a>
+                            <a href="<?= e($verifyUrl) ?>" target="_blank" rel="noopener" class="courses-action" title="<?= e(lang('verify_certificate')) ?>">
+                                <span class="material-symbols-outlined">qr_code_scanner</span>
+                            </a>
+                            <?php if (empty($cert['revoked_at'])): ?>
+                            <form method="POST" action="<?= e(url('admin/certificates/' . $cert['id'] . '/email')) ?>" class="courses-inline-form">
+                                <?= csrf_field() ?>
+                                <button type="submit" class="courses-action courses-action--publish" title="<?= e(!empty($cert['is_emailed']) ? lang('resend_email') : lang('send_email')) ?>">
+                                    <span class="material-symbols-outlined"><?= !empty($cert['is_emailed']) ? 'forward_to_inbox' : 'mail' ?></span>
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                            <?php if (empty($cert['revoked_at'])): ?>
+                            <form method="POST" action="<?= e(url('admin/certificates/' . $cert['id'] . '/reissue')) ?>" class="courses-inline-form" onsubmit="return confirm('<?= e(lang('confirm_reissue')) ?>')">
+                                <?= csrf_field() ?>
+                                <button type="submit" class="courses-action" title="<?= e(lang('reissue')) ?>">
+                                    <span class="material-symbols-outlined">autorenew</span>
+                                </button>
+                            </form>
+                            <form method="POST" action="<?= e(url('admin/certificates/' . $cert['id'] . '/revoke')) ?>" class="courses-inline-form" onsubmit="return confirm('<?= e(lang('confirm_revoke')) ?>')">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="reason" value="<?= e(lang('cert_revoked_default_reason')) ?>">
+                                <button type="submit" class="courses-action courses-action--reject" title="<?= e(lang('revoke')) ?>">
+                                    <span class="material-symbols-outlined">block</span>
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                            <a href="<?= e(url('admin/audit?action=certificate.email&search=' . urlencode((string) $cert['cert_number']))) ?>" class="courses-action" title="<?= e(lang('audit_log')) ?>">
+                                <span class="material-symbols-outlined">history</span>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if (($result['pages'] ?? 1) > 1): ?>
+    <footer class="courses-list-pagination">
+        <span><?= e(lang('page')) ?> <?= (int) $result['page'] ?> / <?= (int) $result['pages'] ?></span>
+        <div class="courses-page-links">
+            <?php for ($p = 1; $p <= min($result['pages'], 9); $p++): ?>
+            <a href="?<?= e($filterQuery(['page' => $p])) ?>" class="courses-page-num<?= $p === $result['page'] ? ' is-active' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+        </div>
+    </footer>
+    <?php endif; ?>
+</div>
+
+<div id="participantTimelineModal"
+     class="admin-overlay-modal admin-overlay-modal--timeline"
+     data-label-eligible="<?= e(lang('eligible')) ?>"
+     data-label-at-risk="<?= e(lang('at_risk')) ?>"
+     data-label-events="<?= e(lang('timeline_events_count')) ?>"
+     hidden>
+    <div class="admin-overlay-modal__backdrop" data-modal-close></div>
+    <div class="admin-overlay-modal__panel" role="dialog" aria-modal="true" aria-labelledby="timelineModalTitle">
+        <div class="admin-overlay-modal__accent" aria-hidden="true"></div>
+        <header class="admin-overlay-modal__header">
+            <div class="admin-overlay-modal__brand">
+                <span class="admin-overlay-modal__icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">timeline</span>
+                </span>
+                <div class="admin-overlay-modal__titles">
+                    <h2 id="timelineModalTitle"><?= e(lang('participant_timeline')) ?></h2>
+                    <p id="timelineModalSubtitle" class="admin-overlay-modal__subtitle"></p>
+                </div>
+            </div>
+            <button type="button" class="admin-overlay-modal__close" data-modal-close aria-label="<?= e(lang('close')) ?>">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </header>
+        <div class="admin-overlay-modal__body" id="participantTimelineBody"></div>
+    </div>
+</div>
+</div>
+
+<script src="<?= e(asset('js/admin-filter-persist.js')) ?>" defer></script>
+<script src="<?= e(asset('js/admin-overlay-modal.js')) ?>" defer></script>
+<script src="<?= e(asset('js/admin-certificates.js')) ?>" defer></script>

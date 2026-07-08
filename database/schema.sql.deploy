@@ -1,0 +1,325 @@
+-- CTDHR Portal - Full Database Schema
+-- MySQL 8.0+ | utf8mb4_unicode_ci
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+CREATE DATABASE IF NOT EXISTS ctdhr_portal
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+USE ctdhr_portal;
+
+-- 1. users (with auth additions)
+CREATE TABLE users (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    username        VARCHAR(100)    NOT NULL COMMENT 'LDAP sAMAccountName',
+    email           VARCHAR(255)    NOT NULL,
+    password_hash   VARCHAR(255)    DEFAULT NULL COMMENT 'Local password hash (NULL for LDAP-only users)',
+    email_verified_at DATETIME      DEFAULT NULL,
+    full_name_en    VARCHAR(255)    NOT NULL,
+    full_name_ar    VARCHAR(255)    DEFAULT NULL,
+    role            ENUM('admin', 'faculty', 'staff', 'student') NOT NULL DEFAULT 'staff',
+    participant_type ENUM('du', 'external') NOT NULL DEFAULT 'du',
+    account_status  ENUM('active', 'pending_admin', 'rejected') NOT NULL DEFAULT 'active',
+    department_en   VARCHAR(255)    DEFAULT NULL,
+    department_ar   VARCHAR(255)    DEFAULT NULL,
+    organization_en VARCHAR(255)    DEFAULT NULL,
+    rejection_reason TEXT           DEFAULT NULL,
+    approved_at     DATETIME        DEFAULT NULL,
+    approved_by     BIGINT UNSIGNED DEFAULT NULL,
+    college_en      VARCHAR(255)    DEFAULT NULL,
+    college_ar      VARCHAR(255)    DEFAULT NULL,
+    employee_id     VARCHAR(50)     DEFAULT NULL,
+    phone           VARCHAR(20)     DEFAULT NULL,
+    avatar_path     VARCHAR(500)    DEFAULT NULL,
+    is_active       TINYINT(1)      NOT NULL DEFAULT 1,
+    last_login_at   DATETIME        DEFAULT NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_users_username (username),
+    UNIQUE KEY uk_users_email (email),
+    INDEX idx_users_role (role),
+    INDEX idx_users_is_active (is_active),
+    INDEX idx_users_participant_type (participant_type),
+    INDEX idx_users_account_status (account_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 2. pending_registrations (signup OTP flow)
+CREATE TABLE pending_registrations (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    email           VARCHAR(255)    NOT NULL,
+    username        VARCHAR(100)    NOT NULL,
+    full_name_en    VARCHAR(255)    NOT NULL,
+    full_name_ar    VARCHAR(255)    DEFAULT NULL,
+    participant_type ENUM('du', 'external') NOT NULL DEFAULT 'du',
+    organization_en VARCHAR(255)    DEFAULT NULL,
+    phone           VARCHAR(20)     DEFAULT NULL,
+    password_hash   VARCHAR(255)    NOT NULL,
+    otp_code        VARCHAR(10)     NOT NULL,
+    otp_expires_at  DATETIME        NOT NULL,
+    attempts        TINYINT UNSIGNED NOT NULL DEFAULT 0,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_pending_email (email),
+    UNIQUE KEY uk_pending_username (username),
+    INDEX idx_pending_otp_expires (otp_expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 3. course_categories
+CREATE TABLE course_categories (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name_en         VARCHAR(255)    NOT NULL,
+    name_ar         VARCHAR(255)    NOT NULL,
+    slug            VARCHAR(255)    NOT NULL,
+    description_en  TEXT            DEFAULT NULL,
+    description_ar  TEXT            DEFAULT NULL,
+    icon            VARCHAR(100)    DEFAULT NULL,
+    color           VARCHAR(7)      DEFAULT NULL,
+    card_image_path VARCHAR(500)    DEFAULT NULL,
+    display_order   INT             NOT NULL DEFAULT 0,
+    is_active       TINYINT(1)      NOT NULL DEFAULT 1,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at      DATETIME        DEFAULT NULL,
+    UNIQUE KEY uk_categories_slug (slug),
+    INDEX idx_categories_active (is_active, display_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 4. certificate_templates (MUST be before courses FK)
+CREATE TABLE certificate_templates (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(255)    NOT NULL,
+    description     TEXT            DEFAULT NULL,
+    background_path VARCHAR(500)    NOT NULL,
+    background_type ENUM('image', 'pdf') NOT NULL DEFAULT 'image',
+    field_mappings  JSON            NOT NULL,
+    page_width      INT             NOT NULL DEFAULT 297,
+    page_height     INT             NOT NULL DEFAULT 210,
+    is_default      TINYINT(1)      NOT NULL DEFAULT 0,
+    is_active       TINYINT(1)      NOT NULL DEFAULT 1,
+    created_by      BIGINT UNSIGNED DEFAULT NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_templates_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 5. courses
+CREATE TABLE courses (
+    id                  BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    category_id         BIGINT UNSIGNED NOT NULL,
+    title_en            VARCHAR(500)    NOT NULL,
+    title_ar            VARCHAR(500)    NOT NULL,
+    slug                VARCHAR(500)    NOT NULL,
+    description_en      TEXT            DEFAULT NULL,
+    description_ar      TEXT            DEFAULT NULL,
+    short_description_en VARCHAR(500)   DEFAULT NULL,
+    short_description_ar VARCHAR(500)   DEFAULT NULL,
+    language            ENUM('en', 'ar', 'both') NOT NULL DEFAULT 'en',
+    instructor_names_en TEXT            DEFAULT NULL,
+    instructor_names_ar TEXT            DEFAULT NULL,
+    audience            ENUM('faculty', 'staff', 'students', 'all') NOT NULL DEFAULT 'all',
+    participant_scope   ENUM('du_internal', 'external_only', 'both') NOT NULL DEFAULT 'du_internal',
+    announcement_date   DATE            DEFAULT NULL,
+    application_deadline DATE           DEFAULT NULL,
+    start_date          DATE            DEFAULT NULL,
+    end_date            DATE            DEFAULT NULL,
+    session_dates       JSON            DEFAULT NULL,
+    duration_hours      DECIMAL(5,1)    DEFAULT NULL,
+    venue_en            VARCHAR(255)    DEFAULT NULL,
+    venue_ar            VARCHAR(255)    DEFAULT NULL,
+    time_slot           VARCHAR(100)    DEFAULT NULL,
+    min_participants    INT             DEFAULT NULL,
+    max_participants    INT             DEFAULT NULL,
+    cover_image_path    VARCHAR(500)    DEFAULT NULL,
+    learning_outcomes_en TEXT           DEFAULT NULL,
+    learning_outcomes_ar TEXT           DEFAULT NULL,
+    status              ENUM('draft', 'announced', 'accepting_applications', 'scheduled', 'in_progress', 'completed', 'cancelled') NOT NULL DEFAULT 'draft',
+    is_featured         TINYINT(1)      NOT NULL DEFAULT 0,
+    is_certificate_eligible TINYINT(1)  NOT NULL DEFAULT 1,
+    cert_template_id    BIGINT UNSIGNED DEFAULT NULL,
+    photos              JSON            DEFAULT NULL,
+    application_count   INT             NOT NULL DEFAULT 0,
+    approved_count      INT             NOT NULL DEFAULT 0,
+    completion_count    INT             NOT NULL DEFAULT 0,
+    created_by          BIGINT UNSIGNED DEFAULT NULL,
+    created_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at          DATETIME        DEFAULT NULL,
+    UNIQUE KEY uk_courses_slug (slug),
+    INDEX idx_courses_category (category_id),
+    INDEX idx_courses_status (status),
+    INDEX idx_courses_dates (start_date, end_date),
+    INDEX idx_courses_featured (is_featured),
+    INDEX idx_courses_language (language),
+    INDEX idx_courses_audience (audience),
+    CONSTRAINT fk_courses_category FOREIGN KEY (category_id) REFERENCES course_categories (id) ON DELETE RESTRICT,
+    CONSTRAINT fk_courses_cert_template FOREIGN KEY (cert_template_id) REFERENCES certificate_templates (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6. course_applications
+CREATE TABLE course_applications (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    course_id       BIGINT UNSIGNED NOT NULL,
+    status          ENUM('pending', 'approved', 'rejected', 'cancelled', 'waitlisted') NOT NULL DEFAULT 'pending',
+    motivation_en   TEXT            DEFAULT NULL,
+    motivation_ar   TEXT            DEFAULT NULL,
+    admin_notes     TEXT            DEFAULT NULL,
+    cancel_reason   VARCHAR(500)    DEFAULT NULL,
+    applied_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reviewed_at     DATETIME        DEFAULT NULL,
+    reviewed_by     BIGINT UNSIGNED DEFAULT NULL,
+    UNIQUE KEY uk_applications_unique (user_id, course_id),
+    INDEX idx_applications_user (user_id),
+    INDEX idx_applications_course (course_id),
+    INDEX idx_applications_status (status),
+    CONSTRAINT fk_applications_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_applications_course FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 7. attendance
+CREATE TABLE attendance (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    course_id       BIGINT UNSIGNED NOT NULL,
+    session_date    DATE            NOT NULL,
+    session_number  TINYINT UNSIGNED DEFAULT NULL,
+    is_present      TINYINT(1)      NOT NULL DEFAULT 0,
+    notes           VARCHAR(500)    DEFAULT NULL,
+    marked_by       BIGINT UNSIGNED NOT NULL,
+    marked_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_attendance_session (user_id, course_id, session_date),
+    INDEX idx_attendance_course (course_id, session_date),
+    INDEX idx_attendance_user (user_id),
+    CONSTRAINT fk_attendance_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_attendance_course FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+    CONSTRAINT fk_attendance_marker FOREIGN KEY (marked_by) REFERENCES users (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 8. certificates
+CREATE TABLE certificates (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    course_id       BIGINT UNSIGNED NOT NULL,
+    template_id     BIGINT UNSIGNED NOT NULL,
+    cert_number     VARCHAR(100)    NOT NULL,
+    pdf_path        VARCHAR(500)    NOT NULL,
+    qr_code_path    VARCHAR(500)    DEFAULT NULL,
+    verification_token VARCHAR(64)  NOT NULL,
+    participant_name_en VARCHAR(255) NOT NULL,
+    participant_name_ar VARCHAR(255) DEFAULT NULL,
+    course_title_en  VARCHAR(500)    NOT NULL,
+    course_title_ar  VARCHAR(500)    DEFAULT NULL,
+    completion_date  DATE            NOT NULL,
+    duration_hours   DECIMAL(5,1)    DEFAULT NULL,
+    is_emailed      TINYINT(1)      NOT NULL DEFAULT 0,
+    emailed_at      DATETIME        DEFAULT NULL,
+    generated_by    BIGINT UNSIGNED NOT NULL,
+    generated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_cert_number (cert_number),
+    UNIQUE KEY uk_cert_verification (verification_token),
+    INDEX idx_cert_user (user_id),
+    INDEX idx_cert_course (course_id),
+    CONSTRAINT fk_cert_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_cert_course FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+    CONSTRAINT fk_cert_template FOREIGN KEY (template_id) REFERENCES certificate_templates (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 9. email_logs
+CREATE TABLE email_logs (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    recipient_email VARCHAR(255)    NOT NULL,
+    recipient_name  VARCHAR(255)    DEFAULT NULL,
+    subject_en      VARCHAR(500)    NOT NULL,
+    subject_ar      VARCHAR(500)    DEFAULT NULL,
+    template_type   ENUM('course_announcement', 'application_confirmation', 'application_status', 'course_reminder', 'certificate_delivery', 'custom') NOT NULL,
+    course_id       BIGINT UNSIGNED DEFAULT NULL,
+    user_id         BIGINT UNSIGNED DEFAULT NULL,
+    status          ENUM('pending', 'sent', 'failed') NOT NULL DEFAULT 'pending',
+    error_message   TEXT            DEFAULT NULL,
+    sent_at         DATETIME        DEFAULT NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_email_recipient (recipient_email),
+    INDEX idx_email_status (status),
+    INDEX idx_email_template (template_type),
+    INDEX idx_email_sent (sent_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 10. audit_logs
+CREATE TABLE audit_logs (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED DEFAULT NULL,
+    username        VARCHAR(100)    DEFAULT NULL,
+    action          VARCHAR(100)    NOT NULL,
+    entity_type     VARCHAR(100)    DEFAULT NULL,
+    entity_id       BIGINT UNSIGNED DEFAULT NULL,
+    details         JSON            DEFAULT NULL,
+    ip_address      VARCHAR(45)     DEFAULT NULL,
+    user_agent      VARCHAR(500)    DEFAULT NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_audit_user (user_id),
+    INDEX idx_audit_action (action),
+    INDEX idx_audit_entity (entity_type, entity_id),
+    INDEX idx_audit_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 11. system_settings
+CREATE TABLE system_settings (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    setting_key     VARCHAR(100)    NOT NULL,
+    setting_value   TEXT            NOT NULL,
+    setting_type    ENUM('string', 'text', 'integer', 'boolean', 'json') NOT NULL DEFAULT 'string',
+    description     VARCHAR(500)    DEFAULT NULL,
+    updated_by      BIGINT UNSIGNED DEFAULT NULL,
+    updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_settings_key (setting_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 12. notifications
+CREATE TABLE notifications (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    type            VARCHAR(50)     NOT NULL,
+    title_en        VARCHAR(255)    NOT NULL,
+    title_ar        VARCHAR(255)    NOT NULL,
+    message_en      TEXT            DEFAULT NULL,
+    message_ar      TEXT            DEFAULT NULL,
+    link            VARCHAR(500)    DEFAULT NULL,
+    is_read         TINYINT(1)      NOT NULL DEFAULT 0,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_notifications_user (user_id, is_read),
+    INDEX idx_notifications_created (created_at),
+    CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 13. course_feedback
+CREATE TABLE course_feedback (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    course_id       BIGINT UNSIGNED NOT NULL,
+    rating          TINYINT UNSIGNED NOT NULL,
+    comment_en      TEXT            DEFAULT NULL,
+    comment_ar      TEXT            DEFAULT NULL,
+    is_anonymous    TINYINT(1)      NOT NULL DEFAULT 0,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_feedback_unique (user_id, course_id),
+    CONSTRAINT fk_feedback_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT fk_feedback_course FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 14. remember_tokens (Phase 2)
+CREATE TABLE remember_tokens (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    token_hash      VARCHAR(64)     NOT NULL,
+    expires_at      DATETIME        NOT NULL,
+    ip_address      VARCHAR(45)     DEFAULT NULL,
+    user_agent      VARCHAR(500)    DEFAULT NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_remember_token_hash (token_hash),
+    INDEX idx_remember_user (user_id),
+    INDEX idx_remember_expires (expires_at),
+    CONSTRAINT fk_remember_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;

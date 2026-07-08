@@ -1,0 +1,103 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class Setting
+{
+    private PDO $db;
+
+    public function __construct()
+    {
+        $this->db = Database::getInstance();
+    }
+
+    public function get(string $key, ?string $default = null): ?string
+    {
+        $stmt = $this->db->prepare(
+            'SELECT setting_value FROM system_settings WHERE setting_key = :key LIMIT 1'
+        );
+        $stmt->execute(['key' => $key]);
+        $row = $stmt->fetch();
+
+        if ($row === false) {
+            return $default;
+        }
+
+        return (string) $row['setting_value'];
+    }
+
+    public function getInt(string $key, int $default = 0): int
+    {
+        $value = $this->get($key);
+
+        return $value !== null ? (int) $value : $default;
+    }
+
+    public function getBool(string $key, bool $default = false): bool
+    {
+        $value = $this->get($key);
+
+        if ($value === null) {
+            return $default;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function set(string $key, string $value, ?int $updatedBy = null): bool
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO system_settings (setting_key, setting_value, setting_type, updated_by)
+             VALUES (:key, :value, :type, :updated_by)
+             ON DUPLICATE KEY UPDATE
+                setting_value = VALUES(setting_value),
+                updated_by = VALUES(updated_by),
+                updated_at = CURRENT_TIMESTAMP'
+        );
+
+        return $stmt->execute([
+            'key' => $key,
+            'value' => $value,
+            'type' => $this->detectType($value),
+            'updated_by' => $updatedBy,
+        ]);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function getAll(): array
+    {
+        $stmt = $this->db->query('SELECT setting_key, setting_value FROM system_settings');
+        $rows = $stmt->fetchAll();
+        $settings = [];
+
+        foreach ($rows as $row) {
+            $settings[$row['setting_key']] = (string) $row['setting_value'];
+        }
+
+        return $settings;
+    }
+
+    private function detectType(string $value): string
+    {
+        if ($value === 'true' || $value === 'false') {
+            return 'boolean';
+        }
+
+        if (ctype_digit($value)) {
+            return 'integer';
+        }
+
+        if (strlen($value) > 255) {
+            return 'text';
+        }
+
+        return 'string';
+    }
+}

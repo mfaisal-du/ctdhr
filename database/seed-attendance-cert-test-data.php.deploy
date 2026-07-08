@@ -1,0 +1,209 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Seeds / repairs attendance and certificate demo data for local testing.
+ * Run: php database/seed-attendance-cert-test-data.php.deploy
+ */
+
+$bootstrap = dirname(__DIR__) . '/bootstrap/app.php.deploy';
+if (!is_file($bootstrap)) {
+    $bootstrap = dirname(__DIR__) . '/bootstrap/app.php';
+}
+if (!is_file($bootstrap)) {
+    fwrite(STDERR, "Bootstrap not found.\n");
+    exit(1);
+}
+require_once $bootstrap;
+
+use CTDHR\Config\Database;
+use CTDHR\Services\CertificateService;
+use CTDHR\Services\EmailService;
+
+$db = Database::getInstance();
+$adminId = 1;
+
+echo "=== CTDHR attendance & certificate test seed ===\n";
+
+// Remove invalid placeholder session rows
+$deleted = $db->exec("DELETE FROM attendance WHERE session_date IN ('0000-00-00', '')");
+echo "Removed {$deleted} invalid attendance row(s).\n";
+
+/**
+ * @return list<string>
+ */
+function sessionKeysForCourse(PDO $db, int $courseId): array
+{
+    $stmt = $db->prepare('SELECT session_dates, start_date FROM courses WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => $courseId]);
+    $course = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($course === false) {
+        return [];
+    }
+
+    return array_column(attendance_session_entries($course), 'key');
+}
+
+/**
+ * @return list<int>
+ */
+function approvedUserIds(PDO $db, int $courseId): array
+{
+    $stmt = $db->prepare(
+        "SELECT user_id FROM course_applications
+         WHERE course_id = :cid AND status = 'approved'"
+    );
+    $stmt->execute(['cid' => $courseId]);
+    $ids = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+    return array_map('intval', $ids);
+}
+
+function upsertAttendance(PDO $db, int $userId, int $courseId, string $sessionKey, string $status, int $markedBy): void
+{
+    $present = $status === 'present' ? 1 : 0;
+    $stmt = $db->prepare(
+        'SELECT id FROM attendance
+         WHERE user_id = :uid AND course_id = :cid AND session_date = :session
+         LIMIT 1'
+    );
+    $stmt->execute(['uid' => $userId, 'cid' => $courseId, 'session' => $sessionKey]);
+    $existingId = $stmt->fetchColumn();
+
+    if ($existingId !== false) {
+        $upd = $db->prepare(
+            'UPDATE attendance
+             SET is_present = :present, attendance_status = :status, marked_by = :by, marked_at = NOW()
+             WHERE id = :id'
+        );
+        $upd->execute([
+            'present' => $present,
+            'status' => $status,
+            'by' => $markedBy,
+            'id' => (int) $existingId,
+        ]);
+
+        return;
+    }
+
+    $ins = $db->prepare(
+        'INSERT INTO attendance (user_id, course_id, session_date, is_present, attendance_status, marked_by, marked_at)
+         VALUES (:uid, :cid, :session, :present, :status, :by, NOW())'
+    );
+    $ins->execute([
+        'uid' => $userId,
+        'cid' => $courseId,
+        'session' => $sessionKey,
+        'present' => $present,
+        'status' => $status,
+        'by' => $markedBy,
+    ]);
+}
+
+// Course 4 — Digital Tools (completed)
+$course4Id = 4;
+$course4Sessions = sessionKeysForCourse($db, $course4Id);
+$course4Users = approvedUserIds($db, $course4Id);
+
+if ($course4Sessions !== [] && $course4Users !== []) {
+    $statusPlan = [
+        2 => ['present', 'present', 'present'],       // Salma — eligible
+        3 => ['present', 'absent', 'present'],         // Khalid — at risk
+        6 => ['present', 'present', 'excused'],       // Fatima — eligible (excused counts)
+    ];
+    foreach ($course4Users as $userId) {
+        $plan = $statusPlan[$userId] ?? ['present', 'present', 'present'];
+        foreach ($course4Sessions as $i => $sessionKey) {
+            $status = $plan[$i] ?? 'present';
+            upsertAttendance($db, $userId, $course4Id, $sessionKey, $status, $adminId);
+        }
+    }
+    echo 'Seeded course 4 attendance for ' . count($course4Users) . " participant(s), " . count($course4Sessions) . " session(s).\n";
+}
+
+// Course 6 — Research Methodology (in progress): ensure approved participants
+$course6Id = 6;
+$course6Participants = [2, 3, 4];
+foreach ($course6Participants as $userId) {
+    $check = $db->prepare(
+        'SELECT id, status FROM course_applications WHERE user_id = :uid AND course_id = :cid LIMIT 1'
+    );
+    $check->execute(['uid' => $userId, 'cid' => $course6Id]);
+    $row = $check->fetch(PDO::FETCH_ASSOC);
+    if ($row === false) {
+        $ins = $db->prepare(
+            "INSERT INTO course_applications (user_id, course_id, status, applied_at)
+             VALUES (:uid, :cid, 'approved', NOW())"
+        );
+        $ins->execute(['uid' => $userId, 'cid' => $course6Id]);
+        echo "Created approved application for user {$userId} on course 6.\n";
+    } elseif (($row['status'] ?? '') !== 'approved') {
+        $upd = $db->prepare("UPDATE course_applications SET status = 'approved', reviewed_at = NOW() WHERE id = :id");
+        $upd->execute(['id' => (int) $row['id']]);
+        echo "Approved application id {$row['id']} for course 6.\n";
+    }
+}
+
+$course6Sessions = sessionKeysForCourse($db, $course6Id);
+$course6Users = approvedUserIds($db, $course6Id);
+if ($course6Sessions !== [] && $course6Users !== []) {
+    foreach ($course6Users as $userId) {
+        upsertAttendance($db, $userId, $course6Id, $course6Sessions[0], 'present', $adminId);
+        if (isset($course6Sessions[1])) {
+            $second = $userId === 3 ? 'absent' : 'present';
+            upsertAttendance($db, $userId, $course6Id, $course6Sessions[1], $second, $adminId);
+        }
+    }
+    echo 'Seeded course 6 attendance for ' . count($course6Users) . " participant(s).\n";
+}
+
+// Reset demo certificates to pending email for resend / bulk-email testing
+$reset = $db->exec(
+    "UPDATE certificates
+     SET is_emailed = 0,
+         emailed_at = NULL,
+         last_email_log_id = NULL,
+         revoked_at = NULL,
+         revoke_reason = NULL
+     WHERE cert_number LIKE 'CTDHR-2026-DEMO%'"
+);
+echo "Reset {$reset} demo certificate(s) to pending email.\n";
+
+// Regenerate PDF assets if missing
+$certService = new CertificateService();
+$stmt = $db->query("SELECT * FROM certificates WHERE cert_number LIKE 'CTDHR-2026-DEMO%' ORDER BY id");
+$regenerated = 0;
+while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+    if ($certService->regeneratePdfForRecord($row)) {
+        $regenerated++;
+    }
+}
+echo "Regenerated {$regenerated} certificate PDF(s).\n";
+
+// Send certificate emails (file transport in local dev)
+$emailService = new EmailService();
+$certIds = $db->query("SELECT id FROM certificates WHERE cert_number LIKE 'CTDHR-2026-DEMO%' AND is_emailed = 0")
+    ->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+$sent = 0;
+$failed = 0;
+foreach (array_map('intval', $certIds) as $index => $certId) {
+    if ($index > 0) {
+        sleep(3);
+    }
+    $result = $certService->emailCertificateWithLog($certId, $emailService);
+    if ($result['success']) {
+        $sent++;
+        echo "Emailed certificate id {$certId} (log #{$result['log_id']}).\n";
+    } else {
+        $failed++;
+        echo "Failed to email certificate id {$certId}: " . ($result['error'] ?? 'unknown') . "\n";
+    }
+}
+
+echo "Email summary: sent {$sent}, failed {$failed}.\n";
+echo "Done. Test URLs:\n";
+echo '  Attendance export: ' . url('admin/attendance/export') . "\n";
+echo '  Completion report: ' . url('admin/attendance/completion-report') . "\n";
+echo '  Certificates: ' . url('admin/certificates') . "\n";

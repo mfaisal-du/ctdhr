@@ -1,0 +1,100 @@
+<?php declare(strict_types=1);
+
+$contactItems = [
+    ['icon' => 'location_on', 'title' => lang('address'), 'value' => lang('contact_address'), 'tone' => 'primary'],
+    ['icon' => 'mail', 'title' => lang('email'), 'value' => 'ctdhr@du.edu.om', 'link' => 'mailto:ctdhr@du.edu.om', 'tone' => 'sky'],
+    ['icon' => 'call', 'title' => lang('phone'), 'value' => '+968 2329 0000', 'tone' => 'secondary'],
+    ['icon' => 'schedule', 'title' => lang('office_hours'), 'value' => lang('office_hours_value'), 'tone' => 'magenta'],
+];
+
+ob_start();
+?>
+
+<?php
+page_hero([
+    'icon' => 'mail',
+    'title' => lang('contact_title'),
+    'subtitle' => lang('contact_subtitle'),
+    'accent' => 'sky',
+    'breadcrumbs' => [
+        ['label' => lang('home'), 'href' => url('/')],
+        ['label' => lang('contact')],
+    ],
+]);
+?>
+
+<section class="py-unit-xl contact-page-section">
+    <div class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop">
+        <div class="contact-info-row mb-gutter" data-stagger="50">
+            <?php foreach ($contactItems as $i => $item): ?>
+            <div class="contact-info-card contact-info-card--<?= e($item['tone']) ?> reveal-fade-up" data-reveal data-reveal-delay="<?= e((string) ($i * 50)) ?>">
+                <div class="contact-info-card-shine" aria-hidden="true"></div>
+                <div class="contact-info-card-body">
+                    <div class="contact-info-card-icon">
+                        <?= card_icon_svg($item['icon']) ?>
+                    </div>
+                    <h3 class="contact-info-card-title"><?= e($item['title']) ?></h3>
+                    <div class="contact-info-card-value">
+                        <?php if (!empty($item['link'])): ?>
+                        <a href="<?= e($item['link']) ?>"><?= e($item['value']) ?></a>
+                        <?php else: ?>
+                        <?= e($item['value']) ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <div class="reveal-fade-up" data-reveal data-reveal-delay="120">
+            <div class="contact-form-panel">
+                <div class="rainbow-accent -mx-unit-xl -mt-unit-xl md:-mx-unit-2xl md:-mt-unit-2xl mb-unit-xl w-[calc(100%+3rem)] md:w-[calc(100%+4rem)] rounded-t-3xl"></div>
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-unit-md mb-unit-xl">
+                    <div>
+                        <h2 class="font-headline-sm text-headline-sm text-primary"><?= e(lang('send_message')) ?></h2>
+                        <p class="text-body-sm text-on-surface-variant mt-unit-xs"><?= e(lang('contact_form_intro')) ?></p>
+                    </div>
+                    <div class="flex items-center gap-2 text-body-sm text-on-surface-variant">
+                        <span class="material-symbols-outlined text-secondary text-[20px]">schedule</span>
+                        <?= e(lang('contact_response_time')) ?>
+                    </div>
+                </div>
+
+                <form class="space-y-unit-md" action="<?= e(url('contact')) ?>" method="post">
+                    <?= csrf_field() ?>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-unit-md">
+                        <div>
+                            <label class="block text-label-sm text-on-surface-variant mb-unit-xs" for="contact-name"><?= e(lang('full_name')) ?></label>
+                            <input type="text" id="contact-name" name="name" required maxlength="255" class="stitch-input" placeholder="<?= e(lang('full_name')) ?>">
+                        </div>
+                        <div>
+                            <label class="block text-label-sm text-on-surface-variant mb-unit-xs" for="contact-email"><?= e(lang('email')) ?></label>
+                            <input type="email" id="contact-email" name="email" required maxlength="255" class="stitch-input" placeholder="<?= e(lang('email')) ?>">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-label-sm text-on-surface-variant mb-unit-xs" for="contact-subject"><?= e(lang('subject')) ?></label>
+                        <input type="text" id="contact-subject" name="subject" maxlength="255" class="stitch-input" placeholder="<?= e(lang('subject_placeholder')) ?>">
+                    </div>
+                    <div>
+                        <label class="block text-label-sm text-on-surface-variant mb-unit-xs" for="contact-message"><?= e(lang('message')) ?></label>
+                        <textarea id="contact-message" name="message" rows="5" required maxlength="5000" class="stitch-input resize-y min-h-[8rem]" placeholder="<?= e(lang('message_placeholder')) ?>"></textarea>
+                    </div>
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-unit-md pt-unit-sm">
+                        <button type="submit" class="btn-primary gap-2">
+                            <span class="material-symbols-outlined text-[20px]">send</span>
+                            <?= e(lang('send_message')) ?>
+                        </button>
+                        <p class="text-label-sm text-outline"><?= e(lang('contact_form_privacy')) ?></p>
+                    </div>
+                    <?php $action = 'contact'; require view_path('layouts/components/recaptcha.php'); ?>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('contact');
+require view_path('layouts/main.php');

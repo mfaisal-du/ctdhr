@@ -1,0 +1,182 @@
+<?php declare(strict_types=1);
+
+$result = $result ?? ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
+$hiddenDraftCount = (int) ($hiddenDraftCount ?? 0);
+$hiddenCancelledCount = (int) ($hiddenCancelledCount ?? 0);
+$hiddenFromPublicCount = $hiddenDraftCount + $hiddenCancelledCount;
+
+$scheduledCount = 0;
+$progressCount = 0;
+$completedCount = 0;
+foreach ($result['items'] as $c) {
+    $st = $c['status'] ?? '';
+    if (in_array($st, ['scheduled', 'announced', 'accepting_applications'], true)) $scheduledCount++;
+    elseif ($st === 'in_progress') $progressCount++;
+    elseif (in_array($st, ['completed', 'certified'], true)) $completedCount++;
+}
+
+$createBtn = '<a href="' . e(url('admin/courses/create')) . '" class="courses-btn-create">'
+    . '<span class="material-symbols-outlined">add_circle</span>'
+    . e(lang('create_course'))
+    . '</a>';
+?>
+
+<div class="admin-module-page">
+<?php
+admin_page_header([
+    'icon' => 'school',
+    'title' => lang('courses'),
+    'subtitle' => lang('courses_manage_subtitle'),
+    'accent' => 'primary',
+    'actions' => $createBtn,
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('courses')],
+    ],
+]);
+?>
+
+<?php if ($hiddenFromPublicCount > 0): ?>
+<div class="courses-notice">
+    <span class="material-symbols-outlined">info</span>
+    <p><?= e(str_replace([':draft', ':cancelled'], [(string) $hiddenDraftCount, (string) $hiddenCancelledCount], lang('courses_draft_hidden_notice'))) ?></p>
+</div>
+<?php endif; ?>
+
+<div class="courses-kpi-grid">
+    <?php foreach ([
+        ['blue', 'menu_book', lang('total_courses'), (int) ($result['total'] ?? 0)],
+        ['sky', 'event', lang('status_scheduled'), $scheduledCount],
+        ['gold', 'pending', lang('status_in_progress'), $progressCount],
+        ['green', 'check_circle', lang('status_completed'), $completedCount],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card">
+    <form method="GET" action="<?= e(url('admin/courses')) ?>" class="courses-filters">
+        <div class="courses-search">
+            <span class="material-symbols-outlined">search</span>
+            <input type="search" name="search" value="<?= e($filters['search'] ?? '') ?>" placeholder="<?= e(lang('search_placeholder')) ?>" class="courses-search-input" autocomplete="off">
+        </div>
+        <div class="courses-filter-group">
+            <div class="admin-select-wrap admin-select-wrap--sm">
+                <select name="status" class="admin-form-select" aria-label="<?= e(lang('status')) ?>">
+                    <option value=""><?= e(lang('all_statuses')) ?></option>
+                    <?php foreach ($statuses as $st): ?>
+                    <option value="<?= e($st) ?>" <?= ($filters['status'] ?? '') === $st ? 'selected' : '' ?>><?= e(course_status_label($st)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="admin-select-wrap admin-select-wrap--sm">
+                <select name="category_id" class="admin-form-select" aria-label="<?= e(lang('categories')) ?>">
+                    <option value=""><?= e(lang('all_categories')) ?></option>
+                    <?php foreach ($categories as $cat): ?>
+                    <option value="<?= (int) $cat['id'] ?>" <?= (string)($filters['category_id'] ?? '') === (string)$cat['id'] ? 'selected' : '' ?>><?= e(localized($cat, 'name')) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button type="submit" class="courses-btn-filter">
+                <span class="material-symbols-outlined">filter_list</span>
+                <?= e(lang('filter')) ?>
+            </button>
+            <?php if (!empty($filters['search']) || !empty($filters['status']) || !empty($filters['category_id'])): ?>
+            <a href="<?= e(url('admin/courses')) ?>" class="courses-clear"><?= e(lang('clear_filters')) ?></a>
+            <?php endif; ?>
+        </div>
+    </form>
+
+    <div class="courses-table-container">
+        <table class="courses-table">
+            <thead>
+                <tr>
+                    <th><?= e(lang('course_title')) ?></th>
+                    <th><?= e(lang('status')) ?></th>
+                    <th><?= e(lang('start_date')) ?></th>
+                    <th class="courses-th-actions"><?= e(lang('actions')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($result['items'])): ?>
+                <tr>
+                    <td colspan="4" class="courses-empty">
+                        <span class="material-symbols-outlined">menu_book</span>
+                        <p><?= e(lang('no_courses')) ?></p>
+                    </td>
+                </tr>
+                <?php else: foreach ($result['items'] as $course):
+                    $status = (string) ($course['status'] ?? '');
+                    $title = localized($course, 'title');
+                    $category = localized($course, 'category_name');
+                ?>
+                <tr>
+                    <td class="courses-td-title">
+                        <a href="<?= e(url('admin/courses/' . $course['id'] . '/edit')) ?>" class="courses-link-title"><?= e($title) ?></a>
+                        <span class="courses-link-meta"><?= e($category) ?></span>
+                    </td>
+                    <td>
+                        <span class="courses-badge courses-badge--<?= e(str_replace('_', '-', $status)) ?>"><?= e(course_status_label($status)) ?></span>
+                    </td>
+                    <td class="courses-td-date"><?= e(format_date($course['start_date'])) ?></td>
+                    <td class="courses-td-actions">
+                        <div class="courses-actions-row">
+                            <a href="<?= e(url('admin/attendance/' . $course['id'])) ?>" class="courses-action" title="<?= e(lang('mark_attendance')) ?>">
+                                <span class="material-symbols-outlined">fact_check</span>
+                            </a>
+                            <?php if (in_array($status, ['in_progress', 'completed'], true)): ?>
+                            <a href="<?= e(url('admin/certificates/generate?course_id=' . $course['id'])) ?>" class="courses-action" title="<?= e(lang('generate_certificates')) ?>">
+                                <span class="material-symbols-outlined">verified</span>
+                            </a>
+                            <?php endif; ?>
+                            <a href="<?= e(url('admin/courses/' . $course['id'] . '/edit')) ?>" class="courses-action" title="<?= e(lang('edit')) ?>">
+                                <span class="material-symbols-outlined">edit</span>
+                            </a>
+                            <?php if ($status === 'draft'): ?>
+                            <form method="POST" action="<?= e(url('admin/courses/' . $course['id'] . '/status')) ?>" class="courses-inline-form">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="status" value="accepting_applications">
+                                <button type="submit" class="courses-action courses-action--publish" title="<?= e(lang('course_publish_public')) ?>">
+                                    <span class="material-symbols-outlined">publish</span>
+                                </button>
+                            </form>
+                            <?php endif; ?>
+                            <form method="POST" action="<?= e(url('admin/courses/' . $course['id'] . '/delete')) ?>" class="courses-inline-form courses-delete-form">
+                                <?= csrf_field() ?>
+                                <button type="button" class="courses-action courses-action--delete" title="<?= e(lang('delete')) ?>"
+                                    data-title="<?= e($title) ?>"
+                                    data-confirm="<?= e(lang('confirm_delete')) ?>"
+                                    data-warning="<?= e(lang('delete_warning')) ?>"
+                                    data-delete-label="<?= e(lang('delete')) ?>"
+                                    data-cancel-label="<?= e(lang('cancel')) ?>">
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if (($result['pages'] ?? 1) > 1): ?>
+    <footer class="courses-list-pagination">
+        <span><?= e(lang('page')) ?> <?= (int) $result['page'] ?> / <?= (int) $result['pages'] ?></span>
+        <div class="courses-page-links">
+            <?php for ($p = 1; $p <= min($result['pages'], 7); $p++): ?>
+            <a href="?page=<?= $p ?>&search=<?= e(urlencode($filters['search'] ?? '')) ?>&status=<?= e(urlencode($filters['status'] ?? '')) ?>&category_id=<?= e(urlencode((string)($filters['category_id'] ?? ''))) ?>"
+               class="courses-page-num<?= $p === $result['page'] ? ' is-active' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+        </div>
+    </footer>
+    <?php endif; ?>
+</div>
+</div>
+

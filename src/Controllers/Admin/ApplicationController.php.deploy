@@ -1,0 +1,143 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Models\Application;
+use CTDHR\Models\CourseAdmin;
+use CTDHR\Services\AuditService;
+
+final class ApplicationController
+{
+    private AuditService $audit;
+
+    public function __construct()
+    {
+        $this->audit = new AuditService();
+    }
+
+    public function index(): void
+    {
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $filters = [
+            'status' => $_GET['status'] ?? '',
+            'course_id' => $_GET['course_id'] ?? '',
+            'search' => $_GET['search'] ?? '',
+        ];
+
+        admin_view('admin.applications.index', [
+            'pageTitle' => lang('applications'),
+            'result' => Application::findAll($filters, $page),
+            'filters' => $filters,
+            'courses' => CourseAdmin::findAll([], 1, 200)['items'],
+        ]);
+    }
+
+    public function bulkAction(): void
+    {
+        $rawIds = $_POST['ids'] ?? [];
+        $ids = is_array($rawIds)
+            ? array_values(array_filter(array_map('intval', $rawIds), static fn (int $id): bool => $id > 0))
+            : [];
+        $action = strtolower(trim((string) ($_POST['bulk_action'] ?? '')));
+
+        $statusMap = [
+            'approve' => 'approved',
+            'approved' => 'approved',
+            'reject' => 'rejected',
+            'rejected' => 'rejected',
+            'waitlist' => 'waitlisted',
+            'waitlisted' => 'waitlisted',
+        ];
+
+        if ($ids === []) {
+            flash('error', lang('no_applications_selected'));
+            redirect('admin/applications');
+        }
+
+        if (!isset($statusMap[$action])) {
+            flash('error', lang('invalid_bulk_action'));
+            redirect('admin/applications');
+        }
+
+        $reviewedBy = (int) ($_SESSION['user_id'] ?? 0);
+        $count = Application::bulkUpdateStatus($ids, $statusMap[$action], $reviewedBy);
+
+        $this->audit->log('application.bulk_' . $action, 'application', null, [
+            'ids' => $ids,
+            'status' => $statusMap[$action],
+            'count' => $count,
+        ]);
+
+        flash('success', lang('bulk_updated', ['count' => (string) $count]));
+        redirect('admin/applications');
+    }
+
+    public function updateStatus(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $action = strtolower(trim((string) ($_POST['status_action'] ?? '')));
+
+        $statusMap = [
+            'approve' => 'approved',
+            'approved' => 'approved',
+            'reject' => 'rejected',
+            'rejected' => 'rejected',
+            'waitlist' => 'waitlisted',
+            'waitlisted' => 'waitlisted',
+        ];
+
+        if ($id <= 0 || !isset($statusMap[$action])) {
+            flash('error', lang('invalid_bulk_action'));
+            redirect('admin/applications');
+        }
+
+        $application = Application::findById($id);
+        if ($application === null) {
+            flash('error', lang('application_not_found'));
+            redirect('admin/applications');
+        }
+
+        Application::updateStatus($id, $statusMap[$action]);
+        $this->audit->log('application.' . $action, 'application', $id, [
+            'status' => $statusMap[$action],
+        ]);
+
+        flash('success', lang('application_status_updated'));
+        redirect('admin/applications');
+    }
+
+    public function export(): void
+    {
+        $filters = [
+            'status' => $_GET['status'] ?? '',
+            'course_id' => $_GET['course_id'] ?? '',
+            'search' => $_GET['search'] ?? '',
+        ];
+
+        $rows = Application::exportAll($filters);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="applications-' . date('Y-m-d') . '.csv"');
+
+        $out = fopen('php://output', 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($out, ['ID', 'Applicant', 'Email', 'Course', 'Status', 'Applied At']);
+
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                $row['id'],
+                $row['full_name_en'],
+                $row['email'],
+                $row['course_title_en'],
+                $row['status'],
+                $row['applied_at'],
+            ]);
+        }
+
+        fclose($out);
+        $this->audit->log('application.export', 'application', null, ['count' => count($rows)]);
+        exit;
+    }
+}

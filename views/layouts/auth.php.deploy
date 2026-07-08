@@ -1,0 +1,69 @@
+<?php declare(strict_types=1);
+
+$locale = $_SESSION['locale'] ?? config('locale', 'en');
+$dir = $locale === 'ar' ? 'rtl' : 'ltr';
+$pageTitle = $pageTitle ?? lang('app_name');
+$authCardWidth = $authCardWidth ?? 'md';
+$authBg = graduation_overlay_image();
+$widthClass = match ($authCardWidth) {
+    'lg' => 'max-w-3xl',
+    'xl' => 'max-w-5xl',
+    default => 'max-w-md',
+};
+?>
+<!DOCTYPE html>
+<html lang="<?= e($locale) ?>" dir="<?= e($dir) ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+    <title><?= e($pageTitle) ?> | <?= e(lang('app_name')) ?></title>
+    <link rel="stylesheet" href="<?= e(asset('css/fonts.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/output.css')) ?>">
+    <script defer src="<?= e(asset('vendor/alpine.min.js')) ?>"></script>
+</head>
+<body class="auth-scene text-on-surface font-body-md min-h-screen antialiased">
+
+<div class="auth-scene-bg" aria-hidden="true">
+    <img src="<?= e($authBg) ?>" alt="" class="auth-scene-image" decoding="async">
+    <div class="auth-scene-scrim"></div>
+    <div class="auth-scene-mesh"></div>
+    <canvas id="auth-particles" class="auth-scene-canvas"></canvas>
+    <div class="auth-scene-orb auth-scene-orb-1"></div>
+    <div class="auth-scene-orb auth-scene-orb-2"></div>
+</div>
+
+<header class="auth-scene-header relative z-20">
+    <div class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop py-unit-md flex items-center justify-between">
+        <a href="<?= e(url('/')) ?>" class="auth-brand flex items-center gap-unit-sm group">
+            <img src="<?= e(university_logo()) ?>" alt="<?= e(lang('university')) ?>" class="w-10 h-10 rounded-full ring-2 ring-white/30 shadow-card" width="40" height="40">
+            <div class="hidden sm:block">
+                <div class="font-label-md text-white leading-tight"><?= e(lang('university')) ?></div>
+                <div class="text-[11px] text-white/70"><?= e(lang('app_name')) ?></div>
+            </div>
+        </a>
+        <div class="flex items-center gap-unit-sm">
+            <?php require view_path('layouts/components/auth-back-website.php'); ?>
+            <a href="<?= e(url('lang/en')) ?>" class="auth-lang-pill <?= $locale === 'en' ? 'auth-lang-pill-active' : '' ?>">EN</a>
+            <a href="<?= e(url('lang/ar')) ?>" class="auth-lang-pill <?= $locale === 'ar' ? 'auth-lang-pill-active' : '' ?>">AR</a>
+        </div>
+    </div>
+</header>
+
+<main class="relative z-10 flex-1 flex items-center justify-center px-margin-mobile md:px-margin-desktop py-unit-xl min-h-[calc(100vh-5rem)]">
+    <div class="w-full <?= e($widthClass) ?> auth-card-enter">
+        <div class="auth-glass-card overflow-hidden">
+            <div class="rainbow-accent"></div>
+            <?php require view_path('auth/components/auth-alerts.php'); ?>
+            <?php if (isset($content)) { echo $content; } ?>
+        </div>
+    </div>
+</main>
+
+<div class="auth-scene-footer relative z-20 text-center pb-unit-lg">
+    <p class="text-white/50 text-label-sm">&copy; <?= e(date('Y')) ?> <?= e(lang('university')) ?> — CTDHR</p>
+</div>
+
+<script src="<?= e(asset('js/auth-particles.js')) ?>" defer></script>
+</body>
+</html>

@@ -1,0 +1,473 @@
+<?php declare(strict_types=1);
+
+$result = $result ?? ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
+$filters = $filters ?? [];
+$stats = $stats ?? [];
+$participantRates = $participantRates ?? [];
+$participantRateBreakdowns = $participantRateBreakdowns ?? [];
+$sessionEntries = $sessionEntries ?? [];
+$currentSession = $currentSession ?? null;
+$reminders = $reminders ?? [];
+$attendanceThreshold = (int) ($attendanceThreshold ?? 75);
+$participantEligibility = $participantEligibility ?? [];
+$sessionLocked = (bool) ($sessionLocked ?? false);
+$riskFilter = (string) ($riskFilter ?? '');
+$sessionPresentCount = (int) ($sessionPresentCount ?? 0);
+$sessionAbsentCount = (int) ($sessionAbsentCount ?? 0);
+
+$hasActiveFilters = !empty($filters['search']) || !empty($filters['status']) || !empty($filters['marking']) || (($filters['sort'] ?? 'start_date') !== 'start_date');
+$filterQuery = static function (array $extra = []) use ($filters): string {
+    return http_build_query(array_filter(array_merge($filters, $extra), static fn ($v) => $v !== '' && $v !== null));
+};
+
+?>
+<div class="admin-module-page admin-module-page--listing">
+<?php if (empty($course)): ?>
+<?php
+admin_page_header([
+    'icon' => 'assignment_turned_in',
+    'title' => lang('attendance'),
+    'subtitle' => lang('attendance_manage_subtitle'),
+    'accent' => 'green',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('attendance')],
+    ],
+]);
+?>
+
+<div class="courses-kpi-grid" aria-label="<?= e(lang('attendance')) ?>">
+    <?php foreach ([
+        ['blue', 'menu_book', lang('courses'), (int) ($stats['courses'] ?? $result['total'] ?? 0)],
+        ['green', 'group', lang('approved'), (int) ($stats['approved'] ?? 0)],
+        ['sky', 'check_circle', lang('present'), (int) ($stats['present'] ?? 0)],
+        ['gold', 'event_available', lang('sessions_marked_label'), (int) ($stats['sessions_marked'] ?? 0)],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<?php if (!empty($reminders)): ?>
+<div class="admin-reminder-banner" role="status">
+    <span class="material-symbols-outlined">notification_important</span>
+    <div>
+        <strong><?= e(lang('session_marking_reminders')) ?></strong>
+        <ul class="admin-reminder-list">
+            <?php foreach (array_slice($reminders, 0, 5) as $rem): ?>
+            <li>
+                <a href="<?= e(url('admin/attendance/' . (int) $rem['course_id'])) ?>"><?= e(localized($rem, 'title')) ?></a>
+                — <?= (int) ($rem['sessions_marked'] ?? 0) ?>/<?= max((int) ($rem['total_sessions'] ?? 0), 1) ?> <?= e(lang('sessions_short')) ?>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+</div>
+<?php endif; ?>
+
+<div class="courses-card">
+    <div class="admin-quick-filters admin-quick-filters--green">
+        <p class="admin-quick-filters__label">
+            <span class="material-symbols-outlined" aria-hidden="true">fact_check</span>
+            <?= e(lang('marking_status')) ?>
+        </p>
+        <nav class="admin-quick-filters__track" aria-label="<?= e(lang('marking_status')) ?>">
+            <?php foreach ([
+                ['', 'grid_view', lang('filter_all_short')],
+                ['not_started', 'hourglass_empty', lang('marking_not_started')],
+                ['in_progress', 'pending_actions', lang('marking_in_progress')],
+                ['complete', 'task_alt', lang('marking_complete')],
+            ] as [$mkVal, $mkIcon, $mkLabel]): ?>
+            <a href="?<?= e($filterQuery(['marking' => $mkVal, 'page' => 1])) ?>"
+               class="admin-quick-filter<?= ($filters['marking'] ?? '') === $mkVal ? ' is-active' : '' ?>"
+               <?= ($filters['marking'] ?? '') === $mkVal ? 'aria-current="page"' : '' ?>>
+                <span class="material-symbols-outlined" aria-hidden="true"><?= e($mkIcon) ?></span>
+                <?= e($mkLabel) ?>
+            </a>
+            <?php endforeach; ?>
+        </nav>
+    </div>
+
+    <form method="GET" action="<?= e(url('admin/attendance')) ?>" class="courses-filters" data-filter-persist="attendance-list">
+        <div class="courses-search">
+            <span class="material-symbols-outlined">search</span>
+            <input type="search" name="search" value="<?= e($filters['search'] ?? '') ?>" placeholder="<?= e(lang('attendance_search_placeholder')) ?>" class="courses-search-input" autocomplete="off">
+        </div>
+        <div class="courses-filter-group">
+            <div class="admin-select-wrap admin-select-wrap--sm admin-select-wrap--filter">
+                <select name="status" class="admin-form-select courses-filter-select" aria-label="<?= e(lang('status')) ?>">
+                    <option value=""><?= e(lang('all_statuses')) ?></option>
+                    <?php foreach (['scheduled', 'in_progress', 'completed'] as $st): ?>
+                    <option value="<?= e($st) ?>" <?= ($filters['status'] ?? '') === $st ? 'selected' : '' ?>><?= e(course_status_label($st)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="admin-select-wrap admin-select-wrap--sm admin-select-wrap--filter">
+                <select name="sort" class="admin-form-select courses-filter-select" aria-label="<?= e(lang('sort_by')) ?>">
+                    <option value="start_date" <?= ($filters['sort'] ?? 'start_date') === 'start_date' ? 'selected' : '' ?>><?= e(lang('sort_start_date')) ?></option>
+                    <option value="title" <?= ($filters['sort'] ?? '') === 'title' ? 'selected' : '' ?>><?= e(lang('sort_title')) ?></option>
+                    <option value="approved" <?= ($filters['sort'] ?? '') === 'approved' ? 'selected' : '' ?>><?= e(lang('sort_participants')) ?></option>
+                    <option value="sessions" <?= ($filters['sort'] ?? '') === 'sessions' ? 'selected' : '' ?>><?= e(lang('sort_sessions_marked')) ?></option>
+                </select>
+            </div>
+            <input type="hidden" name="marking" value="<?= e($filters['marking'] ?? '') ?>">
+            <button type="submit" class="courses-btn-filter">
+                <span class="material-symbols-outlined">filter_list</span>
+                <?= e(lang('filter')) ?>
+            </button>
+            <?php if ($hasActiveFilters): ?>
+            <a href="<?= e(url('admin/attendance')) ?>" class="courses-clear"><?= e(lang('clear_filters')) ?></a>
+            <?php endif; ?>
+        </div>
+    </form>
+
+    <div class="admin-results-bar">
+        <span><?= e(str_replace([':shown', ':total'], [(string) count($result['items']), (string) ($result['total'] ?? 0)], lang('results_count'))) ?></span>
+        <div class="admin-results-actions">
+            <a href="<?= e(url('admin/attendance/export') . '?' . $filterQuery()) ?>" class="courses-btn-secondary courses-btn-secondary--sm">
+                <span class="material-symbols-outlined">download</span><?= e(lang('export_csv')) ?>
+            </a>
+            <a href="<?= e(url('admin/attendance/completion-report')) ?>" class="courses-btn-secondary courses-btn-secondary--sm">
+                <span class="material-symbols-outlined">summarize</span><?= e(lang('completion_report')) ?>
+            </a>
+        </div>
+    </div>
+
+    <div class="courses-table-container">
+        <table class="courses-table courses-table--attendance">
+            <thead>
+                <tr>
+                    <th><?= e(lang('course_title')) ?></th>
+                    <th><?= e(lang('status')) ?></th>
+                    <th><?= e(lang('dates')) ?></th>
+                    <th><?= e(lang('participants')) ?></th>
+                    <th><?= e(lang('session_progress')) ?></th>
+                    <th><?= e(lang('attendance_rate')) ?></th>
+                    <th class="courses-th-actions"><?= e(lang('actions')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($result['items'])): ?>
+                <tr>
+                    <td colspan="7" class="courses-empty">
+                        <span class="material-symbols-outlined">event_busy</span>
+                        <p><?= e(lang('no_courses_attendance')) ?></p>
+                    </td>
+                </tr>
+                <?php else: foreach ($result['items'] as $c):
+                    $status = (string) ($c['status'] ?? '');
+                    $marking = (string) ($c['marking_status'] ?? 'not_started');
+                    $approved = (int) ($c['approved_count'] ?? 0);
+                    $sessionsMarked = (int) ($c['sessions_marked'] ?? 0);
+                    $totalSessions = (int) ($c['total_sessions'] ?? 0);
+                    $rate = (float) ($c['attendance_rate'] ?? 0);
+                    $progress = (int) ($c['session_progress'] ?? 0);
+                ?>
+                <tr>
+                    <td class="courses-td-title">
+                        <a href="<?= e(url('admin/attendance/' . $c['id'])) ?>" class="courses-link-title"><?= e(localized($c, 'title')) ?></a>
+                        <?php if ($sessionsMarked > 0): ?>
+                        <span class="courses-link-meta"><?= e(lang('sessions_marked', ['count' => (string) $sessionsMarked])) ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <span class="courses-badge courses-badge--<?= e(str_replace('_', '-', $status)) ?>"><?= e(course_status_label($status)) ?></span>
+                    </td>
+                    <td class="courses-td-date">
+                        <?= e(format_date($c['start_date'])) ?>
+                        <?php if (!empty($c['end_date'])): ?>
+                        <span class="courses-td-muted"> – <?= e(format_date($c['end_date'])) ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <span class="admin-stat-pill admin-stat-pill--approved"><?= $approved ?> <?= e(lang('approved')) ?></span>
+                    </td>
+                    <td>
+                        <div class="attendance-progress-cell">
+                            <div class="attendance-progress-bar" role="progressbar" aria-valuenow="<?= $progress ?>" aria-valuemin="0" aria-valuemax="100">
+                                <span class="attendance-progress-fill" style="width: <?= $progress ?>%"></span>
+                            </div>
+                            <span class="attendance-progress-label"><?= $sessionsMarked ?>/<?= max($totalSessions, 1) ?> <?= e(lang('sessions_short')) ?></span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="attendance-rate-badge<?= $rate >= 75 ? ' is-good' : ($rate >= 50 ? ' is-mid' : ' is-low') ?>"><?= $rate ?>%</span>
+                    </td>
+                    <td class="courses-td-actions">
+                        <div class="courses-actions-row">
+                            <span class="courses-badge courses-badge--marking-<?= e(str_replace('_', '-', $marking)) ?>"><?= e(lang('marking_' . $marking)) ?></span>
+                            <a href="<?= e(url('admin/attendance/' . $c['id'])) ?>" class="courses-action courses-action--approve" title="<?= e(lang('mark_attendance')) ?>">
+                                <span class="material-symbols-outlined">edit_square</span>
+                            </a>
+                            <?php if ($marking === 'complete'): ?>
+                            <a href="<?= e(url('admin/certificates/generate?course_id=' . $c['id'])) ?>" class="courses-action" title="<?= e(lang('generate_certificates')) ?>">
+                                <span class="material-symbols-outlined">verified</span>
+                            </a>
+                            <?php endif; ?>
+                            <a href="<?= e(url('admin/audit?action=attendance.mark&search=course')) ?>" class="courses-action" title="<?= e(lang('audit_log')) ?>">
+                                <span class="material-symbols-outlined">history</span>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if (($result['pages'] ?? 1) > 1): ?>
+    <footer class="courses-list-pagination">
+        <span><?= e(lang('page')) ?> <?= (int) $result['page'] ?> / <?= (int) $result['pages'] ?></span>
+        <div class="courses-page-links">
+            <?php for ($p = 1; $p <= min($result['pages'], 9); $p++): ?>
+            <a href="?<?= e($filterQuery(['page' => $p])) ?>" class="courses-page-num<?= $p === $result['page'] ? ' is-active' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+        </div>
+    </footer>
+    <?php endif; ?>
+</div>
+
+<?php else: ?>
+<?php
+admin_page_header([
+    'icon' => 'assignment_turned_in',
+    'title' => lang('mark_attendance'),
+    'subtitle' => localized($course, 'title'),
+    'accent' => 'green',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('attendance'), 'href' => url('admin/attendance')],
+        ['label' => localized($course, 'title')],
+    ],
+]);
+?>
+
+<a href="<?= e(url('admin/attendance')) ?>" class="courses-back-link">
+    <span class="material-symbols-outlined text-[18px]">arrow_back</span>
+    <?= e(lang('back_to_attendance')) ?>
+</a>
+
+<?php
+$sessionKpiValue = $currentSession !== null
+    ? attendance_session_kpi_value($currentSession)
+    : lang('session_number', ['n' => '1']);
+$sessionKpiTopic = ($currentSession['detail'] ?? '') !== '' ? (string) $currentSession['detail'] : '';
+?>
+<div class="courses-kpi-grid courses-kpi-grid--compact" aria-label="<?= e(lang('mark_attendance')) ?>">
+    <?php foreach ([
+        ['blue', 'group', lang('participants'), (string) count($participants), ''],
+        ['green', 'check_circle', lang('present'), (string) $sessionPresentCount, 'data-live-present'],
+        ['gold', 'person_off', lang('absent'), (string) $sessionAbsentCount, 'data-live-absent'],
+        ['sky', 'event', $sessionKpiTopic !== '' ? $sessionKpiTopic : lang('session'), $sessionKpiValue, 'is-text'],
+    ] as [$theme, $icon, $label, $val, $valueAttr]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value<?= $valueAttr === 'is-text' ? ' courses-kpi-value--text' : '' ?>"<?= in_array($valueAttr, ['data-live-present', 'data-live-absent'], true) ? ' ' . $valueAttr . '="' . e($val) . '"' : '' ?>><?= e($val) ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card">
+    <div class="admin-toolbar admin-toolbar--attendance">
+        <a href="<?= e(url('admin/attendance/' . $course['id'] . '/export')) ?>" class="courses-btn-secondary courses-btn-secondary--sm">
+            <span class="material-symbols-outlined">download</span><?= e(lang('export_csv')) ?>
+        </a>
+        <a href="<?= e(url('admin/attendance/' . $course['id'] . '/print?session=' . urlencode($sessionDate))) ?>" class="courses-btn-secondary courses-btn-secondary--sm" target="_blank" rel="noopener">
+            <span class="material-symbols-outlined">print</span><?= e(lang('print_sheet')) ?>
+        </a>
+        <form method="POST" action="<?= e(url('admin/attendance/' . $course['id'] . '/import')) ?>" enctype="multipart/form-data" class="admin-import-form">
+            <?= csrf_field() ?>
+            <label class="courses-btn-secondary courses-btn-secondary--sm admin-import-label">
+                <span class="material-symbols-outlined">upload</span><?= e(lang('import_csv')) ?>
+                <input type="file" name="import_file" accept=".csv,text/csv" class="sr-only" onchange="this.form.submit()">
+            </label>
+        </form>
+        <?php
+        $riskParams = ['session' => $sessionDate];
+        $riskParams['risk'] = ($riskFilter === 'at_risk') ? '' : 'at_risk';
+        ?>
+        <a href="?<?= e(http_build_query($riskParams)) ?>" class="courses-btn-secondary courses-btn-secondary--sm<?= $riskFilter === 'at_risk' ? ' is-active' : '' ?>">
+            <span class="material-symbols-outlined">warning</span><?= e(lang('at_risk_filter')) ?>
+        </a>
+    </div>
+
+    <?php if ($sessionLocked): ?>
+    <div class="admin-lock-banner">
+        <span class="material-symbols-outlined">lock</span>
+        <?= e(lang('session_locked_notice')) ?>
+        <form method="POST" action="<?= e(url('admin/attendance/' . $course['id'] . '/unlock')) ?>" class="courses-inline-form">
+            <?= csrf_field() ?>
+            <input type="hidden" name="session_date" value="<?= e($sessionDate) ?>">
+            <button type="submit" class="courses-btn-secondary courses-btn-secondary--sm"><?= e(lang('unlock_session')) ?></button>
+        </form>
+    </div>
+    <?php endif; ?>
+
+    <form method="GET" action="<?= e(url('admin/attendance/' . $course['id'])) ?>" class="courses-filters courses-filters--inline">
+        <div class="courses-filter-group">
+            <label class="admin-filter-label" for="session-select"><?= e(lang('select_session')) ?></label>
+            <div class="admin-select-wrap admin-select-wrap--sm admin-select-wrap--filter admin-select-wrap--wide">
+                <select id="session-select" name="session" class="admin-form-select courses-filter-select" onchange="this.form.submit()" aria-label="<?= e(lang('session')) ?>">
+                    <?php foreach ($sessionEntries as $entry): ?>
+                    <option value="<?= e($entry['key']) ?>" <?= $sessionDate === $entry['key'] ? 'selected' : '' ?>>
+                        <?= e(attendance_session_option_label($entry)) ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+    </form>
+
+    <form method="POST" action="<?= e(url('admin/attendance/' . $course['id'] . '/mark')) ?>" id="attendanceMarkForm">
+        <?= csrf_field() ?>
+        <input type="hidden" name="session_date" value="<?= e($sessionDate) ?>">
+
+        <div class="courses-bulk-bar courses-bulk-bar--attendance">
+            <button type="button" class="courses-bulk-btn courses-bulk-btn--approve" data-attendance-action="all-present"<?= $sessionLocked ? ' disabled' : '' ?>>
+                <span class="material-symbols-outlined text-[18px]">done_all</span>
+                <?= e(lang('mark_all_present')) ?>
+            </button>
+            <button type="button" class="courses-bulk-btn courses-bulk-btn--reject" data-attendance-action="all-absent"<?= $sessionLocked ? ' disabled' : '' ?>>
+                <span class="material-symbols-outlined text-[18px]">block</span>
+                <?= e(lang('mark_all_absent')) ?>
+            </button>
+            <button type="button" class="courses-bulk-btn" data-attendance-action="all-excused"<?= $sessionLocked ? ' disabled' : '' ?>>
+                <span class="material-symbols-outlined text-[18px]">event_busy</span>
+                <?= e(lang('mark_all_excused')) ?>
+            </button>
+        </div>
+
+        <div class="courses-table-container">
+            <table class="courses-table courses-table--auto">
+                <thead>
+                    <tr>
+                        <th><?= e(lang('attendance_status')) ?></th>
+                        <th><?= e(lang('participant_name')) ?></th>
+                        <th><?= e(lang('email')) ?></th>
+                        <th><?= e(lang('attendance_rate')) ?></th>
+                        <th><?= e(lang('cert_eligibility')) ?></th>
+                        <th class="courses-th-actions"><?= e(lang('actions')) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($participants)): ?>
+                    <tr>
+                        <td colspan="6" class="courses-empty">
+                            <span class="material-symbols-outlined">group_off</span>
+                            <p><?= e(lang('no_participants')) ?></p>
+                        </td>
+                    </tr>
+                    <?php else: foreach ($participants as $p):
+                        $pid = (int) $p['id'];
+                        $rowStatus = \CTDHR\Models\Attendance::rowStatus($attendance[$pid] ?? []);
+                        $breakdown = $participantRateBreakdowns[$pid] ?? ['present' => 0, 'total' => 0, 'rate' => 0.0];
+                        $elig = $participantEligibility[$pid] ?? ['eligible' => false, 'rate' => 0, 'total' => 0];
+                        $rate = (float) ($breakdown['rate'] ?? $participantRates[$pid] ?? 0);
+                        $rateHint = lang('attendance_rate_hint', [
+                            'present' => (string) ($breakdown['present'] ?? 0),
+                            'total' => (string) ($breakdown['total'] ?? 0),
+                            'rate' => (string) $rate,
+                        ]);
+                    ?>
+                    <tr class="attendance-row--<?= e($rowStatus) ?>">
+                        <td>
+                            <div class="attendance-status-pills<?= $sessionLocked ? ' is-disabled' : '' ?>" role="radiogroup" aria-label="<?= e(lang('attendance_status')) ?>">
+                                <?php foreach (['present' => 'check_circle', 'absent' => 'cancel', 'excused' => 'event_busy'] as $st => $stIcon): ?>
+                                <input type="radio"
+                                       name="status[<?= $pid ?>]"
+                                       value="<?= e($st) ?>"
+                                       id="att-status-<?= $pid ?>-<?= e($st) ?>"
+                                       class="attendance-status-pill__input"
+                                       <?= $rowStatus === $st ? 'checked' : '' ?>
+                                       <?= $sessionLocked ? 'disabled' : '' ?>>
+                                <label for="att-status-<?= $pid ?>-<?= e($st) ?>"
+                                       class="attendance-status-pill attendance-status-pill--<?= e($st) ?><?= $rowStatus === $st ? ' is-active' : '' ?>"
+                                       data-status="<?= e($st) ?>">
+                                    <span class="material-symbols-outlined" aria-hidden="true"><?= e($stIcon) ?></span>
+                                    <?= e(lang('attendance_' . $st)) ?>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </td>
+                        <td><span class="courses-td-name"><?= e(localized($p, 'full_name')) ?></span></td>
+                        <td class="courses-td-muted"><?= e($p['email']) ?></td>
+                        <td>
+                            <span class="attendance-rate-badge<?= $rate >= $attendanceThreshold ? ' is-good' : ($rate >= 50 ? ' is-mid' : ' is-low') ?>" title="<?= e($rateHint) ?>"><?= $rate ?>%</span>
+                            <?php if (($breakdown['total'] ?? 0) > 0): ?>
+                            <span class="attendance-rate-meta"><?= (int) $breakdown['present'] ?>/<?= (int) $breakdown['total'] ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if (($elig['total'] ?? 0) === 0): ?>
+                            <span class="courses-badge courses-badge--pending-email"><?= e(lang('ineligible_no_data')) ?></span>
+                            <?php elseif (!empty($elig['eligible'])): ?>
+                            <span class="courses-badge courses-badge--sent"><?= e(lang('eligible')) ?></span>
+                            <?php else: ?>
+                            <span class="courses-badge courses-badge--pending-email"><?= e(lang('at_risk')) ?></span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="courses-td-actions">
+                            <button type="button" class="courses-action" data-history-url="<?= e(url('admin/attendance/' . $course['id'] . '/participant/' . $pid . '/history')) ?>" title="<?= e(lang('attendance_history')) ?>">
+                                <span class="material-symbols-outlined">timeline</span>
+                            </button>
+                        </td>
+                    </tr>
+                    <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <div class="courses-form-footer">
+            <?php if (!$sessionLocked): ?>
+            <label class="courses-check courses-lock-after-save">
+                <input type="checkbox" name="lock_after_save" value="1" class="courses-checkbox">
+                <span><?= e(lang('lock_after_save')) ?></span>
+            </label>
+            <button type="submit" class="courses-btn-save">
+                <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                <?= e(lang('save_attendance')) ?>
+            </button>
+            <?php endif; ?>
+        </div>
+    </form>
+</div>
+
+<div id="participantTimelineModal"
+     class="admin-overlay-modal admin-overlay-modal--timeline"
+     data-label-eligible="<?= e(lang('eligible')) ?>"
+     data-label-at-risk="<?= e(lang('at_risk')) ?>"
+     data-label-events="<?= e(lang('timeline_events_count')) ?>"
+     hidden>
+    <div class="admin-overlay-modal__backdrop" data-modal-close></div>
+    <div class="admin-overlay-modal__panel" role="dialog" aria-modal="true" aria-labelledby="timelineModalTitle">
+        <div class="admin-overlay-modal__accent" aria-hidden="true"></div>
+        <header class="admin-overlay-modal__header">
+            <div class="admin-overlay-modal__brand">
+                <span class="admin-overlay-modal__icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">timeline</span>
+                </span>
+                <div class="admin-overlay-modal__titles">
+                    <h2 id="timelineModalTitle"><?= e(lang('participant_timeline')) ?></h2>
+                    <p id="timelineModalSubtitle" class="admin-overlay-modal__subtitle"></p>
+                </div>
+            </div>
+            <button type="button" class="admin-overlay-modal__close" data-modal-close aria-label="<?= e(lang('close')) ?>">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </header>
+        <div class="admin-overlay-modal__body" id="participantTimelineBody"></div>
+    </div>
+</div>
+
+<script src="<?= e(asset('js/admin-overlay-modal.js')) ?>" defer></script>
+<script src="<?= e(asset('js/admin-attendance.js')) ?>" defer></script>
+<script src="<?= e(asset('js/admin-filter-persist.js')) ?>" defer></script>
+<?php endif; ?>
+</div>

@@ -1,0 +1,155 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Models\NewsTicker;
+use CTDHR\Services\AuditService;
+
+final class NewsTickerController
+{
+    private AuditService $audit;
+
+    public function __construct()
+    {
+        $this->audit = new AuditService();
+    }
+
+    public function index(): void
+    {
+        $items = NewsTicker::findAllAdmin();
+
+        admin_view('admin.news-ticker.index', [
+            'pageTitle' => lang('news_ticker'),
+            'items' => $items,
+            'tableReady' => NewsTicker::tableExists(),
+            'corruptedCount' => NewsTicker::countCorruptedArabicRows($items),
+            'tones' => ['primary', 'gold', 'secondary', 'sky', 'magenta'],
+        ]);
+    }
+
+    public function store(): void
+    {
+        if (!NewsTicker::tableExists()) {
+            flash('error', lang('news_ticker_table_missing'));
+            redirect('admin/news-ticker');
+        }
+
+        $data = $this->validateInput();
+        if ($data === null) {
+            redirect('admin/news-ticker');
+        }
+
+        $id = NewsTicker::create($data);
+        $this->audit->logCreate('news_ticker', $id, $data);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/news-ticker');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function update(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $item = NewsTicker::findById($id);
+        if ($item === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/news-ticker');
+        }
+
+        $data = $this->validateInput();
+        if ($data === null) {
+            redirect('admin/news-ticker');
+        }
+
+        NewsTicker::update($id, $data);
+        $this->audit->logUpdate('news_ticker', $id, $data);
+        flash('success', lang('updated_successfully'));
+        redirect('admin/news-ticker');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function destroy(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $item = NewsTicker::findById($id);
+        if ($item === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/news-ticker');
+        }
+
+        NewsTicker::delete($id);
+        $this->audit->logDelete('news_ticker', $id);
+        flash('success', lang('deleted_successfully'));
+        redirect('admin/news-ticker');
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function validateInput(): ?array
+    {
+        $titleEn = trim((string) ($_POST['title_en'] ?? ''));
+        $titleAr = trim((string) ($_POST['title_ar'] ?? ''));
+        $textEn = trim((string) ($_POST['text_en'] ?? ''));
+        $textAr = trim((string) ($_POST['text_ar'] ?? ''));
+
+        if ($titleEn === '' || $titleAr === '' || $textEn === '' || $textAr === '') {
+            flash('error', lang('required_fields_missing'));
+
+            return null;
+        }
+
+        if (mb_strlen($titleEn) > 200 || mb_strlen($titleAr) > 200) {
+            flash('error', lang('news_ticker_title_too_long'));
+
+            return null;
+        }
+
+        if (mb_strlen($textEn) > 500 || mb_strlen($textAr) > 500) {
+            flash('error', lang('news_ticker_text_too_long'));
+
+            return null;
+        }
+
+        $startsAt = $this->normalizeDatetime((string) ($_POST['starts_at'] ?? ''));
+        $expiresAt = $this->normalizeDatetime((string) ($_POST['expires_at'] ?? ''));
+        if ($startsAt !== '' && $expiresAt !== '' && strtotime($startsAt) > strtotime($expiresAt)) {
+            flash('error', lang('news_ticker_invalid_schedule'));
+
+            return null;
+        }
+
+        return [
+            'title_en' => $titleEn,
+            'title_ar' => $titleAr,
+            'text_en' => $textEn,
+            'text_ar' => $textAr,
+            'link_url' => NewsTicker::normalizeLinkInput((string) ($_POST['link_url'] ?? '/')),
+            'icon' => NewsTicker::sanitizeIcon((string) ($_POST['icon'] ?? 'campaign')),
+            'tone' => NewsTicker::sanitizeTone((string) ($_POST['tone'] ?? 'primary')),
+            'display_order' => (int) ($_POST['display_order'] ?? 0),
+            'is_active' => isset($_POST['is_active']),
+            'starts_at' => $startsAt,
+            'expires_at' => $expiresAt,
+        ];
+    }
+
+    private function normalizeDatetime(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+        $value = str_replace('T', ' ', $value);
+        if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $value) === 1) {
+            $value .= ':00';
+        }
+
+        return $value;
+    }
+}

@@ -1,0 +1,14 @@
+<?php declare(strict_types=1);
+
+ob_start();
+
+$chooserMode = 'login';
+$chooserTitle = lang('login');
+$chooserSubtitle = lang('login_chooser_subtitle');
+$chooserIcon = 'login';
+require view_path('auth/components/path-chooser.php');
+
+$content = ob_get_clean();
+$pageTitle = lang('login');
+$authCardWidth = 'xl';
+require view_path('layouts/auth.php');

@@ -1,0 +1,110 @@
+<?php declare(strict_types=1);
+
+$footerNav = [
+    ['href' => url('/'), 'label' => lang('home')],
+    ['href' => url('courses'), 'label' => lang('courses')],
+    ['href' => url('about'), 'label' => lang('about')],
+    ['href' => url('contact'), 'label' => lang('contact')],
+    ['href' => url('verify-certificate'), 'label' => lang('verify_certificate')],
+];
+
+$footerResources = [
+    ['href' => 'https://www.du.edu.om', 'label' => 'du.edu.om', 'external' => true],
+    ['href' => url('login'), 'label' => lang('login')],
+    ['href' => url('register'), 'label' => lang('register')],
+];
+?>
+<footer class="site-footer hidden md:block shrink-0 mt-auto">
+    <div class="site-footer-rainbow" aria-hidden="true"></div>
+
+    <div class="site-footer-body">
+        <div class="site-footer-veil" aria-hidden="true"></div>
+        <div class="site-footer-noise" aria-hidden="true"></div>
+        <div class="site-footer-glow site-footer-glow-start" aria-hidden="true"></div>
+        <div class="site-footer-glow site-footer-glow-end" aria-hidden="true"></div>
+
+        <div class="site-footer-inner max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop">
+            <div class="site-footer-main">
+                <div class="site-footer-brand-col">
+                    <a href="<?= e(url('/')) ?>" class="site-footer-lockup group">
+                        <div class="site-footer-logo-frame">
+                            <img src="<?= e(university_logo()) ?>"
+                                 alt="<?= e(lang('university')) ?>"
+                                 class="site-footer-logo"
+                                 width="52"
+                                 height="52"
+                                 decoding="async">
+                        </div>
+                        <div class="site-footer-lockup-text">
+                            <span class="site-footer-app"><?= e(lang('app_name')) ?></span>
+                            <span class="site-footer-uni"><?= e(lang('university')) ?></span>
+                        </div>
+                    </a>
+                    <p class="site-footer-tagline"><?= e(lang('footer_tagline')) ?></p>
+                    <div class="site-footer-emblem" aria-hidden="true">
+                        <span class="site-footer-emblem-line"></span>
+                        <span class="material-symbols-outlined text-[14px]">verified</span>
+                        <span class="site-footer-emblem-line"></span>
+                    </div>
+                </div>
+
+                <div class="site-footer-col">
+                    <h3 class="site-footer-col-title"><?= e(lang('quick_links')) ?></h3>
+                    <nav aria-label="<?= e(lang('quick_links')) ?>">
+                        <ul class="site-footer-menu">
+                            <?php foreach ($footerNav as $link): ?>
+                            <li>
+                                <a href="<?= e($link['href']) ?>" class="site-footer-menu-link">
+                                    <span><?= e($link['label']) ?></span>
+                                    <span class="material-symbols-outlined site-footer-menu-arrow"><?= is_rtl() ? 'west' : 'east' ?></span>
+                                </a>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </nav>
+                </div>
+
+                <div class="site-footer-col">
+                    <h3 class="site-footer-col-title"><?= e(lang('resources')) ?></h3>
+                    <nav aria-label="<?= e(lang('resources')) ?>">
+                        <ul class="site-footer-menu">
+                            <?php foreach ($footerResources as $link): ?>
+                            <li>
+                                <a href="<?= e($link['href']) ?>"
+                                   class="site-footer-menu-link"
+                                   <?= !empty($link['external']) ? 'target="_blank" rel="noopener noreferrer"' : '' ?>>
+                                    <span><?= e($link['label']) ?></span>
+                                    <span class="material-symbols-outlined site-footer-menu-arrow"><?= !empty($link['external']) ? 'open_in_new' : (is_rtl() ? 'west' : 'east') ?></span>
+                                </a>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </nav>
+                </div>
+
+                <div class="site-footer-action-col">
+                    <div class="site-footer-action-card">
+                        <div class="site-footer-action-icon">
+                            <span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">menu_book</span>
+                        </div>
+                        <p class="site-footer-action-label"><?= e(lang('courses')) ?></p>
+                        <p class="site-footer-action-desc"><?= e(lang('featured_courses_subtitle')) ?></p>
+                        <a href="<?= e(url('courses')) ?>" class="site-footer-action-btn">
+                            <span><?= e(lang('browse_courses')) ?></span>
+                            <span class="material-symbols-outlined text-[16px]"><?= is_rtl() ? 'arrow_back' : 'arrow_forward' ?></span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="site-footer-bar">
+                <p class="site-footer-copy"><?= e(lang('copyright', ['year' => date('Y')])) ?></p>
+                <div class="site-footer-legal-row">
+                    <a href="#" class="site-footer-legal"><?= e(lang('privacy_policy')) ?></a>
+                    <span class="site-footer-legal-dot" aria-hidden="true"></span>
+                    <a href="#" class="site-footer-legal"><?= e(lang('terms_of_service')) ?></a>
+                </div>
+            </div>
+        </div>
+    </div>
+</footer>

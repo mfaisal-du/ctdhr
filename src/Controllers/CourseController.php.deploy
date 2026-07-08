@@ -1,0 +1,317 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers;
+
+use CTDHR\Models\Application;
+use CTDHR\Models\Category;
+use CTDHR\Models\Course;
+use CTDHR\Models\NewsTicker;
+use CTDHR\Models\User;
+use CTDHR\Services\CourseEligibilityService;
+use CTDHR\Services\EmailService;
+use CTDHR\Services\NotificationService;
+use CTDHR\Config\Database;
+use PDO;
+
+final class CourseController
+{
+    public function home(array $params = []): void
+    {
+        $data = self::homeData();
+        $data['pageTitle'] = lang('home');
+        view('public.home', $data);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function homeData(): array
+    {
+        $stats = [
+            'total_courses' => Course::countPublic(),
+            'completed_courses' => Course::countCompleted(),
+            'participants_trained' => Course::sumCompletionCount(),
+            'total_certificates' => self::countCertificates(),
+            'total_categories' => Category::countActive(),
+        ];
+
+        $featuredCourses = Course::findFeatured(6);
+        if ($featuredCourses === []) {
+            $featuredCourses = Course::findLatestPublic(6);
+        }
+
+        $tickerItems = NewsTicker::findActiveForPublic();
+        if ($tickerItems === []) {
+            $tickerItems = NewsTicker::defaultPublicItems();
+        }
+
+        return [
+            'featuredCourses' => $featuredCourses,
+            'completedCourses' => Course::findCompleted(6),
+            'categories' => Category::findAllActiveWithPublicCourseCounts(),
+            'stats' => $stats,
+            'tickerItems' => $tickerItems,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function index(array $params = []): void
+    {
+        $filters = [
+            'category_slug' => trim((string) ($_GET['category'] ?? '')),
+            'status' => trim((string) ($_GET['status'] ?? '')),
+            'audience' => trim((string) ($_GET['audience'] ?? '')),
+            'language' => trim((string) ($_GET['language'] ?? '')),
+            'search' => trim((string) ($_GET['q'] ?? $_GET['search'] ?? '')),
+        ];
+
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $perPage = 12;
+
+        $result = Course::findActive($filters, $page, $perPage);
+        $categories = Category::findAllActive();
+
+        if ($filters['category_slug'] !== '') {
+            $matchedCategory = Category::findBySlug($filters['category_slug']);
+            if ($matchedCategory !== null) {
+                $filters['category_name'] = localized($matchedCategory, 'name');
+            }
+        }
+
+        $data = [
+            'pageTitle' => lang('courses'),
+            'courses' => $result['items'],
+            'pagination' => $result,
+            'categories' => $categories,
+            'filters' => $filters,
+            'statuses' => Course::publicStatuses(),
+        ];
+
+        if ($this->isHtmxRequest()) {
+            view('public.partials.course-results', $data);
+            exit;
+        }
+
+        view('public.courses', $data);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function show(array $params): void
+    {
+        $slug = $params['slug'] ?? '';
+        $course = Course::findBySlug($slug);
+
+        if ($course === null) {
+            http_response_code(404);
+            view('public.courses', [
+                'pageTitle' => '404',
+                'courses' => [],
+                'pagination' => ['items' => [], 'total' => 0, 'page' => 1, 'per_page' => 12, 'pages' => 1],
+                'categories' => Category::findAllActive(),
+                'filters' => [],
+                'statuses' => Course::publicStatuses(),
+                'error' => lang('course_not_found'),
+            ]);
+
+            return;
+        }
+
+        $userApplication = null;
+        $currentUser = null;
+        $eligibility = ['eligible' => true, 'reason_key' => ''];
+
+        if (!empty($_SESSION['user_id'])) {
+            $userId = (int) $_SESSION['user_id'];
+            $userApplication = Application::findByUserAndCourse($userId, (int) $course['id']);
+            $currentUser = (new User())->findById($userId);
+            $eligibility = (new CourseEligibilityService())->check($currentUser, $course);
+        }
+
+        view('public.course-detail', [
+            'pageTitle' => localized($course, 'title'),
+            'course' => $course,
+            'userApplication' => $userApplication,
+            'applyEligibility' => $eligibility,
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function apply(array $params): void
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        if ($userId === 0) {
+            flash('error', lang('auth_required'));
+            redirect('login');
+        }
+
+        $slug = $params['slug'] ?? '';
+        $course = Course::findBySlug($slug);
+
+        if ($course === null) {
+            flash('error', lang('course_not_found'));
+            redirect('courses');
+        }
+
+        if (!in_array($course['status'], ['announced', 'accepting_applications'], true)) {
+            flash('error', lang('applications_closed'));
+            redirect('courses/' . $slug);
+        }
+
+        if (
+            !empty($course['application_deadline'])
+            && strtotime((string) $course['application_deadline']) < time()
+        ) {
+            flash('error', lang('deadline_passed'));
+            redirect('courses/' . $slug);
+        }
+
+        $eligibility = (new CourseEligibilityService())->check((new User())->findById($userId), $course);
+        if (!$eligibility['eligible']) {
+            flash('error', lang($eligibility['reason_key'] ?: 'audience_not_eligible'));
+            redirect('courses/' . $slug);
+        }
+
+        if (Application::existsForUserCourse($userId, (int) $course['id'])) {
+            flash('error', lang('application_already_exists'));
+            redirect('courses/' . $slug);
+        }
+
+        if (
+            !empty($course['max_participants'])
+            && (int) $course['approved_count'] >= (int) $course['max_participants']
+        ) {
+            flash('error', lang('course_full'));
+            redirect('courses/' . $slug);
+        }
+
+        $motivationEn = trim((string) ($_POST['motivation_en'] ?? ''));
+        $motivationAr = trim((string) ($_POST['motivation_ar'] ?? ''));
+
+        $applicationId = Application::create([
+            'user_id' => $userId,
+            'course_id' => (int) $course['id'],
+            'status' => 'pending',
+            'motivation_en' => $motivationEn !== '' ? $motivationEn : null,
+            'motivation_ar' => $motivationAr !== '' ? $motivationAr : null,
+        ]);
+
+        $userModel = new User();
+        $user = $userModel->findById($userId);
+        $application = Application::findById($applicationId);
+
+        if ($user !== null && $application !== null) {
+            $emailService = new EmailService();
+            $emailService->sendApplicationConfirmation($user, $course, $application);
+
+            NotificationService::applicationSubmitted(
+                $userId,
+                (string) $course['title_en'],
+                (string) $course['title_ar']
+            );
+
+            $applicantNameEn = (string) ($user['full_name_en'] ?? $user['username'] ?? 'Applicant');
+            $applicantNameAr = (string) ($user['full_name_ar'] ?? $applicantNameEn);
+            NotificationService::adminNewApplication(
+                $applicantNameEn,
+                $applicantNameAr,
+                (string) $course['title_en'],
+                (string) $course['title_ar']
+            );
+        }
+
+        flash('success', lang('application_submitted'));
+        flash('toast', '1');
+        redirect('courses/' . $slug);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function cancelApplication(array $params): void
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        if ($userId === 0) {
+            flash('error', lang('auth_required'));
+            redirect('login');
+        }
+
+        $applicationId = (int) ($params['id'] ?? 0);
+        $application = Application::findById($applicationId);
+
+        if ($application === null || (int) $application['user_id'] !== $userId) {
+            flash('error', lang('application_not_found'));
+            redirect('dashboard/applications');
+        }
+
+        if (!in_array($application['status'], ['pending', 'waitlisted'], true)) {
+            flash('error', lang('application_cannot_cancel'));
+            redirect('dashboard/applications');
+        }
+
+        $cancelReason = trim((string) ($_POST['cancel_reason'] ?? ''));
+        if ($cancelReason === '') {
+            flash('error', lang('cancel_reason_required'));
+            redirect('dashboard/applications');
+        }
+
+        if (strlen($cancelReason) > 500) {
+            flash('error', lang('cancel_reason_too_long'));
+            redirect('dashboard/applications');
+        }
+
+        $oldStatus = (string) $application['status'];
+        Application::updateStatus($applicationId, 'cancelled', $cancelReason);
+
+        $userModel = new User();
+        $user = $userModel->findById($userId);
+        $course = Course::findBySlug((string) ($application['slug'] ?? ''));
+
+        if ($user !== null && $course !== null) {
+            $updatedApplication = Application::findById($applicationId);
+            if ($updatedApplication !== null) {
+                $emailService = new EmailService();
+                $emailService->sendApplicationStatusChange(
+                    $user,
+                    $course,
+                    $updatedApplication,
+                    $oldStatus,
+                    'cancelled'
+                );
+
+                NotificationService::applicationStatusChanged(
+                    $userId,
+                    (string) $course['title_en'],
+                    (string) $course['title_ar'],
+                    'cancelled'
+                );
+            }
+        }
+
+        flash('success', lang('application_cancelled'));
+        redirect('dashboard/applications');
+    }
+
+    private function isHtmxRequest(): bool
+    {
+        return isset($_SERVER['HTTP_HX_REQUEST']) && $_SERVER['HTTP_HX_REQUEST'] === 'true';
+    }
+
+    private static function countCertificates(): int
+    {
+        try {
+            $db = Database::getInstance();
+
+            return (int) $db->query('SELECT COUNT(*) FROM certificates')->fetchColumn();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+}

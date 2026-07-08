@@ -1,0 +1,279 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Models\Category;
+use CTDHR\Models\CourseAdmin;
+use CTDHR\Models\Setting;
+use CTDHR\Services\AuditService;
+use CTDHR\Services\CertificateService;
+
+final class CourseController
+{
+    private AuditService $audit;
+
+    public function __construct()
+    {
+        $this->audit = new AuditService();
+    }
+
+    public function index(): void
+    {
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $filters = [
+            'status' => $_GET['status'] ?? '',
+            'category_id' => $_GET['category_id'] ?? '',
+            'search' => $_GET['search'] ?? '',
+        ];
+
+        $statusCounts = [];
+        foreach (CourseAdmin::countByStatus() as $row) {
+            $statusCounts[(string) $row['status']] = (int) $row['count'];
+        }
+
+        admin_view('admin.courses.index', [
+            'pageTitle' => lang('courses'),
+            'result' => CourseAdmin::findAll($filters, $page),
+            'filters' => $filters,
+            'categories' => Category::findAllAdmin(),
+            'statuses' => CourseAdmin::ALL_STATUSES,
+            'statusCounts' => $statusCounts,
+            'hiddenDraftCount' => (int) ($statusCounts['draft'] ?? 0),
+            'hiddenCancelledCount' => (int) ($statusCounts['cancelled'] ?? 0),
+        ]);
+    }
+
+    public function create(): void
+    {
+        admin_view('admin.courses.create', [
+            'pageTitle' => lang('create_course'),
+            'course' => null,
+            'categories' => Category::findAllAdmin(),
+            'statuses' => CourseAdmin::ALL_STATUSES,
+        ]);
+    }
+
+    public function store(): void
+    {
+        $data = $this->validateInput();
+        if ($data === null) {
+            redirect('admin/courses/create');
+        }
+
+        $data['created_by'] = (int) ($_SESSION['user_id'] ?? 0);
+        $id = CourseAdmin::create($data);
+        $this->audit->logCreate('course', $id, ['title_en' => $data['title_en']]);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/courses');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function edit(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $course = CourseAdmin::findById($id);
+        if ($course === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/courses');
+        }
+
+        admin_view('admin.courses.edit', [
+            'pageTitle' => lang('edit_course'),
+            'course' => $course,
+            'categories' => Category::findAllAdmin(),
+            'statuses' => CourseAdmin::ALL_STATUSES,
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function update(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        if (CourseAdmin::findById($id) === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/courses');
+        }
+
+        $data = $this->validateInput($id);
+        if ($data === null) {
+            redirect('admin/courses/' . $id . '/edit');
+        }
+
+        CourseAdmin::update($id, $data);
+        $this->audit->logUpdate('course', $id, ['title_en' => $data['title_en']]);
+        flash('success', lang('updated_successfully'));
+        redirect('admin/courses');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function destroy(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        CourseAdmin::softDelete($id);
+        $this->audit->logDelete('course', $id);
+        flash('success', lang('deleted_successfully'));
+        redirect('admin/courses');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function updateStatus(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $course = CourseAdmin::findById($id);
+        if ($course === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/courses');
+        }
+
+        $newStatus = (string) ($_POST['status'] ?? '');
+        if (!in_array($newStatus, CourseAdmin::ALL_STATUSES, true)) {
+            flash('error', lang('invalid_status'));
+            redirect('admin/courses');
+        }
+
+        CourseAdmin::updateStatus($id, $newStatus);
+        $this->audit->logStatusChange('course', $id, (string) $course['status'], $newStatus);
+
+        $message = lang('status_updated');
+        if ($newStatus === 'completed' && (new Setting())->getBool('certificate_auto_generate', false)) {
+            $auto = (new CertificateService())->autoGenerateForCourse($id, (int) ($_SESSION['user_id'] ?? 0));
+            if ($auto['success'] > 0) {
+                $message .= ' ' . lang('auto_certs_generated', ['count' => (string) $auto['success']]);
+            }
+        }
+
+        flash('success', $message);
+        redirect('admin/courses');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function uploadImage(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        if (CourseAdmin::findById($id) === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/courses');
+        }
+
+        if (!isset($_FILES['cover_image']) || $_FILES['cover_image']['error'] !== UPLOAD_ERR_OK) {
+            flash('error', lang('upload_failed'));
+            redirect('admin/courses/' . $id . '/edit');
+        }
+
+        $file = $_FILES['cover_image'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+
+        if (!in_array($ext, $allowed, true)) {
+            flash('error', lang('invalid_file_type'));
+            redirect('admin/courses/' . $id . '/edit');
+        }
+
+        if (!is_dir(CTDHR_UPLOADS_COURSES)) {
+            mkdir(CTDHR_UPLOADS_COURSES, 0755, true);
+        }
+
+        $filename = 'course-' . $id . '-' . time() . '.' . $ext;
+        $relativePath = 'uploads/courses/' . $filename;
+        $fullPath = CTDHR_PUBLIC . '/assets/' . $relativePath;
+
+        if (!move_uploaded_file($file['tmp_name'], $fullPath)) {
+            flash('error', lang('upload_failed'));
+            redirect('admin/courses/' . $id . '/edit');
+        }
+
+        CourseAdmin::update($id, ['cover_image_path' => $relativePath]);
+        $this->audit->log('course.upload_image', 'course', $id);
+        flash('success', lang('image_uploaded'));
+        redirect('admin/courses/' . $id . '/edit');
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function validateInput(?int $excludeId = null): ?array
+    {
+        $titleEn = trim($_POST['title_en'] ?? '');
+        $titleAr = trim($_POST['title_ar'] ?? '');
+        $slug = trim($_POST['slug'] ?? '') ?: slugify($titleEn);
+        $categoryId = (int) ($_POST['category_id'] ?? 0);
+
+        if ($titleEn === '' || $titleAr === '' || $categoryId <= 0) {
+            flash('error', lang('required_fields_missing'));
+            return null;
+        }
+
+        if (CourseAdmin::slugExists($slug, $excludeId)) {
+            flash('error', lang('slug_exists'));
+            return null;
+        }
+
+        $sessionDatesRaw = trim($_POST['session_dates'] ?? '');
+        $sessionDates = null;
+        if ($sessionDatesRaw !== '') {
+            $lines = array_filter(array_map('trim', explode("\n", $sessionDatesRaw)));
+            $sessionDates = array_values($lines);
+        }
+
+        $status = (string) ($_POST['status'] ?? 'accepting_applications');
+        if (!in_array($status, CourseAdmin::ALL_STATUSES, true)) {
+            $status = 'accepting_applications';
+        }
+
+        $normalize = static fn (?string $value): ?string => ($v = normalize_course_text(trim((string) ($value ?? '')))) !== '' ? $v : null;
+
+        return [
+            'category_id' => $categoryId,
+            'title_en' => normalize_course_text($titleEn),
+            'title_ar' => normalize_course_text($titleAr),
+            'slug' => $slug,
+            'description_en' => $normalize($_POST['description_en'] ?? null),
+            'description_ar' => $normalize($_POST['description_ar'] ?? null),
+            'short_description_en' => $normalize($_POST['short_description_en'] ?? null),
+            'short_description_ar' => $normalize($_POST['short_description_ar'] ?? null),
+            'language' => in_array($_POST['language'] ?? '', ['en', 'ar', 'both'], true) ? $_POST['language'] : 'en',
+            'instructor_names_en' => $normalize($_POST['instructor_names_en'] ?? null),
+            'instructor_names_ar' => $normalize($_POST['instructor_names_ar'] ?? null),
+            'audience' => in_array($_POST['audience'] ?? '', ['faculty', 'staff', 'students', 'all'], true) ? $_POST['audience'] : 'all',
+            'participant_scope' => in_array($_POST['participant_scope'] ?? '', ['du_internal', 'external_only', 'both'], true)
+                ? $_POST['participant_scope']
+                : 'du_internal',
+            'announcement_date' => $this->nullableDate($_POST['announcement_date'] ?? ''),
+            'application_deadline' => $this->nullableDate($_POST['application_deadline'] ?? ''),
+            'start_date' => $this->nullableDate($_POST['start_date'] ?? ''),
+            'end_date' => $this->nullableDate($_POST['end_date'] ?? ''),
+            'session_dates' => $sessionDates,
+            'duration_hours' => $_POST['duration_hours'] !== '' ? (float) $_POST['duration_hours'] : null,
+            'venue_en' => $normalize($_POST['venue_en'] ?? null),
+            'venue_ar' => $normalize($_POST['venue_ar'] ?? null),
+            'time_slot' => $normalize($_POST['time_slot'] ?? null),
+            'min_participants' => $_POST['min_participants'] !== '' ? (int) $_POST['min_participants'] : null,
+            'max_participants' => $_POST['max_participants'] !== '' ? (int) $_POST['max_participants'] : null,
+            'learning_outcomes_en' => $normalize($_POST['learning_outcomes_en'] ?? null),
+            'learning_outcomes_ar' => $normalize($_POST['learning_outcomes_ar'] ?? null),
+            'status' => $status,
+            'is_featured' => isset($_POST['is_featured']) ? 1 : 0,
+            'is_certificate_eligible' => isset($_POST['is_certificate_eligible']) ? 1 : 0,
+            'cert_template_id' => !empty($_POST['cert_template_id']) ? (int) $_POST['cert_template_id'] : null,
+        ];
+    }
+
+    private function nullableDate(string $value): ?string
+    {
+        $value = trim($value);
+
+        return $value !== '' ? $value : null;
+    }
+}

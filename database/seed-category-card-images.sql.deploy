@@ -1,0 +1,13 @@
+-- Demo category card backgrounds (local WebP files under public/assets/uploads/categories).
+-- Generate files with: powershell -ExecutionPolicy Bypass -File database/seed-category-card-images.ps1
+
+USE ctdhr_portal;
+
+UPDATE course_categories SET card_image_path = 'uploads/categories/category-1-information-technology.webp' WHERE slug = 'information-technology';
+UPDATE course_categories SET card_image_path = 'uploads/categories/category-2-languages.webp' WHERE slug = 'languages';
+UPDATE course_categories SET card_image_path = 'uploads/categories/category-3-professional-development.webp' WHERE slug = 'professional-development';
+UPDATE course_categories SET card_image_path = 'uploads/categories/category-4-research-academic-skills.webp' WHERE slug = 'research-academic-skills';
+UPDATE course_categories SET card_image_path = 'uploads/categories/category-5-leadership-management.webp' WHERE slug = 'leadership-management';
+UPDATE course_categories SET card_image_path = 'uploads/categories/category-6-health-safety.webp' WHERE slug = 'health-safety';
+UPDATE course_categories SET card_image_path = 'uploads/categories/category-7-digital-literacy.webp' WHERE slug = 'digital-literacy';
+UPDATE course_categories SET card_image_path = 'uploads/categories/category-8-communication-skills.webp' WHERE slug = 'communication-skills';

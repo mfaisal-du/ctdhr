@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'name' => env('APP_NAME', 'CTDHR Courses'),
+    'env' => env('APP_ENV', 'production'),
+    'debug' => filter_var(env('APP_DEBUG', false), FILTER_VALIDATE_BOOLEAN),
+    'url' => rtrim(env('APP_URL', 'http://localhost'), '/'),
+    'timezone' => env('APP_TIMEZONE', 'Asia/Dubai'),
+    'locale' => env('APP_LOCALE', 'en'),
+    'fallback_locale' => 'en',
+    'supported_locales' => ['en', 'ar'],
+    'session' => [
+        'lifetime' => (int) env('SESSION_LIFETIME', 120),
+        'secure' => filter_var(env('SESSION_SECURE', false), FILTER_VALIDATE_BOOLEAN),
+        'httponly' => filter_var(env('SESSION_HTTPONLY', true), FILTER_VALIDATE_BOOLEAN),
+        'samesite' => env('SESSION_SAMESITE', 'Lax'),
+    ],
+    'csrf_token_name' => '_token',
+    'otp' => [
+        'length' => 6,
+        'expiry_minutes' => 15,
+        'max_attempts' => 5,
+    ],
+    'demo_logins' => [
+        'enabled' => filter_var(
+            env('DEMO_LOGINS_ENABLED', env('APP_DEBUG', false)),
+            FILTER_VALIDATE_BOOLEAN
+        ),
+        'accounts' => [
+            [
+                'id' => 'admin',
+                'label_key' => 'demo_login_admin',
+                'email' => env('DEMO_ADMIN_EMAIL', 'mfaisal@du.edu.om'),
+                'password' => env('DEMO_ADMIN_PASSWORD', 'Admin@123'),
+                'role' => 'admin',
+                'icon' => 'admin_panel_settings',
+            ],
+        ],
+    ],
+];

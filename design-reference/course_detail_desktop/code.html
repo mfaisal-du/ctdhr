@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .rainbow-accent {
+            height: 4px;
+            background: linear-gradient(90deg, #30872F 0%, #425AAD 25%, #00B0FF 50%, #D81B60 75%, #FFD600 100%);
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#17721c",
+                        "outline": "#757683",
+                        "on-primary-fixed-variant": "#274093",
+                        "tertiary-fixed-dim": "#ffb872",
+                        "tertiary": "#6b3c00",
+                        "surface-dim": "#dcd9d9",
+                        "accent-sky": "#00B0FF",
+                        "surface-tint": "#4159ac",
+                        "surface-container-highest": "#e4e2e1",
+                        "background": "#fbf9f8",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "status-cancelled": "#D32F2F",
+                        "status-progress": "#FFBF00",
+                        "status-completed": "#30872F",
+                        "on-surface": "#1b1c1c",
+                        "accent-magenta": "#D81B60",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#444651",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e4e2e1",
+                        "tertiary-container": "#8d5100",
+                        "surface-gray": "#F5F5F5",
+                        "status-certified": "#D4AF37",
+                        "inverse-surface": "#303030",
+                        "primary-container": "#425aad",
+                        "secondary-container": "#9af58e",
+                        "error": "#ba1a1a",
+                        "status-announced": "#425AAD",
+                        "outline-variant": "#c5c5d3",
+                        "inverse-primary": "#b6c4ff",
+                        "status-draft": "#9E9E9E",
+                        "on-primary-fixed": "#001550",
+                        "on-tertiary-fixed-variant": "#6a3c00",
+                        "on-tertiary-container": "#ffd2aa",
+                        "tertiary-fixed": "#ffdcbf",
+                        "secondary": "#106e18",
+                        "accent-yellow": "#FFD600",
+                        "on-background": "#1b1c1c",
+                        "surface-bright": "#fbf9f8",
+                        "on-secondary-fixed": "#002202",
+                        "surface-container": "#f0eded",
+                        "on-primary": "#ffffff",
+                        "surface": "#fbf9f8",
+                        "inverse-on-surface": "#f3f0f0",
+                        "on-tertiary-fixed": "#2d1600",
+                        "status-scheduled": "#008080",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f6f3f2",
+                        "accent-coral": "#FF7043",
+                        "on-primary-container": "#d1d8ff",
+                        "secondary-fixed": "#9df891",
+                        "primary-fixed": "#dce1ff",
+                        "primary": "#284194",
+                        "on-secondary-fixed-variant": "#00530b",
+                        "secondary-fixed-dim": "#82db77",
+                        "error-container": "#ffdad6",
+                        "surface-container-high": "#eae8e7"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit-xs": "4px",
+                        "margin-mobile": "16px",
+                        "container-max": "1280px",
+                        "unit-lg": "24px",
+                        "unit-xl": "48px",
+                        "unit-md": "16px",
+                        "margin-desktop": "40px",
+                        "gutter": "24px",
+                        "unit-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["IBM Plex Sans"],
+                        "headline-md": ["IBM Plex Sans"],
+                        "headline-lg": ["IBM Plex Sans"],
+                        "headline-sm": ["IBM Plex Sans"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["IBM Plex Sans"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "16px", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "fontWeight": "500"}],
+                        "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen">
+<!-- TopNavBar -->
+<header class="bg-surface sticky top-0 z-50 w-full flat no shadows">
+<nav class="max-w-1280px mx-auto px-margin-desktop flex justify-between items-center h-16">
+<div class="font-headline-md text-headline-md text-primary">CTDHR Portal</div>
+<div class="hidden md:flex gap-gutter items-center">
+<a class="text-primary font-bold border-b-2 border-primary pb-1 font-body-md text-body-md" href="#">Courses</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200 font-body-md text-body-md" href="#">About</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200 font-body-md text-body-md" href="#">Contact</a>
+</div>
+<div class="flex items-center gap-unit-md">
+<span class="material-symbols-outlined text-secondary cursor-pointer">language</span>
+<span class="material-symbols-outlined text-secondary cursor-pointer">search</span>
+<button class="bg-primary text-on-primary px-unit-lg py-unit-xs rounded-lg font-label-md active:scale-95 transition-transform">Login</button>
+</div>
+</nav>
+</header>
+<main class="max-w-1280px mx-auto px-margin-desktop py-unit-xl">
+<!-- Hero Section -->
+<section class="relative overflow-hidden rounded-xl mb-unit-xl">
+<div class="absolute inset-0 bg-primary-container/10"></div>
+<div class="rainbow-accent absolute top-0 left-0 w-full"></div>
+<div class="relative z-10 p-unit-xl flex flex-col md:flex-row justify-between items-end gap-unit-lg bg-surface-gray">
+<div class="max-w-2xl">
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-label-sm font-label-sm mb-unit-md inline-block">Professional Development</span>
+<h1 class="font-headline-xl text-headline-xl text-primary mb-unit-md">Advanced Digital Literacy for Faculty</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Empowering Dhofar University faculty with cutting-edge digital pedagogical tools and research methodologies for the 21st-century classroom.</p>
+</div>
+<div class="flex flex-col items-end gap-unit-md">
+<button class="bg-secondary text-on-primary font-label-md text-label-md px-10 py-4 rounded-lg shadow-md hover:brightness-110 active:scale-95 transition-all">Apply Now</button>
+</div>
+</div>
+</section>
+<!-- Bento Grid Content -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Key Facts -->
+<div class="lg:col-span-4 flex flex-col gap-gutter">
+<div class="bg-surface-bright p-unit-lg rounded-xl border border-outline-variant shadow-sm">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-unit-md border-b border-outline-variant pb-2">Key Facts</h3>
+<div class="space-y-unit-md">
+<div class="flex items-center gap-unit-md">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">schedule</span>
+</div>
+<div>
+<p class="text-label-sm font-label-sm text-on-surface-variant">Duration</p>
+<p class="font-body-md text-body-md font-semibold">3 Days Intensive</p>
+</div>
+</div>
+<div class="flex items-center gap-unit-md">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">translate</span>
+</div>
+<div>
+<p class="text-label-sm font-label-sm text-on-surface-variant">Language</p>
+<p class="font-body-md text-body-md font-semibold">English / Arabic</p>
+</div>
+</div>
+<div class="flex items-center gap-unit-md">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">group</span>
+</div>
+<div>
+<p class="text-label-sm font-label-sm text-on-surface-variant">Audience</p>
+<p class="font-body-md text-body-md font-semibold">Faculty Members</p>
+</div>
+</div>
+<div class="flex items-center gap-unit-md">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">verified</span>
+</div>
+<div>
+<p class="text-label-sm font-label-sm text-on-surface-variant">Certification</p>
+<p class="font-body-md text-body-md font-semibold">CTDHR Certified</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Instructor Card -->
+<div class="bg-surface-bright p-unit-lg rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col items-center text-center">
+<div class="w-32 h-32 rounded-full overflow-hidden mb-unit-md border-2 border-primary">
+<img class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida/AP1WRLvic58rrUyFalajfJwTzT1WD2ksBXZjE2i2vaNJe9BJNyNxhlfxL2RR4Po0Q2nIPqs965UvhgXqzsh2fGUlmMFBUOGhRJJPOA86n4i39eX8nHfi1rGMdn_EL7qC8Pa_s4r7qNPRyU2kZEcBsv9fBg7OSY_pjXgvg4gpsRwX_NodFC8_jflZCBJH90_nvevEyb59vTuA8jpq8LeIHShVoduQ5-H3HJwJ-vfOKZjHReTHZ6A3i1RrOXwWyZTQ"/>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-primary">Dr. Ahmed Al-Mahri</h3>
+<p class="text-label-md font-label-md text-on-surface-variant mb-unit-md">Senior Educational Consultant</p>
+<p class="text-body-sm font-body-sm text-on-surface-variant leading-relaxed">Expert in digital transformation and higher education pedagogy with over 15 years of experience in the Gulf region.</p>
+</div>
+</div>
+<!-- Learning Outcomes & Schedule -->
+<div class="lg:col-span-8 flex flex-col gap-gutter">
+<!-- Outcomes -->
+<div class="bg-surface-bright p-unit-lg rounded-xl border border-outline-variant shadow-sm">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-unit-lg">Learning Outcomes</h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-unit-md">
+<div class="flex gap-unit-sm">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="text-body-md">Master LMS integration strategies for blended learning environments.</p>
+</div>
+<div class="flex gap-unit-sm">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="text-body-md">Utilize AI-driven research tools for academic publications.</p>
+</div>
+<div class="flex gap-unit-sm">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="text-body-md">Develop interactive digital course content and assessments.</p>
+</div>
+<div class="flex gap-unit-sm">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="text-body-md">Implement cybersecurity best practices in academic environments.</p>
+</div>
+<div class="flex gap-unit-sm">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="text-body-md">Analyze learning data to improve student engagement metrics.</p>
+</div>
+<div class="flex gap-unit-sm">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<p class="text-body-md">Foster collaborative virtual workspaces for faculty-student groups.</p>
+</div>
+</div>
+</div>
+<!-- Sessions Schedule -->
+<div class="bg-surface-bright p-unit-lg rounded-xl border border-outline-variant shadow-sm">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-unit-lg">Session Schedule</h3>
+<div class="space-y-4">
+<!-- Day 1 -->
+<div class="flex flex-col md:flex-row gap-4 border-l-4 border-accent-sky pl-unit-md py-2">
+<div class="min-w-[120px]">
+<p class="text-label-md font-label-md text-primary">Day 01</p>
+<p class="text-label-sm font-label-sm text-on-surface-variant">9:00 AM - 1:00 PM</p>
+</div>
+<div>
+<h4 class="font-body-md font-bold">Foundation &amp; Digital Mindset</h4>
+<p class="text-body-sm text-on-surface-variant">Introduction to digital shifts in higher education and initial platform setup.</p>
+</div>
+</div>
+<!-- Day 2 -->
+<div class="flex flex-col md:flex-row gap-4 border-l-4 border-secondary pl-unit-md py-2">
+<div class="min-w-[120px]">
+<p class="text-label-md font-label-md text-primary">Day 02</p>
+<p class="text-label-sm font-label-sm text-on-surface-variant">9:00 AM - 1:00 PM</p>
+</div>
+<div>
+<h4 class="font-body-md font-bold">Content Creation &amp; AI Tools</h4>
+<p class="text-body-sm text-on-surface-variant">Hands-on workshop using generative AI for syllabus design and content generation.</p>
+</div>
+</div>
+<!-- Day 3 -->
+<div class="flex flex-col md:flex-row gap-4 border-l-4 border-accent-magenta pl-unit-md py-2">
+<div class="min-w-[120px]">
+<p class="text-label-md font-label-md text-primary">Day 03</p>
+<p class="text-label-sm font-label-sm text-on-surface-variant">9:00 AM - 1:00 PM</p>
+</div>
+<div>
+<h4 class="font-body-md font-bold">Assessment &amp; Final Integration</h4>
+<p class="text-body-sm text-on-surface-variant">Building automated grading rubrics and final project presentation.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Visual Gallery -->
+<section class="mt-unit-xl">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-unit-lg">Previous Workshop Highlights</h3>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<div class="group relative overflow-hidden rounded-xl aspect-video cursor-pointer">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" src="https://lh3.googleusercontent.com/aida/AP1WRLtUpxx4uuII94qWDEdscX2XqHjxManf-djqR_Jd7l5ku3uJG3BGg5-XnN-QGbjBsQ_D0tBN_2RGN22PkpW15QbMJ1rzPMO4qlBM9_RSErh5nWDlTOepqq93NAsrk6zHxJAn20hClHC-NWJZH-cSVmj3juXGgBXKeDLcLKngXLKBdUHV6sUwnGzZt5xwjX7eXFIh1Hq74KywjXRdIFhLonDLmkj5LXeAOC0xFX0osWfqUVcM3XT7JLm54FU"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent flex items-end p-unit-md opacity-0 group-hover:opacity-100 transition-opacity">
+<p class="text-on-primary font-label-sm">Faculty Seminar 2023</p>
+</div>
+</div>
+<div class="group relative overflow-hidden rounded-xl aspect-video cursor-pointer">
+<div class="bg-cover bg-center w-full h-full transition-transform duration-500 group-hover:scale-110" data-alt="A professional group of university faculty members engaged in a collaborative hands-on digital literacy workshop. They are seated in a modern, brightly lit computer laboratory with high-tech monitors and professional equipment. The scene is clean and corporate, featuring a palette of Dhofar blue and tree green accents. The overall atmosphere is focused, academic, and progressive, highlighting advanced technology integration." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAwcmjjH6fGd083FgtY6LZwOl9juPYtpqVuajINXloDHbqinB0euivYhmqoJguCUyOG8l2hHyql5zx6D8E7V74nRkGQ-vaaOT3arq_HQydgU7lPVwJrdF89aJCa34knEHuNV88dJYwHXdD93Oe7353I3y08LRs5s3hp_trw_lb8kPOE2lcaFDnxGMPEJFEi73P-cM6GiYVKpX34kMJWCpe-_phDBtMq7CFYj9F3q5NNKRmneRorB0UHHs0A5yoYZUWaGDpHWNRqk6G7')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent flex items-end p-unit-md opacity-0 group-hover:opacity-100 transition-opacity">
+<p class="text-on-primary font-label-sm">LMS Implementation Training</p>
+</div>
+</div>
+<div class="group relative overflow-hidden rounded-xl aspect-video cursor-pointer">
+<div class="bg-cover bg-center w-full h-full transition-transform duration-500 group-hover:scale-110" data-alt="An expansive aerial view of the Dhofar University campus under a clear blue sky. The architectural style is modern academic with clean lines and sand-colored stone. The foreground shows green manicured pathways and modern academic buildings. The lighting is crisp morning sun, creating a bright and professional light-mode aesthetic. The composition emphasizes stability, growth, and the institution's commitment to high-level education." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC9o8V-ScvKcpqzVnWp_0bwhdNW312kt8tbQbh3Hyd4GtOi77hBcFPPpdi60rrtXwsEpcrpCT79Qq4bqFDk4wFO2oaTm5a2jq9-bOSHhiOeFySqPmUGUUh0bR5TbUAKaVne8AZeIdXo6uKI-oNAgDLdq-7X_gD2JoEm7SgjiQ-wJv2x3o4T9XdrZC0yoO-SwroSmXEKxuDY5z3V6MkPwzUPaB64Ew9CsK578lURFNDKGXfPPT4ckkEXWV9YTaTgSlsJbBZnJSft00k0')"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent flex items-end p-unit-md opacity-0 group-hover:opacity-100 transition-opacity">
+<p class="text-on-primary font-label-sm">Campus Innovation Center</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container w-full py-unit-xl mt-unit-xl">
+<div class="max-w-1280px mx-auto px-margin-desktop flex flex-col md:flex-row justify-between items-center gap-unit-md">
+<div class="flex flex-col items-center md:items-start">
+<span class="font-label-md text-label-md font-bold text-primary mb-unit-xs">CTDHR Training Portal</span>
+<p class="text-on-surface-variant font-body-sm text-body-sm">© 2024 Dhofar University CTDHR Training Portal</p>
+</div>
+<div class="flex gap-unit-lg">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-sm text-body-sm" href="#">Privacy Policy</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-sm text-body-sm" href="#">Terms of Service</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-sm text-body-sm" href="#">Help Center</a>
+</div>
+</div>
+</footer>
+<!-- Mobile Bottom NavBar (Visible only on mobile) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 rounded-t-xl bg-surface border-t border-outline-variant shadow-lg flex justify-around items-center h-16 px-unit-md pb-safe">
+<div class="flex flex-col items-center justify-center text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined">home</span>
+<span>Home</span>
+</div>
+<div class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1 font-label-sm text-label-sm">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">menu_book</span>
+<span>Courses</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined">verified</span>
+<span>Certificates</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined">person</span>
+<span>Profile</span>
+</div>
+</nav>
+<script>
+        // Simple micro-interaction for apply button
+        const applyBtn = document.querySelector('button.bg-secondary');
+        if(applyBtn) {
+            applyBtn.addEventListener('mouseenter', () => {
+                applyBtn.style.transform = 'translateY(-2px)';
+            });
+            applyBtn.addEventListener('mouseleave', () => {
+                applyBtn.style.transform = 'translateY(0)';
+            });
+        }
+    </script>
+</body></html>

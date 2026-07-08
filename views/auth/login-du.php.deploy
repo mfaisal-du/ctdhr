@@ -1,0 +1,237 @@
+<?php declare(strict_types=1);
+
+$demoAccounts = demo_login_accounts();
+$ldapEnabled = (new \CTDHR\Models\Setting())->get('auth_method', 'email') === 'ldap';
+
+ob_start();
+?>
+<script>
+(function () {
+    const loginDuPage = () => ({
+        devModalOpen: false,
+        demoFilledNotice: false,
+        demoNoticeTimer: null,
+        showPassword: false,
+        getLoginFields() {
+            const root = this.$el;
+            if (!root) {
+                return { email: null, password: null };
+            }
+            return {
+                email: root.querySelector('#email[name="email"]'),
+                password: root.querySelector('#password[name="password"]'),
+            };
+        },
+        getLoginForm() {
+            return this.$el?.querySelector('form.auth-form-fields') ?? null;
+        },
+        setFieldValue(input, value) {
+            if (!input) return;
+            input.value = value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+        },
+        flashFilledInputs(...inputs) {
+            inputs.forEach((input) => {
+                if (!input) return;
+                input.classList.add('auth-input-filled');
+                setTimeout(() => input.classList.remove('auth-input-filled'), 2000);
+            });
+        },
+        showFilledNotice() {
+            this.demoFilledNotice = true;
+            if (this.demoNoticeTimer) clearTimeout(this.demoNoticeTimer);
+            this.demoNoticeTimer = setTimeout(() => {
+                this.demoFilledNotice = false;
+            }, 4000);
+        },
+        fillAccount(email, password, submit = false) {
+            const { email: emailInput, password: passwordInput } = this.getLoginFields();
+
+            this.setFieldValue(emailInput, email);
+            this.setFieldValue(passwordInput, password);
+            this.devModalOpen = false;
+
+            this.$nextTick(() => {
+                const form = this.getLoginForm();
+                if (submit) {
+                    form?.requestSubmit();
+                    return;
+                }
+
+                form?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                this.flashFilledInputs(emailInput, passwordInput);
+                this.showFilledNotice();
+                emailInput?.focus({ preventScroll: true });
+            });
+        },
+        applyDemoAccount(button, submit = false) {
+            if (!button) return;
+            const email = button.getAttribute('data-demo-email') || '';
+            const password = button.getAttribute('data-demo-password') || '';
+            if (!email) return;
+            this.fillAccount(email, password, submit);
+        },
+    });
+
+    if (window.Alpine) {
+        Alpine.data('loginDuPage', loginDuPage);
+    } else {
+        document.addEventListener('alpine:init', () => Alpine.data('loginDuPage', loginDuPage));
+    }
+})();
+</script>
+<div class="auth-form-page p-unit-lg md:p-unit-xl" x-data="loginDuPage">
+    <div class="auth-form-hero">
+        <div class="auth-form-hero-icon auth-form-hero-icon--du">
+            <span class="material-symbols-outlined">school</span>
+        </div>
+        <h1 class="auth-form-hero-title"><?= e(lang('login_du_title')) ?></h1>
+        <p class="auth-form-hero-subtitle"><?= e($ldapEnabled ? lang('login_du_ldap_subtitle') : lang('login_du_subtitle')) ?></p>
+    </div>
+
+    <form method="POST" action="<?= e(url('login')) ?>" class="auth-form-fields space-y-unit-md" x-ref="loginForm">
+        <?= csrf_field() ?>
+
+        <div x-show="demoFilledNotice"
+             x-cloak
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 -translate-y-1"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100"
+             x-transition:leave-end="opacity-0"
+             class="auth-demo-filled-notice"
+             role="status">
+            <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+            <?= e(lang('demo_login_credentials_filled')) ?>
+        </div>
+
+        <div>
+            <label for="email" class="block text-label-sm text-on-surface-variant mb-unit-xs"><?= e(lang('email')) ?></label>
+            <div class="relative">
+                <span class="material-symbols-outlined absolute top-1/2 -translate-y-1/2 <?= is_rtl() ? 'right-3' : 'left-3' ?> text-outline text-sm">mail</span>
+                <input type="email" id="email" name="email" value="<?= e(old('email')) ?>" required autocomplete="email" placeholder="name@du.edu.om"
+                       class="stitch-input <?= is_rtl() ? 'pr-10' : 'pl-10' ?>">
+            </div>
+        </div>
+
+        <div>
+            <label for="password" class="block text-label-sm text-on-surface-variant mb-unit-xs"><?= e(lang('password')) ?></label>
+            <div class="relative">
+                <span class="material-symbols-outlined absolute top-1/2 -translate-y-1/2 <?= is_rtl() ? 'right-3' : 'left-3' ?> text-outline text-sm">lock</span>
+                <input :type="showPassword ? 'text' : 'password'" id="password" name="password" required autocomplete="current-password"
+                       class="stitch-input <?= is_rtl() ? 'pr-10 pl-10' : 'pl-10 pr-10' ?>">
+                <button type="button" @click="showPassword = !showPassword" class="absolute top-1/2 -translate-y-1/2 <?= is_rtl() ? 'left-3' : 'right-3' ?> text-outline hover:text-primary cursor-pointer bg-transparent border-0" tabindex="-1">
+                    <span class="material-symbols-outlined text-sm" x-text="showPassword ? 'visibility_off' : 'visibility'"></span>
+                </button>
+            </div>
+        </div>
+
+        <label class="flex items-center gap-2 cursor-pointer text-body-sm text-on-surface-variant">
+            <input type="checkbox" name="remember" value="1" class="rounded border-outline-variant text-primary focus:ring-primary/20">
+            <?= e(lang('remember_me')) ?>
+        </label>
+
+        <button type="submit" class="btn-primary w-full py-3"><?= e(lang('sign_in')) ?></button>
+        <?php $action = 'login'; require view_path('layouts/components/recaptcha.php'); ?>
+    </form>
+
+    <?php if ($demoAccounts !== []): ?>
+    <div class="auth-dev-foot">
+        <button type="button" class="auth-dev-foot-link" @click="devModalOpen = true">
+            <span class="material-symbols-outlined" aria-hidden="true">science</span>
+            <?= e(lang('demo_login_link')) ?>
+        </button>
+    </div>
+
+    <div x-show="devModalOpen"
+         x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="auth-dev-modal-overlay"
+         @keydown.escape.window="devModalOpen = false"
+         @click.self="devModalOpen = false"
+         role="presentation">
+        <div class="auth-dev-modal" role="dialog" aria-modal="true" aria-labelledby="auth-dev-modal-title" @click.stop>
+            <div class="auth-dev-modal-header">
+                <div>
+                    <p id="auth-dev-modal-title" class="auth-dev-modal-title"><?= e(lang('demo_login_modal_title')) ?></p>
+                    <p class="auth-dev-modal-subtitle"><?= e(lang('demo_login_hint')) ?></p>
+                </div>
+                <button type="button" class="auth-dev-modal-close" @click="devModalOpen = false" aria-label="<?= e(lang('close')) ?>">
+                    <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                </button>
+            </div>
+
+            <div class="auth-dev-modal-body">
+                <?php foreach ($demoAccounts as $account): ?>
+                <div class="auth-dev-account">
+                    <div class="auth-dev-account-head">
+                        <span class="material-symbols-outlined" aria-hidden="true"><?= e($account['icon']) ?></span>
+                        <div>
+                            <p class="auth-dev-account-label"><?= e($account['label']) ?></p>
+                            <p class="auth-dev-account-role"><?= e(lang('demo_login_role_admin')) ?></p>
+                        </div>
+                    </div>
+                    <dl class="auth-dev-account-creds">
+                        <div>
+                            <dt><?= e(lang('demo_login_email')) ?></dt>
+                            <dd><code><?= e($account['email']) ?></code></dd>
+                        </div>
+                        <div>
+                            <dt><?= e(lang('demo_login_password')) ?></dt>
+                            <dd><code><?= e($account['password']) ?></code></dd>
+                        </div>
+                    </dl>
+                    <div class="auth-dev-account-actions">
+                        <button type="button"
+                                class="auth-dev-btn auth-dev-btn-ghost"
+                                data-demo-email="<?= e($account['email']) ?>"
+                                data-demo-password="<?= e($account['password']) ?>"
+                                @click.stop="applyDemoAccount($event.currentTarget)">
+                            <?= e(lang('demo_login_use_account')) ?>
+                        </button>
+                        <button type="button"
+                                class="auth-dev-btn auth-dev-btn-primary"
+                                data-demo-email="<?= e($account['email']) ?>"
+                                data-demo-password="<?= e($account['password']) ?>"
+                                @click.stop="applyDemoAccount($event.currentTarget, true)">
+                            <?= e(lang('demo_login_fill_sign_in')) ?>
+                        </button>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+
+            <p class="auth-dev-modal-foot">
+                <span class="material-symbols-outlined" aria-hidden="true">info</span>
+                <?= e(lang('demo_login_admin_path')) ?>
+            </p>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php
+    $footLinks = [[
+        'icon' => 'person_add',
+        'prompt' => lang('no_account_du'),
+        'label' => lang('register_du_member'),
+        'href' => url('register/du'),
+        'variant' => 'du',
+    ]];
+    $footBack = [
+        'label' => lang('back_to_login_chooser'),
+        'href' => url('login'),
+    ];
+    require view_path('auth/components/auth-foot-nav.php');
+    ?>
+</div>
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('login_du_title');
+require view_path('layouts/auth.php');

@@ -1,0 +1,974 @@
+<?php declare(strict_types=1);
+
+$metrics = $metrics ?? [];
+$dashboardInsights = $dashboardInsights ?? [];
+$dashboardAnalytics = $dashboardAnalytics ?? [];
+$applicationsChart = $applicationsChart ?? ['labels' => [], 'data' => []];
+$coursesChart = $coursesChart ?? ['labels' => [], 'data' => []];
+$applicationsStatusChart = $applicationsStatusChart ?? ['labels' => [], 'data' => []];
+$certificatesChart = $certificatesChart ?? ['labels' => [], 'data' => []];
+
+$pendingAging = $dashboardAnalytics['pendingAging'] ?? ['total' => 0, 'buckets' => []];
+$topCourses = $dashboardAnalytics['topCourses'] ?? ['courses' => []];
+$funnel = $dashboardAnalytics['funnel'] ?? ['stages' => []];
+$capacity = $dashboardAnalytics['capacity'] ?? ['courses' => []];
+$upcomingDeadlines = $dashboardAnalytics['upcomingDeadlines'] ?? [];
+$attendance = $dashboardAnalytics['attendance'] ?? ['total' => 0, 'present' => 0, 'absent' => 0, 'excused' => 0, 'rate' => 0];
+$certificatesThisMonth = (int) ($dashboardAnalytics['certificatesThisMonth'] ?? 0);
+$userGrowth = $dashboardAnalytics['userGrowth'] ?? ['labels' => [], 'data' => []];
+
+$preparedBy = (string) ($preparedBy ?? lang('system'));
+$printedAt = (string) ($printedAt ?? format_date(date('Y-m-d')) . ' · ' . date('H:i'));
+$reportRef = 'DBR-' . date('Ymd');
+
+$funnelMax = 1;
+foreach ($funnel['stages'] as $stage) {
+    $funnelMax = max($funnelMax, (int) ($stage['count'] ?? 0));
+}
+
+$agingMax = 1;
+foreach ($pendingAging['buckets'] ?? [] as $bucket) {
+    $agingMax = max($agingMax, (int) ($bucket['count'] ?? 0));
+}
+
+$topMax = 1;
+foreach ($topCourses['courses'] ?? [] as $course) {
+    $topMax = max($topMax, (int) ($course['count'] ?? 0));
+}
+
+$barPct = static function (int $value, int $max): int {
+    if ($max <= 0) {
+        return 0;
+    }
+
+    return (int) round(min(100, ($value / $max) * 100));
+};
+
+$rtl = is_rtl();
+$textAlign = $rtl ? 'right' : 'left';
+$metaAlign = $rtl ? 'left' : 'right';
+?>
+<!DOCTYPE html>
+<html lang="<?= e(current_locale()) ?>" dir="<?= $rtl ? 'rtl' : 'ltr' ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= e($pageTitle ?? lang('print_dashboard_title')) ?></title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 12mm 11mm 14mm;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: <?= $rtl ? '"Cairo", "Segoe UI", Tahoma, Arial, sans-serif' : '"Segoe UI", Tahoma, Arial, sans-serif' ?>;
+            font-size: 9.5pt;
+            color: #1a2340;
+            background: #e8ecf5;
+            line-height: 1.45;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .sheet-wrap {
+            width: 210mm;
+            margin: 0 auto;
+            background: #fff;
+            box-shadow: 0 8px 32px rgba(40, 65, 148, 0.12);
+        }
+
+        .sheet {
+            padding: 12mm 11mm 14mm;
+        }
+
+        .sheet-rainbow {
+            height: 4px;
+            margin: -12mm -11mm 9mm;
+            background: linear-gradient(90deg, #30872F 0%, #425AAD 25%, #00B0FF 50%, #D81B60 75%, #FFD600 100%);
+        }
+
+        .sheet-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .sheet-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.5rem 1rem;
+            border: 1px solid rgba(40, 65, 148, 0.25);
+            border-radius: 0.5rem;
+            background: #fff;
+            color: #284194;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .sheet-btn--primary {
+            background: linear-gradient(135deg, #284194, #425aad);
+            border-color: transparent;
+            color: #fff;
+        }
+
+        .sheet-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid #284194;
+            margin-bottom: 0.85rem;
+        }
+
+        .sheet-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+
+        .sheet-logo {
+            width: 52px;
+            height: 52px;
+            object-fit: contain;
+            border-radius: 0.35rem;
+        }
+
+        .sheet-org-eyebrow {
+            margin: 0;
+            font-size: 0.66rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #425aad;
+        }
+
+        .sheet-org-name {
+            margin: 0.12rem 0 0;
+            font-size: 1.02rem;
+            font-weight: 700;
+            color: #152550;
+        }
+
+        .sheet-org-sub {
+            margin: 0.08rem 0 0;
+            font-size: 0.72rem;
+            color: #5c6478;
+        }
+
+        .sheet-doc-meta {
+            text-align: <?= $metaAlign ?>;
+            font-size: 0.7rem;
+            color: #5c6478;
+        }
+
+        .sheet-doc-meta strong {
+            display: block;
+            font-size: 0.92rem;
+            color: #152550;
+            margin-bottom: 0.18rem;
+        }
+
+        .sheet-title {
+            margin: 0 0 0.2rem;
+            font-size: 1.12rem;
+            font-weight: 700;
+            color: #152550;
+        }
+
+        .sheet-subtitle {
+            margin: 0 0 0.65rem;
+            font-size: 0.78rem;
+            color: #5c6478;
+        }
+
+        .sheet-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.45rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .sheet-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.28rem 0.62rem;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
+
+        .sheet-chip--primary { background: rgba(40, 65, 148, 0.1); color: #284194; }
+        .sheet-chip--green { background: rgba(16, 110, 24, 0.1); color: #106e18; }
+        .sheet-chip--sky { background: rgba(0, 176, 255, 0.12); color: #0077aa; }
+        .sheet-chip--gold { background: rgba(255, 214, 0, 0.16); color: #9a7200; }
+
+        .rpt-section {
+            margin-bottom: 0.9rem;
+            break-inside: avoid-page;
+        }
+
+        .rpt-section-title {
+            margin: 0 0 0.45rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: #284194;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px solid rgba(66, 90, 173, 0.15);
+        }
+
+        .rpt-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.45rem;
+            margin-bottom: 0.55rem;
+        }
+
+        .rpt-kpi {
+            padding: 0.55rem 0.6rem;
+            border-radius: 0.45rem;
+            border: 1px solid rgba(66, 90, 173, 0.14);
+            background: linear-gradient(180deg, rgba(66, 90, 173, 0.05) 0%, #fff 100%);
+        }
+
+        .rpt-kpi-label {
+            display: block;
+            font-size: 0.6rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6b7280;
+            margin-bottom: 0.15rem;
+        }
+
+        .rpt-kpi-value {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #152550;
+            line-height: 1.1;
+        }
+
+        .rpt-insight-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.4rem;
+        }
+
+        .rpt-insight {
+            padding: 0.45rem 0.5rem;
+            border-radius: 0.4rem;
+            border: 1px solid rgba(66, 90, 173, 0.12);
+            background: #fff;
+        }
+
+        .rpt-insight-label {
+            display: block;
+            font-size: 0.58rem;
+            color: #6b7280;
+            margin-bottom: 0.12rem;
+            line-height: 1.25;
+        }
+
+        .rpt-insight-value {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #284194;
+        }
+
+        .rpt-insight-meta {
+            display: block;
+            font-size: 0.56rem;
+            color: #6b7280;
+            margin-top: 0.1rem;
+        }
+
+        .rpt-cols {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.65rem;
+        }
+
+        .rpt-panel {
+            border: 1px solid rgba(66, 90, 173, 0.14);
+            border-radius: 0.45rem;
+            padding: 0.55rem 0.6rem;
+            background: #fff;
+        }
+
+        .rpt-panel-title {
+            margin: 0 0 0.4rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #152550;
+        }
+
+        .rpt-bar-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) 2.2rem;
+            gap: 0.35rem;
+            align-items: center;
+            margin-bottom: 0.32rem;
+            font-size: 0.68rem;
+        }
+
+        .rpt-bar-label {
+            color: #374151;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .rpt-bar-track {
+            height: 0.45rem;
+            border-radius: 999px;
+            background: rgba(66, 90, 173, 0.1);
+            overflow: hidden;
+        }
+
+        .rpt-bar-fill {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #284194, #425aad);
+        }
+
+        .rpt-bar-fill--green { background: linear-gradient(90deg, #106e18, #30872f); }
+        .rpt-bar-fill--sky { background: linear-gradient(90deg, #0090cc, #00b0ff); }
+        .rpt-bar-fill--gold { background: linear-gradient(90deg, #c9a000, #ffd600); }
+        .rpt-bar-fill--amber { background: linear-gradient(90deg, #b45309, #f59e0b); }
+        .rpt-bar-fill--magenta { background: linear-gradient(90deg, #be185d, #d81b60); }
+
+        .rpt-bar-count {
+            text-align: <?= $metaAlign ?>;
+            font-weight: 700;
+            color: #152550;
+            font-variant-numeric: tabular-nums;
+        }
+
+        table.rpt-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.68rem;
+        }
+
+        .rpt-table thead th {
+            padding: 0.42rem 0.5rem;
+            text-align: <?= $textAlign ?>;
+            font-size: 0.6rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #fff;
+            background: linear-gradient(135deg, #1e3578, #284194);
+            border: 1px solid #1e3578;
+        }
+
+        .rpt-table tbody td {
+            padding: 0.38rem 0.5rem;
+            border: 1px solid rgba(66, 90, 173, 0.16);
+            vertical-align: middle;
+        }
+
+        .rpt-table tbody tr:nth-child(even) {
+            background: rgba(66, 90, 173, 0.03);
+        }
+
+        .rpt-badge {
+            display: inline-block;
+            padding: 0.12rem 0.42rem;
+            border-radius: 999px;
+            font-size: 0.58rem;
+            font-weight: 700;
+        }
+
+        .rpt-badge--normal { background: rgba(66, 90, 173, 0.1); color: #284194; }
+        .rpt-badge--warning { background: rgba(245, 158, 11, 0.14); color: #b45309; }
+        .rpt-badge--critical { background: rgba(216, 27, 96, 0.12); color: #be185d; }
+
+        .rpt-highlight {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0.5rem 0.65rem;
+            border-radius: 0.45rem;
+            background: linear-gradient(135deg, rgba(255, 214, 0, 0.12) 0%, rgba(255, 255, 255, 1) 100%);
+            border: 1px solid rgba(255, 214, 0, 0.28);
+            margin-bottom: 0.45rem;
+        }
+
+        .rpt-highlight-value {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: #9a7200;
+        }
+
+        .rpt-charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.55rem;
+        }
+
+        .rpt-chart-box {
+            border: 1px solid rgba(66, 90, 173, 0.14);
+            border-radius: 0.45rem;
+            padding: 0.45rem 0.5rem 0.35rem;
+        }
+
+        .rpt-chart-title {
+            margin: 0 0 0.25rem;
+            font-size: 0.64rem;
+            font-weight: 700;
+            color: #152550;
+        }
+
+        .rpt-chart-canvas {
+            position: relative;
+            height: 38mm;
+        }
+
+        .rpt-chart-canvas canvas {
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .rpt-page-break {
+            break-before: page;
+            page-break-before: always;
+        }
+
+        .sheet-footer {
+            margin-top: 0.85rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid rgba(66, 90, 173, 0.15);
+        }
+
+        .sheet-signatures {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.25rem;
+            margin-bottom: 0.65rem;
+        }
+
+        .sheet-sig-block label {
+            display: block;
+            font-size: 0.64rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6b7280;
+            margin-bottom: 1.4rem;
+        }
+
+        .sheet-sig-line {
+            border-bottom: 1px solid #1a2340;
+            height: 1px;
+        }
+
+        .sheet-disclaimer {
+            margin: 0;
+            font-size: 0.64rem;
+            color: #6b7280;
+            text-align: center;
+        }
+
+        .rpt-empty {
+            font-size: 0.68rem;
+            color: #6b7280;
+            font-style: italic;
+            margin: 0;
+        }
+
+        @media screen {
+            body { padding: 1.25rem 0.75rem 1.75rem; }
+            .sheet-wrap + .sheet-wrap { margin-top: 1.25rem; }
+        }
+
+        @media print {
+            body { background: #fff; }
+            .sheet-wrap { box-shadow: none; width: auto; }
+            .no-print { display: none !important; }
+            .sheet { padding: 0; }
+            .sheet-rainbow { margin: 0 0 7mm; }
+        }
+    </style>
+</head>
+<body>
+<div class="sheet-wrap">
+    <div class="sheet">
+        <div class="sheet-rainbow" aria-hidden="true"></div>
+
+        <div class="sheet-toolbar no-print">
+            <button type="button" class="sheet-btn sheet-btn--primary" id="printReportBtn">
+                <?= e(lang('print')) ?>
+            </button>
+            <button type="button" class="sheet-btn" onclick="window.close()">
+                <?= e(lang('close')) ?>
+            </button>
+        </div>
+
+        <header class="sheet-header">
+            <div class="sheet-brand">
+                <img src="<?= e(university_logo()) ?>" alt="<?= e(lang('university')) ?>" class="sheet-logo" width="52" height="52">
+                <div>
+                    <p class="sheet-org-eyebrow"><?= e(lang('app_name')) ?></p>
+                    <p class="sheet-org-name"><?= e(lang('university')) ?></p>
+                    <p class="sheet-org-sub"><?= e(lang('print_dashboard_org_line')) ?></p>
+                </div>
+            </div>
+            <div class="sheet-doc-meta">
+                <strong><?= e(lang('print_dashboard_title')) ?></strong>
+                <?= e(lang('print_sheet_ref')) ?>: <?= e($reportRef) ?><br>
+                <?= e(lang('print_generated_at')) ?>: <?= e($printedAt) ?>
+            </div>
+        </header>
+
+        <h1 class="sheet-title"><?= e(lang('print_dashboard_title')) ?></h1>
+        <p class="sheet-subtitle"><?= e(lang('print_dashboard_subtitle')) ?></p>
+
+        <div class="sheet-meta-row">
+            <span class="sheet-chip sheet-chip--primary"><?= e(lang('print_dashboard_prepared_by')) ?>: <?= e($preparedBy) ?></span>
+            <span class="sheet-chip sheet-chip--green"><?= e(lang('print_dashboard_as_of')) ?>: <?= e(format_date(date('Y-m-d'))) ?></span>
+            <span class="sheet-chip sheet-chip--sky"><?= e(lang('print_dashboard_reporting_period')) ?>: <?= e(lang('print_dashboard_as_of')) ?> <?= e(format_date(date('Y-m-d'))) ?></span>
+            <span class="sheet-chip sheet-chip--gold"><?= e(lang('insight_certificates_month')) ?>: <?= $certificatesThisMonth ?></span>
+        </div>
+
+        <section class="rpt-section">
+            <h2 class="rpt-section-title"><?= e(lang('print_dashboard_section_summary')) ?></h2>
+            <div class="rpt-kpi-grid">
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-label"><?= e(lang('total_courses')) ?></span>
+                    <span class="rpt-kpi-value"><?= (int) ($metrics['total_courses'] ?? 0) ?></span>
+                </div>
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-label"><?= e(lang('total_users')) ?></span>
+                    <span class="rpt-kpi-value"><?= (int) ($metrics['total_users'] ?? 0) ?></span>
+                </div>
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-label"><?= e(lang('total_applications')) ?></span>
+                    <span class="rpt-kpi-value"><?= (int) ($metrics['total_applications'] ?? 0) ?></span>
+                </div>
+                <div class="rpt-kpi">
+                    <span class="rpt-kpi-label"><?= e(lang('total_certificates')) ?></span>
+                    <span class="rpt-kpi-value"><?= (int) ($metrics['total_certificates'] ?? 0) ?></span>
+                </div>
+            </div>
+
+            <?php if ($dashboardInsights !== []): ?>
+            <div class="rpt-insight-grid">
+                <?php foreach ($dashboardInsights as $insight): ?>
+                <div class="rpt-insight">
+                    <span class="rpt-insight-label"><?= e((string) ($insight['title'] ?? '')) ?></span>
+                    <span class="rpt-insight-value">
+                        <?= (int) ($insight['value'] ?? 0) ?><?= e((string) ($insight['suffix'] ?? '')) ?>
+                    </span>
+                    <?php if (!empty($insight['meta'])): ?>
+                    <span class="rpt-insight-meta"><?= e((string) $insight['meta']) ?></span>
+                    <?php endif; ?>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </section>
+
+        <section class="rpt-section">
+            <h2 class="rpt-section-title"><?= e(lang('application_funnel')) ?></h2>
+            <?php if (($funnel['stages'] ?? []) === []): ?>
+            <p class="rpt-empty"><?= e(lang('chart_no_data')) ?></p>
+            <?php else: ?>
+                <?php
+                $funnelColors = ['', 'rpt-bar-fill--green', 'rpt-bar-fill--sky', 'rpt-bar-fill--gold'];
+                foreach ($funnel['stages'] as $i => $stage):
+                    $count = (int) ($stage['count'] ?? 0);
+                ?>
+                <div class="rpt-bar-row">
+                    <span class="rpt-bar-label"><?= e((string) ($stage['label'] ?? '')) ?></span>
+                    <div class="rpt-bar-track">
+                        <span class="rpt-bar-fill <?= e($funnelColors[$i] ?? '') ?>" style="width: <?= $barPct($count, $funnelMax) ?>%"></span>
+                    </div>
+                    <span class="rpt-bar-count"><?= $count ?></span>
+                </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </section>
+
+        <section class="rpt-section">
+            <h2 class="rpt-section-title"><?= e(lang('attendance_overview')) ?></h2>
+            <div class="rpt-highlight">
+                <div>
+                    <strong style="font-size:0.68rem;color:#6b7280;"><?= e(lang('attendance_rate')) ?></strong>
+                    <div class="rpt-highlight-value"><?= (int) ($attendance['rate'] ?? 0) ?>%</div>
+                </div>
+                <div style="font-size:0.68rem;color:#5c6478;">
+                    <?= e(lang('attendance_present')) ?>: <strong><?= (int) ($attendance['present'] ?? 0) ?></strong><br>
+                    <?= e(lang('attendance_absent')) ?>: <strong><?= (int) ($attendance['absent'] ?? 0) ?></strong><br>
+                    <?= e(lang('attendance_excused')) ?>: <strong><?= (int) ($attendance['excused'] ?? 0) ?></strong>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<div class="sheet-wrap rpt-page-break">
+    <div class="sheet">
+        <div class="sheet-rainbow" aria-hidden="true"></div>
+
+        <section class="rpt-section">
+            <h2 class="rpt-section-title"><?= e(lang('print_dashboard_section_operations')) ?></h2>
+            <div class="rpt-cols">
+                <div class="rpt-panel">
+                    <h3 class="rpt-panel-title"><?= e(lang('pending_applications_aging')) ?></h3>
+                    <?php if ((int) ($pendingAging['total'] ?? 0) === 0): ?>
+                    <p class="rpt-empty"><?= e(lang('insight_pending_clear_meta')) ?></p>
+                    <?php else: ?>
+                        <?php foreach ($pendingAging['buckets'] as $bucket):
+                            $count = (int) ($bucket['count'] ?? 0);
+                            $severity = (string) ($bucket['severity'] ?? 'ok');
+                            $fillClass = $severity === 'critical' ? 'rpt-bar-fill--magenta' : ($severity === 'warning' ? 'rpt-bar-fill--amber' : 'rpt-bar-fill--green');
+                        ?>
+                        <div class="rpt-bar-row">
+                            <span class="rpt-bar-label"><?= e((string) ($bucket['label'] ?? '')) ?></span>
+                            <div class="rpt-bar-track">
+                                <span class="rpt-bar-fill <?= e($fillClass) ?>" style="width: <?= $barPct($count, $agingMax) ?>%"></span>
+                            </div>
+                            <span class="rpt-bar-count"><?= $count ?></span>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+
+                <div class="rpt-panel">
+                    <h3 class="rpt-panel-title"><?= e(lang('upcoming_course_deadlines')) ?></h3>
+                    <?php if ($upcomingDeadlines === []): ?>
+                    <p class="rpt-empty"><?= e(lang('no_upcoming_deadlines')) ?></p>
+                    <?php else: ?>
+                    <table class="rpt-table">
+                        <thead>
+                            <tr>
+                                <th><?= e(lang('courses')) ?></th>
+                                <th><?= e(lang('date')) ?></th>
+                                <th><?= e(lang('status')) ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach (array_slice($upcomingDeadlines, 0, 6) as $item):
+                                $daysLeft = (int) ($item['days_left'] ?? 0);
+                                $daysLabel = $daysLeft === 0
+                                    ? lang('days_left_today')
+                                    : str_replace(':count', (string) $daysLeft, lang('days_left'));
+                                $urgency = (string) ($item['urgency'] ?? 'normal');
+                            ?>
+                            <tr>
+                                <td><?= e((string) ($item['title'] ?? '')) ?></td>
+                                <td>
+                                    <?= e((string) ($item['date_label'] ?? '')) ?>
+                                    <span class="rpt-badge rpt-badge--<?= e($urgency) ?>"><?= e($daysLabel) ?></span>
+                                </td>
+                                <td><?= e((string) ($item['type_label'] ?? '')) ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </section>
+
+        <section class="rpt-section">
+            <h2 class="rpt-section-title"><?= e(lang('print_dashboard_section_performance')) ?></h2>
+            <div class="rpt-cols">
+                <div class="rpt-panel">
+                    <h3 class="rpt-panel-title"><?= e(lang('top_courses_by_applications')) ?></h3>
+                    <?php
+                    $hasTop = false;
+                    foreach ($topCourses['courses'] ?? [] as $course) {
+                        if ((int) ($course['count'] ?? 0) > 0) {
+                            $hasTop = true;
+                            break;
+                        }
+                    }
+                    ?>
+                    <?php if (!$hasTop): ?>
+                    <p class="rpt-empty"><?= e(lang('chart_no_data')) ?></p>
+                    <?php else: ?>
+                        <?php foreach ($topCourses['courses'] as $course):
+                            $count = (int) ($course['count'] ?? 0);
+                            if ($count <= 0) {
+                                continue;
+                            }
+                        ?>
+                        <div class="rpt-bar-row">
+                            <span class="rpt-bar-label"><?= e((string) ($course['title'] ?? '')) ?></span>
+                            <div class="rpt-bar-track">
+                                <span class="rpt-bar-fill" style="width: <?= $barPct($count, $topMax) ?>%"></span>
+                            </div>
+                            <span class="rpt-bar-count"><?= $count ?></span>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+
+                <div class="rpt-panel">
+                    <h3 class="rpt-panel-title"><?= e(lang('course_capacity_utilization')) ?></h3>
+                    <?php if (($capacity['courses'] ?? []) === []): ?>
+                    <p class="rpt-empty"><?= e(lang('chart_no_data')) ?></p>
+                    <?php else: ?>
+                        <?php foreach ($capacity['courses'] as $course):
+                            $percent = (int) ($course['percent'] ?? 0);
+                            $fillClass = $percent >= 90 ? 'rpt-bar-fill--magenta' : ($percent >= 70 ? 'rpt-bar-fill--amber' : 'rpt-bar-fill--sky');
+                        ?>
+                        <div class="rpt-bar-row">
+                            <span class="rpt-bar-label"><?= e((string) ($course['title'] ?? '')) ?></span>
+                            <div class="rpt-bar-track">
+                                <span class="rpt-bar-fill <?= e($fillClass) ?>" style="width: <?= $percent ?>%"></span>
+                            </div>
+                            <span class="rpt-bar-count"><?= $percent ?>%</span>
+                        </div>
+                        <div style="font-size:0.58rem;color:#6b7280;margin:-0.15rem 0 0.28rem 0;">
+                            <?= e(str_replace(
+                                [':approved', ':max'],
+                                [(string) (int) ($course['approved'] ?? 0), (string) (int) ($course['max'] ?? 0)],
+                                lang('capacity_seats')
+                            )) ?>
+                        </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<div class="sheet-wrap rpt-page-break">
+    <div class="sheet">
+        <div class="sheet-rainbow" aria-hidden="true"></div>
+
+        <section class="rpt-section">
+            <h2 class="rpt-section-title"><?= e(lang('print_dashboard_section_trends')) ?></h2>
+            <div class="rpt-charts-grid">
+                <div class="rpt-chart-box">
+                    <h3 class="rpt-chart-title"><?= e(lang('applications_trend')) ?></h3>
+                    <div class="rpt-chart-canvas"><canvas id="appsTrendChart"></canvas></div>
+                </div>
+                <div class="rpt-chart-box">
+                    <h3 class="rpt-chart-title"><?= e(lang('user_growth')) ?></h3>
+                    <div class="rpt-chart-canvas"><canvas id="userGrowthChart"></canvas></div>
+                </div>
+                <div class="rpt-chart-box">
+                    <h3 class="rpt-chart-title"><?= e(lang('courses_by_status')) ?></h3>
+                    <div class="rpt-chart-canvas"><canvas id="coursesStatusChart"></canvas></div>
+                </div>
+                <div class="rpt-chart-box">
+                    <h3 class="rpt-chart-title"><?= e(lang('certificates_trend')) ?></h3>
+                    <div class="rpt-chart-canvas"><canvas id="certsTrendChart"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="rpt-section">
+            <h2 class="rpt-section-title"><?= e(lang('applications_by_status')) ?></h2>
+            <?php if (count($applicationsStatusChart['labels'] ?? []) === 0): ?>
+            <p class="rpt-empty"><?= e(lang('chart_no_data')) ?></p>
+            <?php else: ?>
+            <table class="rpt-table">
+                <thead>
+                    <tr>
+                        <th><?= e(lang('status')) ?></th>
+                        <th><?= e(lang('applications')) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($applicationsStatusChart['labels'] as $i => $label): ?>
+                    <tr>
+                        <td><?= e((string) $label) ?></td>
+                        <td><?= (int) ($applicationsStatusChart['data'][$i] ?? 0) ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
+        </section>
+
+        <footer class="sheet-footer">
+            <div class="sheet-signatures">
+                <div class="sheet-sig-block">
+                    <label><?= e(lang('print_dashboard_prepared_by')) ?></label>
+                    <div class="sheet-sig-line"></div>
+                </div>
+                <div class="sheet-sig-block">
+                    <label><?= e(lang('print_dashboard_coordinator_sig')) ?></label>
+                    <div class="sheet-sig-line"></div>
+                </div>
+            </div>
+            <p class="sheet-disclaimer"><?= e(lang('print_dashboard_disclaimer')) ?></p>
+        </footer>
+    </div>
+</div>
+
+<script src="<?= e(asset('vendor/chart.umd.min.js')) ?>"></script>
+<script>
+(function () {
+    'use strict';
+
+    var cfg = {
+        apps: <?= json_encode($applicationsChart, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+        userGrowth: <?= json_encode($userGrowth, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+        courses: <?= json_encode($coursesChart, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+        certificates: <?= json_encode($certificatesChart, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>,
+        rtl: <?= $rtl ? 'true' : 'false' ?>
+    };
+
+    var brand = {
+        primary: '#284194',
+        secondary: '#30872F',
+        sky: '#00B0FF',
+        gold: '#FFD600',
+        magenta: '#D81B60'
+    };
+
+    function initCharts() {
+        if (typeof Chart === 'undefined') {
+            return false;
+        }
+
+        Chart.defaults.font.family = cfg.rtl ? "'Cairo', sans-serif" : "'Segoe UI', sans-serif";
+        Chart.defaults.font.size = 9;
+        Chart.defaults.color = '#5c6478';
+
+        if (cfg.apps.labels && cfg.apps.labels.length) {
+            new Chart(document.getElementById('appsTrendChart'), {
+                type: 'line',
+                data: {
+                    labels: cfg.apps.labels,
+                    datasets: [{
+                        data: cfg.apps.data,
+                        borderColor: brand.primary,
+                        backgroundColor: 'rgba(40, 65, 148, 0.12)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 2,
+                        borderWidth: 1.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 8 }, maxTicksLimit: 6 } },
+                        y: { beginAtZero: true, ticks: { precision: 0, maxTicksLimit: 4 } }
+                    }
+                }
+            });
+        }
+
+        if (cfg.userGrowth.labels && cfg.userGrowth.labels.length) {
+            new Chart(document.getElementById('userGrowthChart'), {
+                type: 'bar',
+                data: {
+                    labels: cfg.userGrowth.labels,
+                    datasets: [{
+                        data: cfg.userGrowth.data,
+                        backgroundColor: 'rgba(48, 135, 47, 0.65)',
+                        borderColor: brand.secondary,
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        maxBarThickness: 18
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 8 } } },
+                        y: { beginAtZero: true, ticks: { precision: 0, maxTicksLimit: 4 } }
+                    }
+                }
+            });
+        }
+
+        if (cfg.courses.labels && cfg.courses.labels.length) {
+            new Chart(document.getElementById('coursesStatusChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: cfg.courses.labels,
+                    datasets: [{
+                        data: cfg.courses.data,
+                        backgroundColor: [brand.primary, '#425AAD', brand.secondary, brand.sky, brand.gold, brand.magenta],
+                        borderWidth: 1,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, font: { size: 8 } } } },
+                    cutout: '55%'
+                }
+            });
+        }
+
+        if (cfg.certificates.labels && cfg.certificates.labels.length) {
+            new Chart(document.getElementById('certsTrendChart'), {
+                type: 'bar',
+                data: {
+                    labels: cfg.certificates.labels,
+                    datasets: [{
+                        data: cfg.certificates.data,
+                        backgroundColor: 'rgba(0, 176, 255, 0.55)',
+                        borderColor: brand.sky,
+                        borderWidth: 1,
+                        borderRadius: 4,
+                        maxBarThickness: 18
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 8 } } },
+                        y: { beginAtZero: true, ticks: { precision: 0, maxTicksLimit: 4 } }
+                    }
+                }
+            });
+        }
+
+        return true;
+    }
+
+    function boot(attempt) {
+        attempt = attempt || 0;
+        if (initCharts() || attempt >= 30) {
+            var btn = document.getElementById('printReportBtn');
+            if (btn) {
+                btn.addEventListener('click', function () {
+                    window.print();
+                });
+            }
+            return;
+        }
+        window.setTimeout(function () { boot(attempt + 1); }, 100);
+    }
+
+    if (document.readyState === 'complete') {
+        boot(0);
+    } else {
+        window.addEventListener('load', function () { boot(0); });
+    }
+})();
+</script>
+</body>
+</html>

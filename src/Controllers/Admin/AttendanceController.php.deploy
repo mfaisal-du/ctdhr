@@ -1,0 +1,412 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Models\Attendance;
+use CTDHR\Models\CourseAdmin;
+use CTDHR\Models\Setting;
+use CTDHR\Services\AuditService;
+use CTDHR\Services\ParticipantTimelineService;
+
+final class AttendanceController
+{
+    private AuditService $audit;
+    private Setting $settings;
+
+    public function __construct()
+    {
+        $this->audit = new AuditService();
+        $this->settings = new Setting();
+    }
+
+    public function index(): void
+    {
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $filters = [
+            'search' => trim((string) ($_GET['search'] ?? '')),
+            'status' => (string) ($_GET['status'] ?? ''),
+            'marking' => (string) ($_GET['marking'] ?? ''),
+            'sort' => (string) ($_GET['sort'] ?? 'start_date'),
+        ];
+
+        admin_view('admin.attendance.index', [
+            'pageTitle' => lang('attendance'),
+            'result' => Attendance::findCoursesPaginated($filters, $page),
+            'filters' => $filters,
+            'stats' => Attendance::getSummaryStats($filters),
+            'reminders' => Attendance::getSessionMarkingReminders(),
+            'attendanceThreshold' => $this->settings->getInt('attendance_threshold', 75),
+            'course' => null,
+            'sessions' => [],
+            'sessionDate' => '',
+            'participants' => [],
+            'attendance' => [],
+            'participantRates' => [],
+            'participantRateBreakdowns' => [],
+            'participantEligibility' => [],
+            'sessionEntries' => [],
+            'currentSession' => null,
+            'sessionLocked' => false,
+            'riskFilter' => '',
+        ]);
+    }
+
+    public function export(): void
+    {
+        $filters = [
+            'search' => trim((string) ($_GET['search'] ?? '')),
+            'course_id' => (string) ($_GET['course_id'] ?? ''),
+        ];
+        $rows = Attendance::exportRows($filters);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="attendance-' . date('Y-m-d') . '.csv"');
+
+        $out = fopen('php://output', 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($out, [
+            'Course', 'Participant', 'Email', 'Sessions Marked', 'Sessions Attended', 'Rate %', 'Cert Eligible',
+        ]);
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                localized($row, 'title'),
+                localized($row, 'full_name'),
+                (string) ($row['email'] ?? ''),
+                (int) ($row['sessions_marked'] ?? 0),
+                (int) ($row['sessions_attended'] ?? 0),
+                (float) ($row['attendance_rate'] ?? 0),
+                (string) ($row['cert_eligible'] ?? 'no'),
+            ]);
+        }
+        fclose($out);
+
+        $this->audit->log('attendance.export', 'attendance', null, ['count' => count($rows)]);
+        exit;
+    }
+
+    public function completionReport(): void
+    {
+        $rows = Attendance::exportRows([]);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="course-completion-' . date('Y-m-d') . '.csv"');
+
+        $out = fopen('php://output', 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($out, [
+            'Course ID', 'Course', 'Participant', 'Email', 'Sessions Marked', 'Attended', 'Rate %',
+            'Eligible', 'Threshold %',
+        ]);
+        $threshold = $this->settings->getInt('attendance_threshold', 75);
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                (int) ($row['course_id'] ?? 0),
+                localized($row, 'title'),
+                localized($row, 'full_name'),
+                (string) ($row['email'] ?? ''),
+                (int) ($row['sessions_marked'] ?? 0),
+                (int) ($row['sessions_attended'] ?? 0),
+                (float) ($row['attendance_rate'] ?? 0),
+                (string) ($row['cert_eligible'] ?? 'no'),
+                $threshold,
+            ]);
+        }
+        fclose($out);
+
+        $this->audit->log('attendance.completion_report', 'attendance', null, ['count' => count($rows)]);
+        exit;
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function show(array $params): void
+    {
+        $courseId = (int) ($params['courseId'] ?? 0);
+        $course = CourseAdmin::findById($courseId);
+        if ($course === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/attendance');
+        }
+
+        $sessionEntries = attendance_session_entries($course);
+        $sessions = array_column($sessionEntries, 'key');
+        $sessionDate = (string) ($_GET['session'] ?? ($sessions[0] ?? ''));
+        $currentSession = null;
+        foreach ($sessionEntries as $entry) {
+            if ($entry['key'] === $sessionDate) {
+                $currentSession = $entry;
+                break;
+            }
+        }
+        if ($currentSession === null && $sessionEntries !== []) {
+            $currentSession = $sessionEntries[0];
+            $sessionDate = $currentSession['key'];
+        }
+
+        $threshold = $this->settings->getInt('attendance_threshold', 75);
+        $riskFilter = (string) ($_GET['risk'] ?? '');
+        $participants = Attendance::getApprovedParticipants($courseId);
+        $attendance = Attendance::getSessionAttendance($courseId, $sessionDate);
+        $participantRates = [];
+        $participantRateBreakdowns = [];
+        $participantEligibility = [];
+
+        foreach ($participants as $participant) {
+            $userId = (int) $participant['id'];
+            $breakdown = Attendance::getAttendanceRateBreakdown($userId, $courseId);
+            $participantRateBreakdowns[$userId] = $breakdown;
+            $participantRates[$userId] = (float) $breakdown['rate'];
+            $participantEligibility[$userId] = Attendance::getCertificateEligibility($userId, $courseId, $threshold);
+        }
+
+        if ($riskFilter === 'at_risk') {
+            $participants = array_values(array_filter(
+                $participants,
+                static function (array $p) use ($participantEligibility): bool {
+                    $e = $participantEligibility[(int) $p['id']] ?? ['eligible' => true, 'total' => 0];
+
+                    return ($e['total'] ?? 0) > 0 && empty($e['eligible']);
+                }
+            ));
+        }
+
+        $presentCount = 0;
+        $excusedCount = 0;
+        foreach ($participants as $participant) {
+            $pid = (int) $participant['id'];
+            $status = Attendance::rowStatus($attendance[$pid] ?? []);
+            if ($status === 'present') {
+                $presentCount++;
+            } elseif ($status === 'excused') {
+                $excusedCount++;
+            }
+        }
+
+        admin_view('admin.attendance.index', [
+            'pageTitle' => lang('mark_attendance'),
+            'result' => ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0],
+            'filters' => [],
+            'stats' => [],
+            'reminders' => [],
+            'attendanceThreshold' => $threshold,
+            'course' => $course,
+            'sessions' => $sessions,
+            'sessionEntries' => $sessionEntries,
+            'currentSession' => $currentSession,
+            'sessionDate' => $sessionDate,
+            'sessionLocked' => Attendance::isSessionLocked($courseId, $sessionDate),
+            'participants' => $participants,
+            'attendance' => $attendance,
+            'participantRates' => $participantRates,
+            'participantRateBreakdowns' => $participantRateBreakdowns,
+            'participantEligibility' => $participantEligibility,
+            'riskFilter' => $riskFilter,
+            'sessionPresentCount' => $presentCount,
+            'sessionAbsentCount' => max(0, count($participants) - $presentCount - $excusedCount),
+            'sessionExcusedCount' => $excusedCount,
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function exportCourse(array $params): void
+    {
+        $courseId = (int) ($params['courseId'] ?? 0);
+        $rows = Attendance::exportRows(['course_id' => (string) $courseId]);
+        $course = CourseAdmin::findById($courseId);
+        $slug = $course ? preg_replace('/[^a-z0-9\-]+/i', '-', (string) ($course['slug'] ?? 'course')) : 'course';
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="attendance-' . $slug . '-' . date('Y-m-d') . '.csv"');
+
+        $out = fopen('php://output', 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($out, ['Participant', 'Email', 'Sessions Marked', 'Attended', 'Rate %', 'Cert Eligible']);
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                localized($row, 'full_name'),
+                (string) ($row['email'] ?? ''),
+                (int) ($row['sessions_marked'] ?? 0),
+                (int) ($row['sessions_attended'] ?? 0),
+                (float) ($row['attendance_rate'] ?? 0),
+                (string) ($row['cert_eligible'] ?? 'no'),
+            ]);
+        }
+        fclose($out);
+
+        $this->audit->log('attendance.export', 'course', $courseId, ['count' => count($rows)]);
+        exit;
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function printSheet(array $params): void
+    {
+        $courseId = (int) ($params['courseId'] ?? 0);
+        $course = CourseAdmin::findById($courseId);
+        if ($course === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/attendance');
+        }
+
+        $sessionDate = (string) ($_GET['session'] ?? '');
+        $sessionEntries = attendance_session_entries($course);
+        if ($sessionDate === '' && $sessionEntries !== []) {
+            $sessionDate = $sessionEntries[0]['key'];
+        }
+
+        $currentSession = null;
+        foreach ($sessionEntries as $entry) {
+            if ($entry['key'] === $sessionDate) {
+                $currentSession = $entry;
+                break;
+            }
+        }
+
+        $participants = Attendance::getApprovedParticipants($courseId);
+        $attendance = Attendance::getSessionAttendance($courseId, $sessionDate);
+
+        view('admin.attendance.print', [
+            'pageTitle' => lang('print_attendance_sheet'),
+            'course' => $course,
+            'sessionDate' => $sessionDate,
+            'currentSession' => $currentSession,
+            'participants' => $participants,
+            'attendance' => $attendance,
+        ]);
+        exit;
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function import(array $params): void
+    {
+        $courseId = (int) ($params['courseId'] ?? 0);
+        if ($courseId <= 0 || !isset($_FILES['import_file']) || $_FILES['import_file']['error'] !== UPLOAD_ERR_OK) {
+            flash('error', lang('import_file_invalid'));
+            redirect('admin/attendance/' . $courseId);
+        }
+
+        $tmp = (string) $_FILES['import_file']['tmp_name'];
+        $result = Attendance::importCsv($courseId, $tmp, (int) ($_SESSION['user_id'] ?? 0));
+
+        $this->audit->log('attendance.import', 'course', $courseId, [
+            'imported' => $result['imported'],
+            'skipped' => $result['skipped'],
+        ]);
+
+        if ($result['imported'] > 0) {
+            flash('success', lang('import_success', ['count' => (string) $result['imported']]));
+        }
+        if ($result['errors'] !== []) {
+            flash('error', implode(' ', array_slice($result['errors'], 0, 3)));
+        }
+
+        redirect('admin/attendance/' . $courseId);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function lockSession(array $params): void
+    {
+        $courseId = (int) ($params['courseId'] ?? 0);
+        $sessionDate = trim((string) ($_POST['session_date'] ?? ''));
+        if ($courseId > 0 && $sessionDate !== '') {
+            Attendance::lockSession($courseId, $sessionDate, (int) ($_SESSION['user_id'] ?? 0));
+            $this->audit->log('attendance.lock', 'course', $courseId, ['session_date' => $sessionDate]);
+            flash('success', lang('session_locked'));
+        }
+        redirect('admin/attendance/' . $courseId . '?session=' . urlencode($sessionDate));
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function unlockSession(array $params): void
+    {
+        $courseId = (int) ($params['courseId'] ?? 0);
+        $sessionDate = trim((string) ($_POST['session_date'] ?? ''));
+        if ($courseId > 0 && $sessionDate !== '') {
+            Attendance::unlockSession($courseId, $sessionDate);
+            $this->audit->log('attendance.unlock', 'course', $courseId, ['session_date' => $sessionDate]);
+            flash('success', lang('session_unlocked'));
+        }
+        redirect('admin/attendance/' . $courseId . '?session=' . urlencode($sessionDate));
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function participantHistory(array $params): void
+    {
+        $courseId = (int) ($params['courseId'] ?? 0);
+        $userId = (int) ($params['userId'] ?? 0);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'history' => Attendance::getParticipantHistory($userId, $courseId),
+            'timeline' => ParticipantTimelineService::build($userId, $courseId),
+        ], JSON_THROW_ON_ERROR);
+        exit;
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function mark(array $params): void
+    {
+        $courseId = (int) ($params['courseId'] ?? 0);
+        $sessionDate = trim($_POST['session_date'] ?? '');
+        $markedBy = (int) ($_SESSION['user_id'] ?? 0);
+        $sessionNumber = !empty($_POST['session_number']) ? (int) $_POST['session_number'] : null;
+        $lockAfterSave = isset($_POST['lock_after_save']);
+
+        if ($courseId <= 0 || $sessionDate === '') {
+            flash('error', lang('required_fields_missing'));
+            redirect('admin/attendance');
+        }
+
+        if (Attendance::isSessionLocked($courseId, $sessionDate)) {
+            flash('error', lang('session_locked_error'));
+            redirect('admin/attendance/' . $courseId . '?session=' . urlencode($sessionDate));
+        }
+
+        $statuses = [];
+        $rawStatuses = $_POST['status'] ?? [];
+        if (is_array($rawStatuses) && $rawStatuses !== []) {
+            foreach ($rawStatuses as $userId => $status) {
+                $statuses[(int) $userId] = (string) $status;
+            }
+        } else {
+            $presentIds = array_map('intval', $_POST['present'] ?? []);
+            $participants = Attendance::getApprovedParticipants($courseId);
+            foreach ($participants as $participant) {
+                $uid = (int) $participant['id'];
+                $statuses[$uid] = in_array($uid, $presentIds, true) ? 'present' : 'absent';
+            }
+        }
+
+        Attendance::markSessionStatuses($courseId, $sessionDate, $statuses, $markedBy, $sessionNumber);
+
+        if ($lockAfterSave) {
+            Attendance::lockSession($courseId, $sessionDate, $markedBy);
+            $this->audit->log('attendance.lock', 'course', $courseId, ['session_date' => $sessionDate]);
+        }
+
+        $presentCount = count(array_filter($statuses, static fn (string $s): bool => $s === 'present'));
+
+        $this->audit->log('attendance.mark', 'course', $courseId, [
+            'session_date' => $sessionDate,
+            'present_count' => $presentCount,
+        ]);
+
+        flash('success', lang('attendance_saved'));
+        redirect('admin/attendance/' . $courseId . '?session=' . urlencode($sessionDate));
+    }
+}

@@ -1,0 +1,150 @@
+<?php declare(strict_types=1);
+
+/** @var array<int, array<string, mixed>> $applications */
+$applications = $applications ?? [];
+
+$pendingCount = 0;
+$approvedCount = 0;
+foreach ($applications as $application) {
+    $status = (string) ($application['status'] ?? 'pending');
+    if ($status === 'pending') {
+        $pendingCount++;
+    } elseif ($status === 'approved') {
+        $approvedCount++;
+    }
+}
+
+ob_start();
+?>
+
+<div class="admin-module-page" x-data="{ cancelOpen: false, cancelUrl: '', cancelReason: '' }">
+<?php
+dashboard_page_header([
+    'icon' => 'pending_actions',
+    'title' => lang('my_applications'),
+    'subtitle' => lang('applications_subtitle'),
+    'accent' => 'gold',
+    'actions' => '<a href="' . e(url('courses')) . '" class="courses-btn-create">'
+        . '<span class="material-symbols-outlined">explore</span>'
+        . e(lang('browse_courses'))
+        . '</a>',
+]);
+?>
+
+<div class="courses-kpi-grid">
+    <?php foreach ([
+        ['blue', 'inbox', lang('my_applications'), count($applications)],
+        ['gold', 'pending', lang('status_pending'), $pendingCount],
+        ['green', 'check_circle', lang('status_approved'), $approvedCount],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card">
+    <div class="courses-table-container">
+        <table class="courses-table courses-table--auto">
+            <thead>
+                <tr>
+                    <th><?= e(lang('course_title')) ?></th>
+                    <th><?= e(lang('status')) ?></th>
+                    <th class="hidden md:table-cell"><?= e(lang('applied_at')) ?></th>
+                    <th class="hidden lg:table-cell"><?= e(lang('start_date')) ?></th>
+                    <th class="courses-th-actions"><?= e(lang('actions')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($applications === []): ?>
+                <tr>
+                    <td colspan="5" class="courses-empty">
+                        <span class="material-symbols-outlined">inbox</span>
+                        <p><?= e(lang('no_applications')) ?></p>
+                        <a href="<?= e(url('courses')) ?>" class="courses-btn-create courses-empty-cta">
+                            <span class="material-symbols-outlined">explore</span>
+                            <?= e(lang('browse_courses')) ?>
+                        </a>
+                    </td>
+                </tr>
+                <?php else: ?>
+                <?php foreach ($applications as $application): ?>
+                <?php $status = (string) ($application['status'] ?? 'pending'); ?>
+                <tr>
+                    <td>
+                        <a href="<?= e(url('courses/' . ($application['slug'] ?? ''))) ?>" class="courses-link-title">
+                            <?= e(localized($application, 'title')) ?>
+                        </a>
+                        <p class="courses-td-muted text-label-sm mt-0.5"><?= e(localized($application, 'category_name')) ?></p>
+                    </td>
+                    <td>
+                        <span class="courses-badge courses-badge--<?= e(str_replace('_', '-', $status)) ?>">
+                            <?= e(lang('status_' . $status)) ?>
+                        </span>
+                    </td>
+                    <td class="courses-td-date hidden md:table-cell">
+                        <?= e(format_date((string) ($application['applied_at'] ?? ''))) ?>
+                    </td>
+                    <td class="courses-td-date hidden lg:table-cell">
+                        <?= e(format_date((string) ($application['start_date'] ?? ''))) ?>
+                    </td>
+                    <td class="courses-td-actions">
+                        <div class="courses-actions-row">
+                            <a href="<?= e(url('courses/' . ($application['slug'] ?? ''))) ?>" class="courses-action courses-action--approve" title="<?= e(lang('view')) ?>">
+                                <span class="material-symbols-outlined">visibility</span>
+                            </a>
+                            <?php if (in_array($status, ['pending', 'waitlisted'], true)): ?>
+                            <button type="button"
+                                    @click="cancelOpen = true; cancelUrl = <?= json_encode(url('applications/' . $application['id'] . '/cancel'), JSON_UNESCAPED_UNICODE) ?>; cancelReason = ''"
+                                    class="courses-action courses-action--reject"
+                                    title="<?= e(lang('cancel_application')) ?>">
+                                <span class="material-symbols-outlined">cancel</span>
+                            </button>
+                            <?php endif; ?>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div x-show="cancelOpen" x-cloak class="admin-modal-backdrop" @keydown.escape.window="cancelOpen = false">
+    <div class="admin-modal" role="dialog" aria-modal="true" @click.outside="cancelOpen = false">
+        <div class="admin-modal-header">
+            <div class="admin-modal-header-icon admin-modal-header-icon--edit">
+                <span class="material-symbols-outlined">cancel</span>
+            </div>
+            <div>
+                <h3 class="font-label-md text-on-surface"><?= e(lang('cancel_application')) ?></h3>
+                <p class="text-body-sm text-on-surface-variant"><?= e(lang('cancel_reason_prompt')) ?></p>
+            </div>
+        </div>
+        <form :action="cancelUrl" method="POST" class="p-4 space-y-unit-md">
+            <?= csrf_field() ?>
+            <textarea name="cancel_reason" x-model="cancelReason" required maxlength="500" rows="3"
+                      class="courses-input courses-textarea"
+                      placeholder="<?= e(lang('cancel_reason_placeholder')) ?>"></textarea>
+            <div class="flex justify-end gap-2">
+                <button type="button" @click="cancelOpen = false" class="courses-btn-ghost">
+                    <?= e(lang('close')) ?>
+                </button>
+                <button type="submit" class="courses-bulk-btn courses-bulk-btn--reject">
+                    <?= e(lang('confirm_cancel')) ?>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+</div>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('my_applications');
+require view_path('layouts/dashboard.php');

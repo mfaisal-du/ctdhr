@@ -1,0 +1,420 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Config\Database;
+use CTDHR\Models\Attendance;
+use CTDHR\Models\Certificate;
+use CTDHR\Models\CertificateTemplate;
+use CTDHR\Models\CourseAdmin;
+use PDO;
+use CTDHR\Models\Setting;
+use CTDHR\Services\AuditService;
+use CTDHR\Services\CertificateService;
+use CTDHR\Services\EmailService;
+use ZipArchive;
+
+final class CertificateController
+{
+    private AuditService $audit;
+    private CertificateService $certService;
+
+    public function __construct()
+    {
+        $this->audit = new AuditService();
+        $this->certService = new CertificateService();
+    }
+
+    public function index(): void
+    {
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $filters = [
+            'search' => trim((string) ($_GET['search'] ?? '')),
+            'course_id' => (string) ($_GET['course_id'] ?? ''),
+            'email_status' => (string) ($_GET['email_status'] ?? ''),
+            'date_from' => (string) ($_GET['date_from'] ?? ''),
+            'date_to' => (string) ($_GET['date_to'] ?? ''),
+        ];
+
+        admin_view('admin.certificates.index', [
+            'pageTitle' => lang('certificates'),
+            'result' => Certificate::findAllFiltered($filters, $page),
+            'filters' => $filters,
+            'stats' => Certificate::getStats($filters),
+            'courses' => Certificate::coursesWithCertificates(),
+        ]);
+    }
+
+    public function templates(): void
+    {
+        admin_view('admin.certificates.templates', [
+            'pageTitle' => lang('cert_templates'),
+            'templates' => CertificateTemplate::findAll(),
+        ]);
+    }
+
+    public function storeTemplate(): void
+    {
+        $name = trim($_POST['name'] ?? '');
+        if ($name === '') {
+            flash('error', lang('required_fields_missing'));
+            redirect('admin/certificates/templates');
+        }
+
+        $bgPath = 'uploads/certificates/templates/default-bg.png';
+        if (isset($_FILES['background']) && $_FILES['background']['error'] === UPLOAD_ERR_OK) {
+            $ext = strtolower(pathinfo($_FILES['background']['name'], PATHINFO_EXTENSION));
+            if (in_array($ext, ['jpg', 'jpeg', 'png', 'pdf'], true)) {
+                $dir = CTDHR_UPLOADS_CERTIFICATES . '/templates';
+                if (!is_dir($dir)) {
+                    mkdir($dir, 0755, true);
+                }
+                $filename = 'template-' . time() . '.' . $ext;
+                $bgPath = 'uploads/certificates/templates/' . $filename;
+                move_uploaded_file($_FILES['background']['tmp_name'], CTDHR_PUBLIC . '/assets/' . $bgPath);
+            }
+        }
+
+        $mappings = [
+            'participant_name' => ['x' => 0, 'y' => 82, 'size' => 22, 'field' => 'participant_name', 'align' => 'C', 'width' => 297],
+            'awarded_line' => ['x' => 0, 'y' => 108, 'size' => 11, 'text' => 'has successfully completed', 'align' => 'C', 'width' => 297, 'style' => ''],
+            'course_title' => ['x' => 0, 'y' => 120, 'size' => 16, 'field' => 'course_title', 'align' => 'C', 'width' => 297],
+            'duration_hours' => ['x' => 0, 'y' => 138, 'size' => 10, 'field' => 'duration_hours', 'prefix' => 'Duration: ', 'suffix' => ' hours', 'align' => 'C', 'width' => 297, 'style' => ''],
+            'completion_date' => ['x' => 0, 'y' => 152, 'size' => 10, 'field' => 'completion_date', 'prefix' => 'Completion Date: ', 'align' => 'C', 'width' => 297, 'style' => ''],
+            'cert_number' => ['x' => 0, 'y' => 168, 'size' => 10, 'field' => 'cert_number', 'prefix' => 'Certificate No: ', 'align' => 'C', 'width' => 297, 'style' => ''],
+            'qr_code' => ['x' => 248, 'y' => 154, 'size' => 40, 'type' => 'qr'],
+        ];
+
+        $id = CertificateTemplate::create([
+            'name' => $name,
+            'description' => trim($_POST['description'] ?? '') ?: null,
+            'background_path' => $bgPath,
+            'background_type' => str_ends_with($bgPath, '.pdf') ? 'pdf' : 'image',
+            'field_mappings' => $mappings,
+            'is_default' => isset($_POST['is_default']) ? 1 : 0,
+            'created_by' => (int) ($_SESSION['user_id'] ?? 0),
+        ]);
+
+        $this->audit->logCreate('certificate_template', $id);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/certificates/templates');
+    }
+
+    public function generateForm(): void
+    {
+        $courseId = (int) ($_GET['course_id'] ?? 0);
+        $course = $courseId > 0 ? CourseAdmin::findById($courseId) : null;
+        $eligible = [];
+        $existing = [];
+        $threshold = (new Setting())->getInt('attendance_threshold', 75);
+
+        if ($course !== null) {
+            $participants = Attendance::getApprovedParticipants($courseId);
+            foreach ($participants as $p) {
+                $userId = (int) $p['id'];
+                $eligibility = Attendance::getCertificateEligibility($userId, $courseId, $threshold);
+                $p['attendance_rate'] = $eligibility['rate'];
+                $p['cert_eligible'] = $eligibility['eligible'];
+                $p['sessions_present'] = $eligibility['present'];
+                $p['sessions_total'] = $eligibility['total'];
+
+                if (Certificate::existsForUserCourse($userId, $courseId)) {
+                    $p['existing_cert'] = Certificate::findActiveForUserCourse($userId, $courseId);
+                    $existing[] = $p;
+                    continue;
+                }
+                if ($eligibility['eligible']) {
+                    $eligible[] = $p;
+                } else {
+                    $p['ineligible_reason'] = $eligibility['total'] === 0
+                        ? lang('cert_ineligible_no_attendance')
+                        : lang('cert_ineligible_rate', ['rate' => (string) $eligibility['rate'], 'threshold' => (string) $threshold]);
+                    $existing[] = $p;
+                }
+            }
+        }
+
+        admin_view('admin.certificates.generate', [
+            'pageTitle' => lang('generate_certificates'),
+            'courses' => CourseAdmin::findAll(['status' => 'completed'], 1, 100)['items'],
+            'course' => $course,
+            'eligible' => $eligible,
+            'existing' => $existing,
+            'attendanceThreshold' => $threshold,
+            'templates' => CertificateTemplate::findAll(),
+        ]);
+    }
+
+    public function generate(): void
+    {
+        $courseId = (int) ($_POST['course_id'] ?? 0);
+        $userIds = array_map('intval', $_POST['user_ids'] ?? []);
+        $templateId = (int) ($_POST['template_id'] ?? 0);
+        $generatedBy = (int) ($_SESSION['user_id'] ?? 0);
+        $sendEmail = isset($_POST['send_email']);
+
+        $course = CourseAdmin::findById($courseId);
+        $template = $templateId > 0 ? CertificateTemplate::findById($templateId) : $this->certService->getDefaultTemplate();
+
+        if ($course === null || $template === null || $userIds === []) {
+            flash('error', lang('required_fields_missing'));
+            redirect('admin/certificates/generate');
+        }
+
+        $emailService = new EmailService();
+        $success = 0;
+        $failed = 0;
+
+        $db = \CTDHR\Config\Database::getInstance();
+        foreach ($userIds as $userId) {
+            $stmt = $db->prepare('SELECT * FROM users WHERE id = :id LIMIT 1');
+            $stmt->execute(['id' => $userId]);
+            $user = $stmt->fetch();
+            if (!$user) {
+                $failed++;
+                continue;
+            }
+
+            $result = $this->certService->generate($user, $course, $template, $generatedBy);
+            if ($result['success']) {
+                $success++;
+                if ($sendEmail && isset($result['certificate_id'])) {
+                    $this->certService->emailCertificateWithLog((int) $result['certificate_id'], $emailService);
+                }
+            } else {
+                $failed++;
+            }
+        }
+
+        flash('success', lang('certs_generated', ['success' => (string) $success, 'failed' => (string) $failed]));
+        redirect('admin/certificates');
+    }
+
+    public function export(): void
+    {
+        $filters = [
+            'search' => trim((string) ($_GET['search'] ?? '')),
+            'course_id' => (string) ($_GET['course_id'] ?? ''),
+            'email_status' => (string) ($_GET['email_status'] ?? ''),
+            'date_from' => (string) ($_GET['date_from'] ?? ''),
+            'date_to' => (string) ($_GET['date_to'] ?? ''),
+        ];
+        $rows = Certificate::exportRows($filters);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="certificates-' . date('Y-m-d') . '.csv"');
+        $out = fopen('php://output', 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($out, ['Cert Number', 'Participant', 'Email', 'Course', 'Completion', 'Valid Until', 'Emailed', 'Status']);
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                (string) ($row['cert_number'] ?? ''),
+                (string) ($row['participant_name_en'] ?? ''),
+                (string) ($row['user_email'] ?? ''),
+                localized($row, 'course_title'),
+                (string) ($row['completion_date'] ?? ''),
+                (string) ($row['valid_until'] ?? ''),
+                !empty($row['is_emailed']) ? 'yes' : 'no',
+                !empty($row['revoked_at']) ? 'revoked' : 'active',
+            ]);
+        }
+        fclose($out);
+        $this->audit->log('certificate.export', 'certificate', null, ['count' => count($rows)]);
+        exit;
+    }
+
+    public function issuanceReport(): void
+    {
+        $rows = Certificate::exportRows([]);
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="issuance-report-' . date('Y-m-d') . '.csv"');
+        $out = fopen('php://output', 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($out, ['Cert Number', 'Participant', 'Email', 'Course', 'Issued', 'Valid Until', 'Verify URL', 'Emailed', 'Email Status']);
+        foreach ($rows as $row) {
+            fputcsv($out, [
+                (string) ($row['cert_number'] ?? ''),
+                (string) ($row['participant_name_en'] ?? ''),
+                (string) ($row['user_email'] ?? ''),
+                localized($row, 'course_title'),
+                (string) ($row['generated_at'] ?? ''),
+                (string) ($row['valid_until'] ?? ''),
+                url('verify/' . ($row['verification_token'] ?? '')),
+                !empty($row['is_emailed']) ? 'yes' : 'no',
+                (string) ($row['last_email_status'] ?? ''),
+            ]);
+        }
+        fclose($out);
+        $this->audit->log('certificate.issuance_report', 'certificate', null, ['count' => count($rows)]);
+        exit;
+    }
+
+    public function bulkEmail(): void
+    {
+        $ids = array_map('intval', $_POST['certificate_ids'] ?? []);
+        if ($ids === []) {
+            $courseId = (int) ($_POST['course_id'] ?? 0);
+            $ids = Certificate::pendingEmailIds($courseId > 0 ? $courseId : null);
+        }
+        $emailService = new EmailService();
+        $result = $this->certService->bulkEmailCertificates($ids, $emailService);
+        $this->audit->log('certificate.bulk_email', 'certificate', null, $result);
+        flash('success', lang('bulk_email_result', [
+            'success' => (string) $result['success'],
+            'failed' => (string) $result['failed'],
+            'skipped' => (string) $result['skipped'],
+        ]));
+        redirect('admin/certificates');
+    }
+
+    public function bulkDownload(): void
+    {
+        $filters = [
+            'course_id' => (string) ($_GET['course_id'] ?? ''),
+            'email_status' => (string) ($_GET['email_status'] ?? ''),
+        ];
+        $ids = array_map('intval', explode(',', (string) ($_GET['ids'] ?? '')));
+        $rows = $ids !== [] && $ids !== [0]
+            ? array_filter(array_map(static fn (int $id): ?array => Certificate::findById($id), $ids))
+            : Certificate::exportRows($filters);
+
+        $zipPath = CTDHR_ROOT . '/storage/tmp/certs-' . date('Ymd-His') . '.zip';
+        $dir = dirname($zipPath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            flash('error', lang('zip_create_failed'));
+            redirect('admin/certificates');
+        }
+
+        foreach ($rows as $row) {
+            if ($row === null || empty($row['pdf_path'])) {
+                continue;
+            }
+            $disk = resolve_certificate_disk_path((string) $row['pdf_path']);
+            if ($disk !== null && is_file($disk)) {
+                $zip->addFile($disk, (string) ($row['cert_number'] ?? 'cert') . '.pdf');
+            }
+        }
+        $zip->close();
+
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="certificates-' . date('Y-m-d') . '.zip"');
+        header('Content-Length: ' . (string) filesize($zipPath));
+        readfile($zipPath);
+        @unlink($zipPath);
+        $this->audit->log('certificate.bulk_download', 'certificate', null, ['count' => count($rows)]);
+        exit;
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function preview(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $cert = Certificate::findById($id);
+        if ($cert === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/certificates');
+        }
+        $disk = resolve_certificate_disk_path((string) $cert['pdf_path']);
+        if ($disk === null || !is_file($disk)) {
+            flash('error', lang('not_found'));
+            redirect('admin/certificates');
+        }
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($disk) . '"');
+        readfile($disk);
+        exit;
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function reissue(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $result = $this->certService->reissue($id, (int) ($_SESSION['user_id'] ?? 0));
+        if ($result['success'] ?? false) {
+            flash('success', lang('cert_reissued'));
+        } else {
+            flash('error', lang($result['message_key'] ?? 'cert_reissue_failed'));
+        }
+        redirect('admin/certificates');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function revoke(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $reason = trim((string) ($_POST['reason'] ?? lang('cert_revoked_default_reason')));
+        if ($this->certService->revoke($id, $reason)) {
+            flash('success', lang('cert_revoked'));
+        } else {
+            flash('error', lang('cert_revoke_failed'));
+        }
+        redirect('admin/certificates');
+    }
+
+    public function regenerateDemo(): void
+    {
+        $defaultMappings = json_encode([
+            'participant_name' => ['x' => 0, 'y' => 82, 'size' => 22, 'field' => 'participant_name', 'align' => 'C', 'width' => 297],
+            'awarded_line' => ['x' => 0, 'y' => 108, 'size' => 11, 'text' => 'has successfully completed', 'align' => 'C', 'width' => 297, 'style' => ''],
+            'course_title' => ['x' => 0, 'y' => 120, 'size' => 16, 'field' => 'course_title', 'align' => 'C', 'width' => 297],
+            'duration_hours' => ['x' => 0, 'y' => 138, 'size' => 10, 'field' => 'duration_hours', 'prefix' => 'Duration: ', 'suffix' => ' hours', 'align' => 'C', 'width' => 297, 'style' => ''],
+            'completion_date' => ['x' => 0, 'y' => 152, 'size' => 10, 'field' => 'completion_date', 'prefix' => 'Completion Date: ', 'align' => 'C', 'width' => 297, 'style' => ''],
+            'cert_number' => ['x' => 0, 'y' => 168, 'size' => 10, 'field' => 'cert_number', 'prefix' => 'Certificate No: ', 'align' => 'C', 'width' => 297, 'style' => ''],
+            'qr_code' => ['x' => 248, 'y' => 154, 'size' => 40, 'type' => 'qr'],
+        ], JSON_THROW_ON_ERROR);
+
+        $db = Database::getInstance();
+        $db->exec(
+            'UPDATE certificate_templates
+             SET field_mappings = ' . $db->quote($defaultMappings) . ",
+                 background_path = 'uploads/certificates/templates/default-bg.jpg'
+             WHERE id = 1"
+        );
+
+        $stmt = $db->query(
+            "SELECT * FROM certificates WHERE cert_number LIKE 'CTDHR-2026-DEMO%' ORDER BY id ASC"
+        );
+
+        $count = 0;
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if ($this->certService->regeneratePdfForRecord($row)) {
+                $count++;
+            }
+        }
+
+        $this->audit->log('certificate.regenerate_demo', 'certificate', null, ['count' => $count]);
+        flash('success', lang('demo_certificates_regenerated', ['count' => (string) $count]));
+        redirect('admin/certificates');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function email(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $emailService = new EmailService();
+
+        $result = $this->certService->emailCertificateWithLog($id, $emailService);
+        if ($result['success']) {
+            flash('success', lang('cert_email_sent'));
+        } else {
+            flash('error', lang('cert_email_failed'));
+        }
+
+        redirect('admin/certificates');
+    }
+}

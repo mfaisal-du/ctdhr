@@ -1,0 +1,92 @@
+<?php declare(strict_types=1);
+
+$result = $result ?? ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
+?>
+
+<div class="admin-module-page">
+<?php
+admin_page_header([
+    'icon' => 'history',
+    'title' => lang('audit_log'),
+    'subtitle' => lang('audit_log_subtitle') ?? lang('audit_log'),
+    'accent' => 'sky',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('audit_log')],
+    ],
+]);
+?>
+
+<div class="courses-kpi-grid">
+    <div class="courses-kpi courses-kpi--blue">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined">history</span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) ($result['total'] ?? count($result['items'])) ?></span>
+            <span class="courses-kpi-label"><?= e(lang('audit_entries')) ?></span>
+        </div>
+    </div>
+</div>
+
+<div class="courses-card">
+    <form method="GET" action="<?= e(url('admin/audit')) ?>" class="courses-filters">
+        <div class="courses-search">
+            <span class="material-symbols-outlined">search</span>
+            <input type="search" name="search" value="<?= e($filters['search'] ?? '') ?>" placeholder="<?= e(lang('search_placeholder')) ?>" class="courses-search-input" autocomplete="off">
+        </div>
+        <div class="courses-filter-group">
+            <input type="text" name="action" value="<?= e($filters['action'] ?? '') ?>" placeholder="<?= e(lang('action_filter')) ?>" class="courses-search-input max-w-[11rem]">
+            <button type="submit" class="courses-btn-filter">
+                <span class="material-symbols-outlined">filter_list</span>
+                <?= e(lang('filter')) ?>
+            </button>
+            <?php if (!empty($filters['search']) || !empty($filters['action'])): ?>
+            <a href="<?= e(url('admin/audit')) ?>" class="courses-clear"><?= e(lang('clear_filters')) ?></a>
+            <?php endif; ?>
+        </div>
+    </form>
+
+    <div class="courses-table-container">
+        <table class="courses-table courses-table--auto">
+            <thead>
+                <tr>
+                    <th><?= e(lang('timestamp')) ?></th>
+                    <th><?= e(lang('user')) ?></th>
+                    <th><?= e(lang('action')) ?></th>
+                    <th><?= e(lang('entity')) ?></th>
+                    <th><?= e(lang('ip_address')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($result['items'])): ?>
+                <tr>
+                    <td colspan="5" class="courses-empty">
+                        <span class="material-symbols-outlined">history</span>
+                        <p><?= e(lang('no_audit_entries')) ?></p>
+                    </td>
+                </tr>
+                <?php else: foreach ($result['items'] as $log): ?>
+                <tr>
+                    <td class="courses-td-date whitespace-nowrap"><?= e($log['created_at']) ?></td>
+                    <td><?= e($log['username'] ?? '-') ?></td>
+                    <td class="courses-td-mono"><?= e($log['action']) ?></td>
+                    <td class="courses-td-muted"><?= e(($log['entity_type'] ?? '') . ($log['entity_id'] ? ' #' . $log['entity_id'] : '')) ?></td>
+                    <td class="courses-td-muted"><?= e($log['ip_address'] ?? '-') ?></td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if (($result['pages'] ?? 1) > 1): ?>
+    <footer class="courses-list-pagination">
+        <span><?= e(lang('page')) ?> <?= (int) $result['page'] ?> / <?= (int) $result['pages'] ?></span>
+        <div class="courses-page-links">
+            <?php for ($p = 1; $p <= min($result['pages'], 7); $p++): ?>
+            <a href="?page=<?= $p ?>&search=<?= e(urlencode($filters['search'] ?? '')) ?>&action=<?= e(urlencode($filters['action'] ?? '')) ?>"
+               class="courses-page-num<?= $p === $result['page'] ? ' is-active' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+        </div>
+    </footer>
+    <?php endif; ?>
+</div>
+</div>

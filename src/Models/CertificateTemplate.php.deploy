@@ -1,0 +1,122 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class CertificateTemplate
+{
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findAll(): array
+    {
+        $db = Database::getInstance();
+
+        return $db->query(
+            'SELECT * FROM certificate_templates ORDER BY is_default DESC, name ASC'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findById(int $id): ?array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare('SELECT * FROM certificate_templates WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function getDefault(): ?array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->query(
+            'SELECT * FROM certificate_templates WHERE is_default = 1 AND is_active = 1 LIMIT 1'
+        );
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($row) {
+            return $row;
+        }
+
+        $stmt = $db->query(
+            'SELECT * FROM certificate_templates WHERE is_active = 1 ORDER BY id ASC LIMIT 1'
+        );
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function create(array $data): int
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'INSERT INTO certificate_templates (
+                name, description, background_path, background_type, field_mappings,
+                page_width, page_height, is_default, is_active, created_by
+            ) VALUES (
+                :name, :description, :background_path, :background_type, :field_mappings,
+                :page_width, :page_height, :is_default, :is_active, :created_by
+            )'
+        );
+        $stmt->execute([
+            'name' => $data['name'],
+            'description' => $data['description'] ?? null,
+            'background_path' => $data['background_path'],
+            'background_type' => $data['background_type'] ?? 'image',
+            'field_mappings' => is_string($data['field_mappings'] ?? null)
+                ? $data['field_mappings']
+                : json_encode($data['field_mappings'] ?? [], JSON_UNESCAPED_UNICODE),
+            'page_width' => $data['page_width'] ?? 297,
+            'page_height' => $data['page_height'] ?? 210,
+            'is_default' => $data['is_default'] ?? 0,
+            'is_active' => $data['is_active'] ?? 1,
+            'created_by' => $data['created_by'] ?? null,
+        ]);
+
+        return (int) $db->lastInsertId();
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function update(int $id, array $data): bool
+    {
+        $db = Database::getInstance();
+        $allowed = ['name', 'description', 'background_path', 'background_type', 'field_mappings', 'page_width', 'page_height', 'is_default', 'is_active'];
+        $sets = [];
+        $params = ['id' => $id];
+
+        foreach ($data as $key => $value) {
+            if (!in_array($key, $allowed, true)) {
+                continue;
+            }
+            if ($key === 'field_mappings' && is_array($value)) {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+            }
+            $sets[] = "{$key} = :{$key}";
+            $params[$key] = $value;
+        }
+
+        if ($sets === []) {
+            return false;
+        }
+
+        $stmt = $db->prepare('UPDATE certificate_templates SET ' . implode(', ', $sets) . ' WHERE id = :id');
+
+        return $stmt->execute($params);
+    }
+}

@@ -1,0 +1,39 @@
+<?php declare(strict_types=1); ?>
+
+<link rel="stylesheet" href="<?= e(asset('vendor/quill/quill.snow.css')) ?>">
+
+<div class="admin-module-page admin-module-page--form">
+<?php
+admin_page_header([
+    'icon' => 'edit',
+    'title' => lang('edit_course'),
+    'subtitle' => localized($course, 'title'),
+    'accent' => 'primary',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('courses'), 'href' => url('admin/courses')],
+        ['label' => lang('edit_course')],
+    ],
+]);
+?>
+
+<div class="courses-form-shell"
+     data-msg-required="<?= e(lang('field_required')) ?>"
+     data-msg-select-category="<?= e(lang('select_category_required')) ?>"
+     data-msg-unsaved="<?= e(lang('unsaved_changes_warning')) ?>"
+     data-msg-saving="<?= e(lang('saving')) ?>"
+     data-msg-uploading="<?= e(lang('uploading')) ?>">
+    <?php require __DIR__ . '/_section-nav.php.deploy'; ?>
+
+    <form method="POST" action="<?= e(url('admin/courses/' . $course['id'] . '/update')) ?>" class="courses-form-card" id="courseForm" novalidate>
+        <?= csrf_field() ?>
+        <?php require __DIR__ . '/_form.php.deploy'; ?>
+    </form>
+
+    <?php require __DIR__ . '/_cover-section.php.deploy'; ?>
+    <?php require __DIR__ . '/_form-footer.php.deploy'; ?>
+</div>
+</div>
+
+<script src="<?= e(asset('vendor/quill/quill.js')) ?>"></script>
+<script src="<?= e(asset('js/admin-courses-form.js')) ?>"></script>

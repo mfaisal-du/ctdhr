@@ -1,0 +1,81 @@
+<?php declare(strict_types=1);
+
+/**
+ * @var string $adminPageIcon
+ * @var string $adminPageTitle
+ * @var string $adminPageSubtitle
+ * @var array<int, array{label: string, href?: string}> $adminPageBreadcrumbs
+ * @var string $adminPageAccent
+ */
+
+$adminPageIcon = $adminPageIcon ?? 'dashboard';
+$adminPageTitle = $adminPageTitle ?? '';
+$adminPageSubtitle = $adminPageSubtitle ?? '';
+$adminPageAccent = $adminPageAccent ?? 'primary';
+$adminPageActions = $adminPageActions ?? '';
+$adminPageBreadcrumbs = $adminPageBreadcrumbs ?? [
+    ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+    ['label' => $adminPageTitle],
+];
+
+$accentMap = [
+    'primary' => 'admin-page-header-accent-primary',
+    'secondary' => 'admin-page-header-accent-secondary',
+    'sky' => 'admin-page-header-accent-sky',
+    'magenta' => 'admin-page-header-accent-magenta',
+    'gold' => 'admin-page-header-accent-gold',
+    'green' => 'admin-page-header-accent-green',
+];
+$accentClass = $accentMap[$adminPageAccent] ?? $accentMap['primary'];
+?>
+<header class="admin-page-header <?= e($accentClass) ?>">
+    <div class="admin-page-header-inner">
+        <?php if (count($adminPageBreadcrumbs) > 0): ?>
+        <nav class="admin-page-breadcrumb" aria-label="Breadcrumb">
+            <ol class="flex flex-wrap items-center gap-1">
+                <?php foreach ($adminPageBreadcrumbs as $i => $crumb):
+                    $isLast = $i === count($adminPageBreadcrumbs) - 1;
+                    $label = $crumb['label'] ?? '';
+                    $href = $crumb['href'] ?? null;
+                ?>
+                <?php if ($i > 0): ?>
+                <li class="admin-page-breadcrumb-sep" aria-hidden="true">
+                    <span class="material-symbols-outlined text-[12px]"><?= is_rtl() ? 'chevron_left' : 'chevron_right' ?></span>
+                </li>
+                <?php endif; ?>
+                <li>
+                    <?php if (!$isLast && $href): ?>
+                    <a href="<?= e($href) ?>" class="admin-page-breadcrumb-link">
+                        <?php if ($i === 0): ?>
+                        <span class="material-symbols-outlined text-[14px]">dashboard</span>
+                        <?php endif; ?>
+                        <span><?= e($label) ?></span>
+                    </a>
+                    <?php else: ?>
+                    <span class="admin-page-breadcrumb-current" aria-current="page"><?= e($label) ?></span>
+                    <?php endif; ?>
+                </li>
+                <?php endforeach; ?>
+            </ol>
+        </nav>
+        <?php endif; ?>
+
+        <div class="admin-page-header-top">
+            <div class="admin-page-header-row">
+                <div class="admin-page-header-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined"><?= e($adminPageIcon) ?></span>
+                </div>
+                <div class="min-w-0 flex-1">
+                    <h1 class="admin-page-header-title"><?= e($adminPageTitle) ?></h1>
+                    <?php if ($adminPageSubtitle !== ''): ?>
+                    <p class="admin-page-header-subtitle"><?= e($adminPageSubtitle) ?></p>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php if ($adminPageActions !== ''): ?>
+            <div class="admin-page-header-actions"><?= $adminPageActions ?></div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <div class="admin-page-header-rainbow" aria-hidden="true"></div>
+</header>

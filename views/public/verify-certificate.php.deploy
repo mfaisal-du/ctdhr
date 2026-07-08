@@ -1,0 +1,431 @@
+<?php declare(strict_types=1);
+
+/** @var array<string, mixed>|null $certificate */
+$valid = $valid ?? false;
+$token = $token ?? '';
+$certificate = $certificate ?? null;
+$invalidReason = $invalidReason ?? '';
+$showForm = $showForm ?? ($token === '');
+$isVerifiedSuccess = $valid && $certificate !== null && !$showForm;
+$isRevoked = !$valid && $certificate !== null && $invalidReason === 'revoked';
+$isExpired = !$valid && $certificate !== null && $invalidReason === 'expired';
+$isInvalidRecord = $isRevoked || $isExpired;
+
+$trustFeatures = [
+    ['icon' => 'lock', 'title' => lang('verify_trust_secure_title'), 'desc' => lang('verify_trust_secure_desc'), 'tone' => 'primary'],
+    ['icon' => 'account_balance', 'title' => lang('verify_trust_official_title'), 'desc' => lang('verify_trust_official_desc'), 'tone' => 'secondary'],
+    ['icon' => 'bolt', 'title' => lang('verify_trust_instant_title'), 'desc' => lang('verify_trust_instant_desc'), 'tone' => 'sky'],
+];
+
+$invalidTips = [
+    lang('verify_certificate_invalid_tip_1'),
+    lang('verify_certificate_invalid_tip_2'),
+    lang('verify_certificate_invalid_tip_3'),
+];
+
+ob_start();
+?>
+
+<?php
+page_hero([
+    'icon' => 'verified',
+    'title' => $isVerifiedSuccess ? lang('verify_report_title') : lang('verify_certificate'),
+    'subtitle' => $isVerifiedSuccess ? lang('verify_report_hero_subtitle') : lang('verify_certificate_subtitle'),
+    'accent' => 'secondary',
+    'breadcrumbs' => [
+        ['label' => lang('home'), 'href' => url('/')],
+        ['label' => lang('verify_certificate')],
+    ],
+]);
+?>
+
+<section class="verify-section<?= $isVerifiedSuccess ? ' verify-section--report' : '' ?>">
+    <div class="verify-section-bg" aria-hidden="true"></div>
+    <div class="verify-section-orb verify-section-orb-1" aria-hidden="true"></div>
+    <div class="verify-section-orb verify-section-orb-2" aria-hidden="true"></div>
+
+    <div class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop relative">
+        <div class="grid grid-cols-1 <?= $isVerifiedSuccess ? '' : 'lg:grid-cols-12' ?> gap-gutter items-start">
+            <?php if (!$isVerifiedSuccess): ?>
+            <aside class="lg:col-span-5 reveal-fade-up" data-reveal>
+                <div class="verify-trust-panel">
+                    <div class="rainbow-accent absolute top-0 left-0 w-full rounded-t-3xl" aria-hidden="true"></div>
+                    <div class="verify-trust-panel-inner">
+                        <div class="verify-trust-badge">
+                            <img src="<?= e(university_logo()) ?>" alt="" width="20" height="20" decoding="async">
+                            <span class="verify-trust-badge-text"><?= e(lang('verify_certificate_trust_badge')) ?></span>
+                        </div>
+
+                        <div>
+                            <h2 class="verify-trust-title"><?= e(lang('verify_certificate')) ?></h2>
+                            <p class="verify-trust-lead mt-unit-sm"><?= e(lang('verify_certificate_form_intro')) ?></p>
+                        </div>
+
+                        <ol class="verify-steps" aria-label="<?= e(lang('verify_certificate')) ?>">
+                            <li class="verify-step <?= $showForm ? 'is-active' : 'is-complete' ?>">
+                                <span class="verify-step-index" aria-hidden="true">
+                                    <?php if ($showForm): ?>1<?php else: ?>
+                                    <span class="material-symbols-outlined text-[16px]">check</span>
+                                    <?php endif; ?>
+                                </span>
+                                <div class="verify-step-body">
+                                    <span class="verify-step-label"><?= e(lang('verify_certificate_step_enter')) ?></span>
+                                    <span class="verify-step-desc"><?= e(lang('verify_certificate_hint')) ?></span>
+                                </div>
+                            </li>
+                            <li class="verify-step <?= $showForm ? 'is-pending' : 'is-active' ?>">
+                                <span class="verify-step-index" aria-hidden="true">2</span>
+                                <div class="verify-step-body">
+                                    <span class="verify-step-label"><?= e(lang('verify_certificate_step_result')) ?></span>
+                                    <span class="verify-step-desc"><?= e(lang('verify_certificate_subtitle')) ?></span>
+                                </div>
+                            </li>
+                        </ol>
+                    </div>
+                </div>
+            </aside>
+            <?php endif; ?>
+
+            <div class="<?= $isVerifiedSuccess ? 'w-full max-w-3xl mx-auto' : 'lg:col-span-7' ?> space-y-unit-lg">
+                <?php if ($showForm): ?>
+                <div class="verify-form-card reveal-fade-up" data-reveal data-reveal-delay="80"
+                     x-data="{ submitting: false }">
+                    <div class="rainbow-accent absolute top-0 left-0 w-full rounded-t-3xl" aria-hidden="true"></div>
+                    <div class="verify-form-card-inner">
+                        <div>
+                            <h3 class="font-headline-sm text-headline-sm text-primary"><?= e(lang('verify_certificate_submit')) ?></h3>
+                            <p class="text-body-sm text-on-surface-variant mt-unit-xs"><?= e(lang('verify_certificate_form_intro')) ?></p>
+                        </div>
+
+                        <form class="space-y-unit-md"
+                              action="<?= e(url('verify-certificate')) ?>"
+                              method="post"
+                              @submit="submitting = true">
+                            <?= csrf_field() ?>
+                            <div>
+                                <label class="block text-label-sm text-on-surface-variant mb-unit-xs" for="verify-token">
+                                    <?= e(lang('verify_certificate_token_label')) ?>
+                                </label>
+                                <div class="verify-input-shell">
+                                    <span class="verify-input-icon material-symbols-outlined" aria-hidden="true">key</span>
+                                    <input type="text"
+                                           id="verify-token"
+                                           name="token"
+                                           required
+                                           maxlength="80"
+                                           autocomplete="off"
+                                           spellcheck="false"
+                                           class="verify-input-field"
+                                           placeholder="<?= e(lang('verify_certificate_token_placeholder')) ?>">
+                                </div>
+                                <p class="text-label-sm text-outline mt-unit-xs flex items-start gap-1.5">
+                                    <span class="material-symbols-outlined text-[16px] shrink-0 mt-0.5" aria-hidden="true">info</span>
+                                    <?= e(lang('verify_certificate_hint')) ?>
+                                </p>
+                            </div>
+
+                            <button type="submit"
+                                    class="btn-primary gap-2 w-full sm:w-auto cursor-pointer"
+                                    :disabled="submitting"
+                                    :aria-busy="submitting">
+                                <span class="material-symbols-outlined text-[20px]" x-show="!submitting" aria-hidden="true">verified</span>
+                                <span class="material-symbols-outlined text-[20px] animate-spin" x-show="submitting" x-cloak aria-hidden="true">progress_activity</span>
+                                <span x-text="submitting ? '<?= e(lang('loading')) ?>' : '<?= e(lang('verify_certificate_submit')) ?>'"></span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <?php else: ?>
+                    <?php if ($valid && $certificate !== null): ?>
+                    <?php
+                        $participantName = localized($certificate, 'participant_name');
+                        $courseTitle = localized($certificate, 'course_title');
+                        $certNumber = (string) ($certificate['cert_number'] ?? '');
+                        $completionDate = format_date((string) ($certificate['completion_date'] ?? ''));
+                        $durationHours = $certificate['duration_hours'] ?? $certificate['course_duration_hours'] ?? null;
+                        $verifiedAtIso = date('c');
+                        $verifiedAtDisplay = format_date(date('Y-m-d')) . ' · ' . date('H:i') . ' (GST)';
+
+                        $credentialType = lang('verify_report_credential_type_value');
+                        $issuerLine = sprintf(
+                            lang('verify_report_issuer_line'),
+                            lang('app_name'),
+                            lang('university')
+                        );
+
+                        $nameParts = preg_split('/\s+/u', trim($participantName)) ?: [];
+                        if (count($nameParts) >= 2) {
+                            $holderInitials = mb_strtoupper(
+                                mb_substr($nameParts[0], 0, 1) . mb_substr($nameParts[count($nameParts) - 1], 0, 1)
+                            );
+                        } elseif (count($nameParts) === 1) {
+                            $holderInitials = mb_strtoupper(mb_substr($nameParts[0], 0, 2));
+                        } else {
+                            $holderInitials = 'CT';
+                        }
+                    ?>
+                    <article class="cred-report reveal-fade-up" id="credential-verification-report" data-reveal>
+                        <header class="cred-report__header">
+                            <div class="cred-report__brand">
+                                <img src="<?= e(university_logo()) ?>"
+                                     alt="<?= e(lang('university')) ?>"
+                                     width="52"
+                                     height="52"
+                                     decoding="async"
+                                     class="cred-report__logo">
+                                <div class="cred-report__brand-text">
+                                    <p class="cred-report__eyebrow"><?= e(lang('verify_report_eyebrow')) ?></p>
+                                    <h2 class="cred-report__title"><?= e(lang('verify_report_title')) ?></h2>
+                                </div>
+                            </div>
+                            <div class="cred-report__id-block">
+                                <span class="cred-report__id-label"><?= e(lang('verify_report_verification_id')) ?></span>
+                                <code class="cred-report__id-value"><?= e($certNumber) ?></code>
+                            </div>
+                        </header>
+
+                        <div class="cred-report__status cred-report__status--valid cred-report__status--prominent" role="status">
+                            <div class="cred-report__status-badge">
+                                <span class="cred-report__status-icon material-symbols-outlined" aria-hidden="true">verified</span>
+                                <div class="cred-report__status-badge-text">
+                                    <span class="cred-report__status-eyebrow"><?= e(lang('verify_report_status_label')) ?></span>
+                                    <strong class="cred-report__status-valid"><?= e(lang('verify_report_status_valid')) ?></strong>
+                                </div>
+                            </div>
+                            <p class="cred-report__status-verified">
+                                <?= e(lang('verify_certificate_verified_on')) ?>
+                                <time datetime="<?= e($verifiedAtIso) ?>"><?= e($verifiedAtDisplay) ?></time>
+                            </p>
+                        </div>
+
+                        <section class="cred-report__summary">
+                            <article class="cred-summary-card">
+                                <div class="cred-summary-card__shine" aria-hidden="true"></div>
+
+                                <ul class="cred-summary-card__chips" aria-label="<?= e(lang('verify_report_summary_label')) ?>">
+                                    <li class="cred-summary-chip">
+                                        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">event</span>
+                                        <?= e(lang('verify_report_issued')) ?> <?= e($completionDate) ?>
+                                    </li>
+                                    <?php if ($durationHours !== null && $durationHours !== ''): ?>
+                                    <li class="cred-summary-chip">
+                                        <span class="material-symbols-outlined text-[16px]" aria-hidden="true">schedule</span>
+                                        <?= e((string) $durationHours) ?> <?= e(lang('hours')) ?>
+                                    </li>
+                                    <?php endif; ?>
+                                </ul>
+
+                                <div class="cred-summary-card__holder">
+                                    <div class="cred-summary-card__avatar" aria-hidden="true"><?= e($holderInitials) ?></div>
+                                    <p class="cred-summary-card__label"><?= e(lang('verify_report_section_holder')) ?></p>
+                                    <h3 class="cred-summary-card__name"><?= e($participantName) ?></h3>
+                                </div>
+
+                                <div class="cred-summary-card__credential">
+                                    <div class="cred-summary-card__credential-icon" aria-hidden="true">
+                                        <span class="material-symbols-outlined">workspace_premium</span>
+                                    </div>
+                                    <div class="cred-summary-card__credential-text">
+                                        <p class="cred-summary-card__label"><?= e(lang('verify_report_section_credential')) ?></p>
+                                        <h4 class="cred-summary-card__course"><?= e($courseTitle) ?></h4>
+                                        <p class="cred-summary-card__meta"><?= e($credentialType) ?></p>
+                                    </div>
+                                </div>
+
+                                <div class="cred-summary-card__issuer">
+                                    <span class="material-symbols-outlined text-[18px]" aria-hidden="true">account_balance</span>
+                                    <span class="cred-summary-card__issuer-text"><?= e($issuerLine) ?></span>
+                                </div>
+                            </article>
+                        </section>
+
+                        <footer class="cred-report__disclaimer cred-report__disclaimer--short">
+                            <p><?= e(lang('verify_report_disclaimer_short')) ?></p>
+                        </footer>
+
+                        <div class="cred-report__toolbar cred-report__toolbar--no-print">
+                            <button type="button"
+                                    class="cred-report__btn cred-report__btn--secondary"
+                                    onclick="window.print()">
+                                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">print</span>
+                                <?= e(lang('verify_report_print')) ?>
+                            </button>
+                            <?php if (!empty($certificate['course_slug'])): ?>
+                            <a href="<?= e(url('courses/' . $certificate['course_slug'])) ?>" class="cred-report__btn cred-report__btn--secondary">
+                                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">menu_book</span>
+                                <?= e(lang('view_course')) ?>
+                            </a>
+                            <?php endif; ?>
+                            <a href="<?= e(url('verify-certificate')) ?>" class="cred-report__btn cred-report__btn--primary">
+                                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">search</span>
+                                <?= e(lang('verify_certificate_verify_another')) ?>
+                            </a>
+                            <a href="<?= e(url('contact')) ?>" class="cred-report__btn cred-report__btn--ghost">
+                                <span class="material-symbols-outlined text-[18px]" aria-hidden="true">support_agent</span>
+                                <?= e(lang('verify_report_contact')) ?>
+                            </a>
+                        </div>
+                    </article>
+                    <?php elseif ($isInvalidRecord): ?>
+                    <?php
+                        $participantName = localized($certificate, 'participant_name');
+                        $courseTitle = localized($certificate, 'course_title');
+                        $certNumber = (string) ($certificate['cert_number'] ?? '');
+                        $invalidTitle = $isRevoked ? lang('certificate_revoked_title') : lang('certificate_expired_title');
+                        $invalidLead = $isRevoked ? lang('certificate_revoked_lead') : lang('certificate_expired_lead');
+                        $invalidBadge = $isRevoked ? lang('certificate_revoked_badge') : lang('certificate_expired_badge');
+                        $invalidIcon = $isRevoked ? 'block' : 'event_busy';
+                    ?>
+                    <div class="verify-result-card verify-not-found-card reveal-fade-up" data-reveal>
+                        <div class="rainbow-accent absolute top-0 left-0 w-full rounded-t-3xl opacity-70" aria-hidden="true"></div>
+                        <div class="verify-not-found-orb verify-not-found-orb-1" aria-hidden="true"></div>
+                        <div class="verify-not-found-orb verify-not-found-orb-2" aria-hidden="true"></div>
+                        <div class="verify-result-card-inner text-center">
+                            <span class="verify-not-found-badge">
+                                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">warning</span>
+                                <?= e($invalidBadge) ?>
+                            </span>
+
+                            <div class="verify-not-found-seal">
+                                <span class="material-symbols-outlined text-[34px]" aria-hidden="true"><?= e($invalidIcon) ?></span>
+                            </div>
+
+                            <h2 class="verify-not-found-title"><?= e($invalidTitle) ?></h2>
+                            <p class="verify-not-found-lead"><?= e($invalidLead) ?></p>
+
+                            <div class="verify-not-found-code-panel">
+                                <p class="verify-not-found-code-label"><?= e(lang('cert_number')) ?></p>
+                                <p class="verify-not-found-code-value"><?= e($certNumber) ?></p>
+                            </div>
+                            <div class="verify-not-found-code-panel">
+                                <p class="verify-not-found-code-label"><?= e(lang('participant_name')) ?></p>
+                                <p class="verify-not-found-code-value"><?= e($participantName) ?></p>
+                            </div>
+                            <div class="verify-not-found-code-panel">
+                                <p class="verify-not-found-code-label"><?= e(lang('course_title')) ?></p>
+                                <p class="verify-not-found-code-value"><?= e($courseTitle) ?></p>
+                            </div>
+                            <?php if ($isExpired && !empty($certificate['valid_until'])): ?>
+                            <div class="verify-not-found-code-panel">
+                                <p class="verify-not-found-code-label"><?= e(lang('valid_until')) ?></p>
+                                <p class="verify-not-found-code-value"><?= e(format_date((string) $certificate['valid_until'])) ?></p>
+                            </div>
+                            <?php endif; ?>
+
+                            <div class="verify-not-found-actions">
+                                <a href="<?= e(url('verify-certificate')) ?>" class="btn-primary gap-2 cursor-pointer">
+                                    <span class="material-symbols-outlined text-[18px]">refresh</span>
+                                    <?= e(lang('verify_certificate_verify_another')) ?>
+                                </a>
+                                <a href="<?= e(url('contact')) ?>" class="btn-outline gap-2 cursor-pointer">
+                                    <span class="material-symbols-outlined text-[18px]">support_agent</span>
+                                    <?= e(lang('verify_certificate_contact_cta')) ?>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <?php else: ?>
+                    <div class="verify-result-card verify-not-found-card reveal-fade-up" data-reveal>
+                        <div class="rainbow-accent absolute top-0 left-0 w-full rounded-t-3xl opacity-70" aria-hidden="true"></div>
+                        <div class="verify-not-found-orb verify-not-found-orb-1" aria-hidden="true"></div>
+                        <div class="verify-not-found-orb verify-not-found-orb-2" aria-hidden="true"></div>
+                        <div class="verify-result-card-inner text-center">
+                            <span class="verify-not-found-badge">
+                                <span class="material-symbols-outlined text-[16px]" aria-hidden="true">info</span>
+                                <?= e(lang('certificate_invalid')) ?>
+                            </span>
+
+                            <div class="verify-not-found-seal">
+                                <span class="material-symbols-outlined text-[34px]" aria-hidden="true">search_off</span>
+                            </div>
+
+                            <h2 class="verify-not-found-title"><?= e(lang('certificate_not_found_title')) ?></h2>
+                            <p class="verify-not-found-lead"><?= e(lang('certificate_not_found_lead')) ?></p>
+
+                            <?php if ($token !== ''): ?>
+                            <div class="verify-not-found-code-panel">
+                                <p class="verify-not-found-code-label"><?= e(lang('certificate_not_found_code_label')) ?></p>
+                                <p class="verify-not-found-code-value"><?= e($token) ?></p>
+                            </div>
+                            <?php endif; ?>
+
+                            <div class="verify-not-found-steps">
+                                <p class="verify-not-found-steps-title"><?= e(lang('certificate_not_found_next_steps')) ?></p>
+                                <ul class="verify-invalid-tips">
+                                    <?php foreach ($invalidTips as $tip): ?>
+                                    <li class="verify-invalid-tip">
+                                        <span class="material-symbols-outlined text-primary/70 text-[18px] shrink-0 mt-0.5" aria-hidden="true">tips_and_updates</span>
+                                        <span><?= e($tip) ?></span>
+                                    </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+
+                            <div class="verify-not-found-actions">
+                                <a href="<?= e(url('verify-certificate')) ?>" class="btn-primary gap-2 cursor-pointer">
+                                    <span class="material-symbols-outlined text-[18px]">refresh</span>
+                                    <?= e(lang('verify_certificate_verify_another')) ?>
+                                </a>
+                                <a href="<?= e(url('contact')) ?>" class="btn-outline gap-2 cursor-pointer">
+                                    <span class="material-symbols-outlined text-[18px]">support_agent</span>
+                                    <?= e(lang('verify_certificate_contact_cta')) ?>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <?php if (!$isVerifiedSuccess): ?>
+        <div class="verify-trust-footer mt-unit-xl reveal-fade-up" data-reveal>
+            <div class="verify-trust-footer-head">
+                <span class="verify-trust-footer-eyebrow">
+                    <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+                    <?= e(lang('verify_certificate_trust_badge')) ?>
+                </span>
+                <h2 class="verify-trust-footer-title"><?= e(lang('verify_trust_section_title')) ?></h2>
+                <p class="verify-trust-footer-lead"><?= e(lang('verify_trust_section_subtitle')) ?></p>
+            </div>
+
+            <div class="verify-trust-grid" data-stagger="60">
+                <?php foreach ($trustFeatures as $i => $feature): ?>
+                <article class="verify-trust-card verify-trust-card--<?= e($feature['tone']) ?> reveal-fade-up"
+                         data-reveal
+                         data-reveal-delay="<?= e((string) ($i * 60)) ?>">
+                    <div class="verify-trust-card-rainbow" aria-hidden="true"></div>
+                    <div class="verify-trust-card-orb" aria-hidden="true"></div>
+                    <div class="verify-trust-card-shine" aria-hidden="true"></div>
+                    <span class="verify-trust-card-index" aria-hidden="true"><?= sprintf('%02d', $i + 1) ?></span>
+                    <div class="verify-trust-card-body">
+                        <div class="verify-trust-card-icon" aria-hidden="true">
+                            <span class="material-symbols-outlined"><?= e($feature['icon']) ?></span>
+                        </div>
+                        <h3 class="verify-trust-card-title"><?= e($feature['title']) ?></h3>
+                        <p class="verify-trust-card-desc"><?= e($feature['desc']) ?></p>
+                    </div>
+                </article>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!$isVerifiedSuccess): ?>
+        <div class="verify-help-strip reveal-fade-up" data-reveal data-reveal-delay="120">
+            <p class="verify-help-strip-text">
+                <span class="material-symbols-outlined text-[18px] align-middle me-1 text-primary" aria-hidden="true">support_agent</span>
+                <?= e(lang('verify_certificate_need_help')) ?>
+            </p>
+            <a href="<?= e(url('contact')) ?>" class="verify-help-strip-link">
+                <?= e(lang('verify_certificate_contact_cta')) ?>
+                <span class="material-symbols-outlined text-[18px]"><?= is_rtl() ? 'west' : 'east' ?></span>
+            </a>
+        </div>
+        <?php endif; ?>
+    </div>
+</section>
+
+<?php
+$content = ob_get_clean();
+require view_path('layouts/main.php');

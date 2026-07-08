@@ -1,0 +1,26 @@
+<?php
+
+declare(strict_types=1);
+
+if (!defined('CTDHR_ROOT')) {
+    define('CTDHR_ROOT', dirname(__DIR__));
+}
+
+define('CTDHR_CONFIG', CTDHR_ROOT . '/config');
+define('CTDHR_PUBLIC', CTDHR_ROOT . '/public');
+define('CTDHR_SRC', CTDHR_ROOT . '/src');
+define('CTDHR_VIEWS', CTDHR_ROOT . '/views');
+define('CTDHR_LANG', CTDHR_ROOT . '/lang');
+define('CTDHR_ROUTES', CTDHR_ROOT . '/routes');
+define('CTDHR_STORAGE', CTDHR_ROOT . '/storage');
+define('CTDHR_DATABASE', CTDHR_ROOT . '/database');
+
+define('CTDHR_ASSETS', CTDHR_PUBLIC . '/assets');
+define('CTDHR_UPLOADS', CTDHR_ASSETS . '/uploads');
+define('CTDHR_UPLOADS_COURSES', CTDHR_UPLOADS . '/courses');
+define('CTDHR_UPLOADS_CATEGORIES', CTDHR_UPLOADS . '/categories');
+define('CTDHR_UPLOADS_CERTIFICATES', CTDHR_UPLOADS . '/certificates');
+define('CTDHR_UPLOADS_PROFILES', CTDHR_UPLOADS . '/profiles');
+
+define('CTDHR_LOGS', CTDHR_STORAGE . '/logs');
+define('CTDHR_CACHE', CTDHR_STORAGE . '/cache');

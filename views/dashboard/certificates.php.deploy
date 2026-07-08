@@ -1,0 +1,95 @@
+<?php declare(strict_types=1);
+
+/** @var array<int, array<string, mixed>> $certificates */
+$certificates = $certificates ?? [];
+
+ob_start();
+?>
+
+<div class="admin-module-page" x-data="{ previewOpen: false, previewUrl: '', previewTitle: '' }">
+<?php
+dashboard_page_header([
+    'icon' => 'verified',
+    'title' => lang('my_certificates'),
+    'subtitle' => lang('certificates_subtitle'),
+    'accent' => 'gold',
+]);
+?>
+
+<?php if ($certificates === []): ?>
+<div class="courses-card">
+    <div class="courses-empty">
+        <span class="material-symbols-outlined">verified</span>
+        <p><?= e(lang('no_certificates')) ?></p>
+    </div>
+</div>
+<?php else: ?>
+<div class="dashboard-cert-grid">
+    <?php foreach ($certificates as $certificate): ?>
+    <?php $pdfUrl = certificate_pdf_url((string) ($certificate['pdf_path'] ?? ''), (int) ($certificate['id'] ?? 0)); ?>
+    <article class="dashboard-cert-card">
+        <div class="dashboard-cert-card-hero">
+            <span class="material-symbols-outlined">verified</span>
+        </div>
+        <div class="p-5 space-y-3">
+            <h3 class="font-label-md text-on-surface line-clamp-2">
+                <?= e(localized($certificate, 'course_title')) ?>
+            </h3>
+            <dl class="text-label-sm space-y-2 text-on-surface-variant">
+                <div class="flex justify-between gap-2">
+                    <dt><?= e(lang('cert_number')) ?></dt>
+                    <dd class="font-mono text-on-surface text-label-sm"><?= e((string) ($certificate['cert_number'] ?? '')) ?></dd>
+                </div>
+                <div class="flex justify-between gap-2">
+                    <dt><?= e(lang('completion_date')) ?></dt>
+                    <dd class="text-on-surface"><?= e(format_date((string) ($certificate['completion_date'] ?? ''))) ?></dd>
+                </div>
+            </dl>
+            <div class="flex flex-wrap gap-2 pt-2">
+                <?php if ($pdfUrl !== ''): ?>
+                <button type="button"
+                        @click="previewOpen = true; previewUrl = <?= json_encode($pdfUrl) ?>; previewTitle = <?= json_encode(localized($certificate, 'course_title'), JSON_UNESCAPED_UNICODE) ?>"
+                        class="courses-btn-secondary courses-btn-secondary--sm flex-1 justify-center cursor-pointer">
+                    <span class="material-symbols-outlined">visibility</span>
+                    <?= e(lang('preview')) ?>
+                </button>
+                <a href="<?= e($pdfUrl) ?>" target="_blank" rel="noopener" class="courses-btn-create courses-btn-secondary--sm flex-1 justify-center">
+                    <span class="material-symbols-outlined">download</span>
+                    <?= e(lang('download')) ?>
+                </a>
+                <?php endif; ?>
+                <a href="<?= e(url('verify/' . ($certificate['verification_token'] ?? ''))) ?>" class="courses-btn-secondary courses-btn-secondary--sm flex-1 justify-center">
+                    <span class="material-symbols-outlined">policy</span>
+                    <?= e(lang('verify')) ?>
+                </a>
+            </div>
+        </div>
+    </article>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<div x-show="previewOpen" x-cloak class="admin-modal-backdrop" @keydown.escape.window="previewOpen = false">
+    <div class="admin-modal admin-modal--lg" @click.outside="previewOpen = false">
+        <div class="admin-modal-header">
+            <div class="admin-modal-header-icon">
+                <span class="material-symbols-outlined">verified</span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h3 class="font-label-md text-on-surface truncate" x-text="previewTitle"></h3>
+            </div>
+            <button type="button" class="admin-modal-close" @click="previewOpen = false" aria-label="<?= e(lang('close')) ?>">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="admin-modal-body p-4">
+            <iframe :src="previewUrl" class="w-full h-[70vh] rounded-xl border border-outline-variant/30" title="<?= e(lang('preview')) ?>"></iframe>
+        </div>
+    </div>
+</div>
+</div>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('my_certificates');
+require view_path('layouts/dashboard.php');

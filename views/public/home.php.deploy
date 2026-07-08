@@ -1,0 +1,438 @@
+<?php declare(strict_types=1);
+
+use CTDHR\Controllers\CourseController;
+
+$homeData = CourseController::homeData();
+$featuredCourses = $homeData['featuredCourses'];
+$categories = $homeData['categories'];
+$stats = $homeData['stats'];
+
+ob_start();
+?>
+
+<!-- Hero Section -->
+<?php $heroParts = hero_title_parts(); ?>
+<header class="hero-home relative w-full overflow-hidden">
+    <div class="hero-home-grid absolute inset-0" aria-hidden="true"></div>
+    <div class="hero-mesh absolute inset-0 opacity-80 pointer-events-none" aria-hidden="true"></div>
+    <div class="hero-home-glow w-[28rem] h-[28rem] bg-primary/10 -top-32 <?= is_rtl() ? '-left-32' : '-right-32' ?>" data-parallax-orb="0.12" aria-hidden="true"></div>
+    <div class="hero-home-glow w-56 h-56 bg-secondary/15 bottom-0 <?= is_rtl() ? 'right-1/4' : 'left-1/4' ?>" style="animation-delay: 3s" aria-hidden="true"></div>
+
+    <div class="relative max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop py-12 md:py-20 lg:py-24">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-unit-xl lg:gap-12 items-center">
+            <div class="z-10 space-y-unit-lg">
+                <div class="reveal-fade-up hero-brand-badge" data-reveal>
+                    <img src="<?= e(university_logo()) ?>" alt="" class="hero-brand-badge-logo" width="28" height="28" decoding="async" aria-hidden="true">
+                    <span class="hero-brand-badge-university"><?= e(lang('university')) ?></span>
+                    <span class="hero-brand-badge-sep" aria-hidden="true">|</span>
+                    <span class="hero-brand-badge-app"><?= e(lang('app_name')) ?></span>
+                </div>
+
+                <h1 class="reveal-fade-up font-headline-lg-mobile text-headline-lg-mobile md:font-headline-xl md:text-headline-xl leading-[1.15] tracking-tight" data-reveal data-reveal-delay="80">
+                    <span class="hero-title-lead"><?= e($heroParts['lead']) ?></span>
+                    <?php if ($heroParts['accent'] !== ''): ?>
+                    <span class="hero-title-accent"><?= e($heroParts['accent']) ?></span>
+                    <?php endif; ?>
+                </h1>
+
+                <p class="reveal-fade-up hero-subtitle" data-reveal data-reveal-delay="160">
+                    <?= e(lang('hero_subtitle')) ?>
+                </p>
+
+                <div class="reveal-fade-up flex flex-wrap items-center gap-unit-md" data-reveal data-reveal-delay="240">
+                    <a href="<?= e(url('courses')) ?>" class="btn-primary" data-magnetic>
+                        <span><?= e(lang('browse_courses')) ?></span>
+                        <span class="btn-icon-circle">
+                            <span class="material-symbols-outlined text-[18px]"><?= is_rtl() ? 'arrow_back' : 'arrow_forward' ?></span>
+                        </span>
+                    </a>
+                    <a href="<?= e(url('about')) ?>" class="btn-outline" data-magnetic>
+                        <span class="material-symbols-outlined text-[20px]">info</span>
+                        <span><?= e(lang('about')) ?></span>
+                    </a>
+                </div>
+
+                <div class="reveal-fade-up flex flex-wrap gap-unit-sm pt-unit-sm" data-reveal data-reveal-delay="320">
+                    <div class="hero-stat-chip">
+                        <span class="material-symbols-outlined text-primary text-[18px]">menu_book</span>
+                        <span class="font-label-sm text-on-surface-variant"><?= e((string) ($stats['total_courses'] ?? 0)) ?>+ <?= e(lang('courses')) ?></span>
+                    </div>
+                    <div class="hero-stat-chip">
+                        <span class="material-symbols-outlined text-secondary text-[18px]">verified</span>
+                        <span class="font-label-sm text-on-surface-variant"><?= e((string) ($stats['total_certificates'] ?? 0)) ?>+ <?= e(lang('certificates')) ?></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="reveal-scale hero-frame-wrap relative hidden md:block" data-reveal data-reveal-delay="180" data-hero-tilt>
+                <div class="hero-frame-rainbow" aria-hidden="true"></div>
+                <div class="hero-frame-ring" aria-hidden="true"></div>
+                <div class="hero-frame hero-3d-card aspect-[1.27] bg-surface-container" data-hero-tilt-inner>
+                    <div class="hero-frame-media" aria-hidden="true">
+                        <?= portal_img(['design' => 'hero', 'alt' => lang('university'), 'priority' => true, 'sizes' => '(min-width: 1024px) 50vw, 100vw', 'class' => 'portal-img-cover']) ?>
+                    </div>
+                    <div class="absolute inset-0 bg-gradient-to-tr from-primary/50 via-transparent to-transparent pointer-events-none mix-blend-multiply opacity-60"></div>
+                    <div class="absolute inset-0 bg-gradient-to-t from-primary/70 via-transparent to-transparent pointer-events-none"></div>
+                    <div class="absolute bottom-4 inset-x-4 flex items-center justify-between gap-unit-sm">
+                        <div class="glass-card px-unit-md py-2 rounded-xl flex items-center gap-unit-sm">
+                            <span class="material-symbols-outlined text-secondary text-[20px]" style="font-variation-settings: 'FILL' 1;">school</span>
+                            <div>
+                                <div class="font-label-sm text-primary leading-tight"><?= e(lang('university')) ?></div>
+                                <div class="text-[11px] text-on-surface-variant"><?= e(lang('footer_tagline')) ?></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rainbow-accent w-full" aria-hidden="true"></div>
+</header>
+
+<!-- Announcements — news ticker (managed in Admin → News Ticker) -->
+<?php
+$tickerItems = $tickerItems ?? [];
+if ($tickerItems !== []) {
+    $tickerItems = array_merge($tickerItems, $tickerItems);
+}
+?>
+<?php if ($tickerItems !== []): ?>
+<section class="news-ticker" aria-label="<?= e(lang('announcements')) ?>"
+         x-data="{ paused: false }"
+         @mouseenter="paused = true"
+         @mouseleave="paused = false"
+         @focusin="paused = true"
+         @focusout="paused = false">
+    <div class="news-ticker-rainbow" aria-hidden="true"></div>
+    <div class="news-ticker-inner">
+        <div class="news-ticker-label">
+            <span class="news-ticker-label-pulse" aria-hidden="true"></span>
+            <span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">campaign</span>
+            <span><?= e(lang('announcements')) ?></span>
+        </div>
+        <div class="news-ticker-viewport">
+            <div class="news-ticker-track" :class="{ 'is-paused': paused }">
+                <?php foreach ($tickerItems as $item): ?>
+                <a href="<?= e($item['href']) ?>" class="news-ticker-item news-ticker-item-<?= e($item['tone']) ?>">
+                    <span class="material-symbols-outlined news-ticker-item-icon"><?= e($item['icon']) ?></span>
+                    <span class="news-ticker-item-title"><?= e($item['title']) ?></span>
+                    <span class="news-ticker-item-sep" aria-hidden="true">—</span>
+                    <span class="news-ticker-item-text"><?= e($item['text']) ?></span>
+                    <span class="news-ticker-item-dot" aria-hidden="true"></span>
+                </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+</section>
+<?php endif; ?>
+
+<!-- Stats Showcase -->
+<?php
+$statsItems = [
+    [
+        'value' => (int) ($stats['total_courses'] ?? 0),
+        'label' => lang('total_courses'),
+        'icon' => 'menu_book',
+        'iconClass' => 'stats-card-icon-primary',
+        'glow' => 'bg-primary-fixed/50',
+    ],
+    [
+        'value' => (int) ($stats['total_certificates'] ?? 0),
+        'label' => lang('total_certificates'),
+        'icon' => 'workspace_premium',
+        'iconClass' => 'stats-card-icon-gold',
+        'glow' => 'bg-status-certified/50',
+    ],
+    [
+        'value' => (int) ($stats['participants_trained'] ?? 0),
+        'label' => lang('participants_trained'),
+        'icon' => 'groups',
+        'iconClass' => 'stats-card-icon-secondary',
+        'glow' => 'bg-secondary-fixed/50',
+    ],
+    [
+        'value' => (int) ($stats['completed_courses'] ?? 0),
+        'label' => lang('completed_courses'),
+        'icon' => 'task_alt',
+        'iconClass' => 'stats-card-icon-sky',
+        'glow' => 'bg-accent-sky/50',
+    ],
+];
+$statsBg = graduation_overlay_image();
+?>
+<section class="stats-showcase py-6 md:py-8" data-parallax-section>
+    <img src="<?= e($statsBg) ?>" alt="" class="stats-showcase-bg" data-parallax-bg="0.45" loading="lazy" decoding="async" aria-hidden="true">
+    <div class="du-overlay-scrim" aria-hidden="true"></div>
+    <div class="stats-showcase-pattern" aria-hidden="true"></div>
+    <div class="stats-showcase-orb stats-showcase-orb-1" data-parallax-orb="0.15" aria-hidden="true"></div>
+    <div class="stats-showcase-orb stats-showcase-orb-2" data-parallax-orb="0.25" aria-hidden="true"></div>
+    <div class="stats-showcase-shine" aria-hidden="true"></div>
+
+    <div class="relative max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop">
+        <div class="stats-showcase-header mb-unit-md md:mb-unit-lg">
+            <div class="reveal-fade-up stats-showcase-badge" data-reveal>
+                <span class="stats-showcase-badge-dot" aria-hidden="true"></span>
+                <span class="material-symbols-outlined text-[14px] text-secondary-fixed" style="font-variation-settings: 'FILL' 1;">insights</span>
+                <span class="stats-showcase-badge-text"><?= e(lang('impact_stats')) ?></span>
+            </div>
+            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-unit-sm mt-unit-sm">
+                <div class="min-w-0">
+                    <h2 class="reveal-fade-up stats-showcase-title" data-reveal data-reveal-delay="60">
+                        <?= e(lang('impact_section_title')) ?>
+                    </h2>
+                    <p class="reveal-fade-up stats-showcase-lead hidden sm:block" data-reveal data-reveal-delay="100">
+                        <?= e(lang('impact_stats_subtitle')) ?>
+                    </p>
+                </div>
+                <p class="reveal-fade-up stats-showcase-subtitle lg:max-w-xs lg:text-end" data-reveal data-reveal-delay="140">
+                    <?= e(lang('impact_section_subtitle')) ?>
+                </p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-unit-sm" data-stagger="90">
+            <?php foreach ($statsItems as $i => $item): ?>
+            <div class="stats-card" data-stagger-item>
+                <div class="stats-card-glow <?= e($item['glow']) ?>" aria-hidden="true"></div>
+                <div class="stats-card-icon <?= e($item['iconClass']) ?>">
+                    <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;"><?= e($item['icon']) ?></span>
+                </div>
+                <div class="stats-card-body">
+                    <div class="stats-card-value stat-counter" data-counter="<?= e((string) $item['value']) ?>" data-counter-suffix="+">0+</div>
+                    <div class="stats-card-label"><?= e($item['label']) ?></div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <div class="rainbow-accent w-full absolute bottom-0 left-0 h-[3px] opacity-90" aria-hidden="true"></div>
+</section>
+
+<!-- Browse by category -->
+<?php if (!empty($categories)):
+    $totalCategoryCourses = array_sum(array_map(
+        static fn (array $row): int => (int) ($row['public_course_count'] ?? 0),
+        $categories
+    ));
+?>
+<section class="portal-showcase categories-showcase">
+    <div class="categories-showcase-pattern portal-showcase__pattern" aria-hidden="true"></div>
+    <div class="portal-showcase__container">
+        <header class="portal-showcase__header reveal-fade-up" data-reveal>
+            <div class="portal-showcase__badge">
+                <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">category</span>
+                <span><?= e(lang('categories')) ?></span>
+                <span class="portal-showcase__count"><?= e((string) count($categories)) ?></span>
+                <span class="portal-showcase__badge-sep" aria-hidden="true">·</span>
+                <span><?= e(lang('open_courses')) ?></span>
+                <span class="portal-showcase__count"><?= e((string) $totalCategoryCourses) ?></span>
+            </div>
+            <div class="portal-showcase__toolbar">
+                <div class="portal-showcase__intro">
+                    <h2 class="portal-showcase__title"><?= e(lang('browse_by_category')) ?></h2>
+                    <p class="portal-showcase__subtitle"><?= e(lang('categories_home_subtitle')) ?></p>
+                </div>
+                <div class="portal-showcase__actions">
+                    <div class="category-carousel-nav" data-carousel-nav>
+                        <button type="button" class="category-carousel-btn" data-carousel-prev aria-label="<?= e(lang('previous')) ?>" disabled>
+                            <span class="material-symbols-outlined text-[20px]"><?= is_rtl() ? 'chevron_right' : 'chevron_left' ?></span>
+                        </button>
+                        <button type="button" class="category-carousel-btn" data-carousel-next aria-label="<?= e(lang('next')) ?>">
+                            <span class="material-symbols-outlined text-[20px]"><?= is_rtl() ? 'chevron_left' : 'chevron_right' ?></span>
+                        </button>
+                    </div>
+                    <a href="<?= e(url('courses')) ?>" class="view-all-btn group">
+                        <span class="view-all-btn-icon"><span class="material-symbols-outlined text-[16px]">grid_view</span></span>
+                        <?= e(lang('view_all')) ?>
+                        <span class="material-symbols-outlined text-[18px] transition-transform duration-300 group-hover:translate-x-1"><?= is_rtl() ? 'chevron_left' : 'chevron_right' ?></span>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <div class="portal-showcase__body category-carousel reveal-fade-up" data-reveal data-reveal-delay="80" data-category-carousel>
+            <div class="category-carousel-fade category-carousel-fade-start" aria-hidden="true"></div>
+            <div class="category-carousel-fade category-carousel-fade-end" aria-hidden="true"></div>
+
+            <div
+                class="category-carousel-viewport"
+                data-carousel-viewport
+                tabindex="0"
+                role="region"
+                aria-roledescription="carousel"
+                aria-label="<?= e(lang('browse_by_category')) ?>">
+                <div class="category-carousel-track" data-carousel-track>
+                    <?php foreach ($categories as $category): ?>
+                    <div class="category-carousel-slide" role="group" aria-roledescription="slide">
+                        <?php require view_path('layouts/components/category-card.php'); ?>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <div class="category-carousel-footer">
+                <div class="category-carousel-dots" data-carousel-dots role="tablist" aria-label="<?= e(lang('browse_by_category')) ?>"></div>
+                <span class="category-carousel-counter" data-carousel-counter aria-live="polite"></span>
+            </div>
+        </div>
+    </div>
+</section>
+<?php endif; ?>
+
+<!-- Featured Courses -->
+<section class="portal-showcase courses-showcase">
+    <div class="courses-showcase-bg-pattern portal-showcase__pattern" aria-hidden="true"></div>
+    <div class="portal-showcase__container">
+        <header class="portal-showcase__header reveal-fade-up" data-reveal>
+            <div class="portal-showcase__badge">
+                <span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">menu_book</span>
+                <span><?= e(lang('courses')) ?></span>
+                <span class="portal-showcase__count"><?= e((string) ($stats['total_courses'] ?? 0)) ?></span>
+            </div>
+            <div class="portal-showcase__toolbar">
+                <div class="portal-showcase__intro">
+                    <h2 class="portal-showcase__title"><?= e(lang('featured_courses')) ?></h2>
+                    <p class="portal-showcase__subtitle"><?= e(lang('featured_courses_subtitle')) ?></p>
+                </div>
+                <div class="portal-showcase__actions">
+                    <a href="<?= e(url('courses')) ?>" class="view-all-btn group">
+                        <span class="view-all-btn-icon"><span class="material-symbols-outlined text-[16px]">arrow_outward</span></span>
+                        <?= e(lang('view_all')) ?>
+                        <span class="material-symbols-outlined text-[18px] transition-transform duration-300 group-hover:translate-x-1"><?= is_rtl() ? 'chevron_left' : 'chevron_right' ?></span>
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <?php if (!empty($featuredCourses)): ?>
+        <div class="portal-showcase__body hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-unit-lg" data-stagger="100">
+            <?php foreach ($featuredCourses as $i => $course):
+                $cardIndex = $i;
+                require view_path('layouts/components/course-card.php');
+            endforeach; ?>
+        </div>
+        <div class="portal-showcase__body flex md:hidden overflow-x-auto gap-unit-md no-scrollbar" data-stagger="80">
+            <?php foreach ($featuredCourses as $i => $course):
+                $cardIndex = $i;
+                $compact = true;
+            ?>
+            <div class="flex-shrink-0 w-[18.5rem]" data-stagger-item>
+                <?php require view_path('layouts/components/course-card.php'); ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php else: ?>
+        <div class="portal-showcase__body courses-empty-state" data-reveal>
+            <span class="material-symbols-outlined text-[40px] text-primary/40">school</span>
+            <p class="font-body-md text-on-surface-variant"><?= e(lang('no_courses')) ?></p>
+            <a href="<?= e(url('contact')) ?>" class="btn-outline mt-unit-sm"><?= e(lang('contact')) ?></a>
+        </div>
+        <?php endif; ?>
+    </div>
+</section>
+
+<!-- Recently Completed — luxury achievement showcase -->
+<?php
+$completedCount = (int) ($stats['completed_courses'] ?? 0);
+$participantsCount = (int) ($stats['participants_trained'] ?? 0);
+$certificatesCount = (int) ($stats['total_certificates'] ?? 0);
+$totalCoursesCount = (int) ($stats['total_courses'] ?? 0);
+$completionRate = $totalCoursesCount > 0 ? min(100, (int) round(($completedCount / $totalCoursesCount) * 100)) : 0;
+$completedBg = asset('images/du/2025/du2025-training-01.jpg');
+$completedFront = 'du/2025/du2025-gallery-07.jpg';
+?>
+<section class="completed-showcase hidden md:block relative overflow-hidden" data-parallax-section>
+    <img src="<?= e($completedBg) ?>" alt="" class="completed-showcase-bg" data-parallax-bg="0.35" loading="lazy" decoding="async" aria-hidden="true">
+    <div class="completed-showcase-scrim" aria-hidden="true"></div>
+    <div class="completed-showcase-pattern" aria-hidden="true"></div>
+    <div class="completed-showcase-orb completed-showcase-orb-gold" data-parallax-orb="0.18" aria-hidden="true"></div>
+    <div class="completed-showcase-orb completed-showcase-orb-sky" data-parallax-orb="0.12" aria-hidden="true"></div>
+
+    <div class="relative max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop py-unit-xl md:py-12">
+        <div class="completed-showcase-header reveal-fade-up" data-reveal>
+            <div class="completed-showcase-badge">
+                <span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">task_alt</span>
+                <span><?= e(lang('recent_completed')) ?></span>
+            </div>
+            <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-unit-md mt-unit-sm">
+                <div>
+                    <h2 class="completed-showcase-title"><?= e(lang('recent_completed')) ?></h2>
+                    <p class="completed-showcase-lead"><?= e(lang('recent_completed_subtitle')) ?></p>
+                </div>
+                <a href="<?= e(url('courses?status=completed')) ?>" class="completed-showcase-link view-all-btn group">
+                    <span class="view-all-btn-icon"><span class="material-symbols-outlined text-[16px]">arrow_outward</span></span>
+                    <?= e(lang('view_all')) ?>
+                    <span class="material-symbols-outlined text-[18px] transition-transform duration-300 group-hover:translate-x-1"><?= is_rtl() ? 'chevron_left' : 'chevron_right' ?></span>
+                </a>
+            </div>
+        </div>
+
+        <div class="completed-showcase-stage grid grid-cols-1 lg:grid-cols-2 gap-unit-xl lg:gap-12 items-center mt-unit-lg md:mt-unit-xl">
+            <div class="completed-showcase-metrics-col reveal-fade-up" data-reveal data-reveal-delay="80">
+                <div class="completed-hero-counter">
+                    <div class="completed-hero-ring completed-hero-ring-outer" aria-hidden="true"></div>
+                    <div class="completed-hero-ring completed-hero-ring-inner" aria-hidden="true"></div>
+                    <div class="completed-hero-core">
+                        <div class="completed-hero-value stat-counter" data-counter="<?= e((string) $completedCount) ?>" data-counter-suffix="+">0+</div>
+                        <div class="completed-hero-label"><?= e(lang('completed_courses')) ?></div>
+                        <?php if ($completionRate > 0): ?>
+                        <div class="completed-hero-rate">
+                            <span class="completed-hero-rate-bar" style="--rate: <?= e((string) $completionRate) ?>%"></span>
+                            <span class="completed-hero-rate-text"><?= e((string) $completionRate) ?>% <?= e(lang('completed_courses')) ?></span>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <div class="completed-metric-grid" data-stagger="90">
+                    <div class="completed-metric-tile" data-stagger-item>
+                        <span class="material-symbols-outlined completed-metric-icon completed-metric-icon-green">groups</span>
+                        <div class="completed-metric-value stat-counter" data-counter="<?= e((string) $participantsCount) ?>" data-counter-suffix="+">0+</div>
+                        <div class="completed-metric-label"><?= e(lang('participants_trained')) ?></div>
+                    </div>
+                    <div class="completed-metric-tile" data-stagger-item>
+                        <span class="material-symbols-outlined completed-metric-icon completed-metric-icon-gold">workspace_premium</span>
+                        <div class="completed-metric-value stat-counter" data-counter="<?= e((string) $certificatesCount) ?>" data-counter-suffix="+">0+</div>
+                        <div class="completed-metric-label"><?= e(lang('total_certificates')) ?></div>
+                    </div>
+                    <div class="completed-metric-tile completed-metric-tile-wide" data-stagger-item>
+                        <span class="material-symbols-outlined completed-metric-icon completed-metric-icon-sky">verified</span>
+                        <div>
+                            <div class="completed-metric-value-sm"><?= e(lang('my_certificates')) ?></div>
+                            <div class="completed-metric-label"><?= e(lang('verify_certificate_subtitle')) ?></div>
+                        </div>
+                        <a href="<?= e(url('verify-certificate')) ?>" class="completed-metric-cta">
+                            <span class="material-symbols-outlined text-[18px]"><?= is_rtl() ? 'arrow_back' : 'arrow_forward' ?></span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="completed-showcase-visual reveal-scale" data-reveal data-reveal-delay="120">
+                <div class="completed-visual-glow" aria-hidden="true"></div>
+                <div class="completed-visual-frame">
+                    <?= portal_img(['path' => $completedFront, 'alt' => lang('recent_completed'), 'sizes' => '(min-width: 1024px) 45vw, 100vw', 'class' => 'completed-visual-image']) ?>
+                    <div class="completed-visual-overlay" aria-hidden="true"></div>
+                    <div class="completed-visual-badge">
+                        <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+                        <div>
+                            <div class="completed-visual-badge-title"><?= e(lang('impact_section_title')) ?></div>
+                            <div class="completed-visual-badge-sub"><?= e(lang('impact_section_subtitle')) ?></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+
+    <div class="rainbow-accent w-full absolute bottom-0 left-0 h-[2px] opacity-80" aria-hidden="true"></div>
+</section>
+
+<?php
+$content = ob_get_clean();
+require view_path('layouts/main.php');

@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Services\StatService;
+
+final class DashboardController
+{
+    private StatService $stats;
+
+    public function __construct()
+    {
+        $this->stats = new StatService();
+    }
+
+    public function index(): void
+    {
+        admin_view('admin.dashboard', [
+            'pageTitle' => lang('admin_dashboard'),
+            'metrics' => $this->stats->getDashboardMetrics(),
+            'applicationsChart' => $this->stats->getApplicationsChart(),
+            'coursesChart' => $this->stats->getCoursesByStatusChart(),
+            'applicationsStatusChart' => $this->stats->getApplicationsByStatusChart(),
+            'certificatesChart' => $this->stats->getCertificatesChart(),
+            'dashboardInsights' => $this->stats->getDashboardInsights(),
+            'dashboardAnalytics' => $this->stats->getDashboardAnalytics(),
+            'recentActivity' => $this->stats->getRecentActivity(),
+        ]);
+    }
+
+    public function printReport(): void
+    {
+        view('admin.dashboard.print', $this->dashboardReportData());
+        exit;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function dashboardReportData(): array
+    {
+        return [
+            'pageTitle' => lang('print_dashboard_title'),
+            'metrics' => $this->stats->getDashboardMetrics(),
+            'applicationsChart' => $this->stats->getApplicationsChart(),
+            'coursesChart' => $this->stats->getCoursesByStatusChart(),
+            'applicationsStatusChart' => $this->stats->getApplicationsByStatusChart(),
+            'certificatesChart' => $this->stats->getCertificatesChart(),
+            'dashboardInsights' => $this->stats->getDashboardInsights(),
+            'dashboardAnalytics' => $this->stats->getDashboardAnalytics(),
+            'preparedBy' => (string) ($_SESSION['user_name'] ?? lang('system')),
+            'printedAt' => format_date(date('Y-m-d')) . ' · ' . date('H:i'),
+        ];
+    }
+}

@@ -1,0 +1,658 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class Attendance
+{
+    /** @var array<int, string> */
+    public const ATTENDANCE_STATUSES = ['scheduled', 'in_progress', 'completed'];
+
+    /** @var array<int, string> */
+    public const MARKING_STATUSES = ['not_started', 'in_progress', 'complete'];
+
+    /** @var array<int, string> */
+    public const SESSION_STATUSES = ['present', 'absent', 'excused'];
+
+    private static ?bool $hasStatusColumn = null;
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getCoursesWithSessions(): array
+    {
+        return self::findCoursesPaginated([], 1, 500)['items'];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public static function findCoursesPaginated(array $filters = [], int $page = 1, int $perPage = 12): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(50, $perPage));
+        $db = Database::getInstance();
+
+        $where = [
+            'c.deleted_at IS NULL',
+            "c.status IN ('scheduled', 'in_progress', 'completed')",
+        ];
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(c.title_en LIKE ? OR c.title_ar LIKE ?)';
+            array_push($params, $term, $term);
+        }
+
+        if (!empty($filters['status']) && in_array($filters['status'], self::ATTENDANCE_STATUSES, true)) {
+            $where[] = 'c.status = ?';
+            $params[] = (string) $filters['status'];
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $innerSql = "SELECT c.id, c.title_en, c.title_ar, c.session_dates, c.status, c.start_date, c.end_date,
+                    (SELECT COUNT(*) FROM course_applications ca WHERE ca.course_id = c.id AND ca.status = 'approved') AS approved_count,
+                    (SELECT COALESCE(SUM(a.is_present), 0) FROM attendance a WHERE a.course_id = c.id) AS present_count,
+                    (SELECT COALESCE(SUM(CASE WHEN a.is_present = 0 THEN 1 ELSE 0 END), 0) FROM attendance a WHERE a.course_id = c.id) AS absent_count,
+                    (SELECT COUNT(DISTINCT a.session_date) FROM attendance a WHERE a.course_id = c.id) AS sessions_marked,
+                    CASE
+                        WHEN c.session_dates IS NOT NULL AND JSON_LENGTH(c.session_dates) > 0 THEN JSON_LENGTH(c.session_dates)
+                        WHEN c.start_date IS NOT NULL THEN 1
+                        ELSE 0
+                    END AS total_sessions
+             FROM courses c
+             WHERE {$whereSql}";
+
+        $outerWhere = ['1 = 1'];
+        $outerParams = $params;
+
+        if (!empty($filters['marking']) && in_array($filters['marking'], self::MARKING_STATUSES, true)) {
+            if ($filters['marking'] === 'not_started') {
+                $outerWhere[] = 'course_rows.sessions_marked = 0';
+            } elseif ($filters['marking'] === 'in_progress') {
+                $outerWhere[] = 'course_rows.sessions_marked > 0 AND course_rows.sessions_marked < course_rows.total_sessions';
+            } else {
+                $outerWhere[] = 'course_rows.total_sessions > 0 AND course_rows.sessions_marked >= course_rows.total_sessions';
+            }
+        }
+
+        $outerWhereSql = implode(' AND ', $outerWhere);
+        $sort = (string) ($filters['sort'] ?? 'start_date');
+        $orderBy = match ($sort) {
+            'title' => 'course_rows.title_en ASC',
+            'approved' => 'course_rows.approved_count DESC, course_rows.start_date DESC',
+            'sessions' => 'course_rows.sessions_marked DESC, course_rows.start_date DESC',
+            default => 'course_rows.start_date DESC',
+        };
+
+        $countStmt = $db->prepare(
+            "SELECT COUNT(*) FROM ({$innerSql}) AS course_rows WHERE {$outerWhereSql}"
+        );
+        $countStmt->execute($outerParams);
+        $total = (int) $countStmt->fetchColumn();
+
+        $offset = ($page - 1) * $perPage;
+        $stmt = $db->prepare(
+            "SELECT course_rows.* FROM ({$innerSql}) AS course_rows
+             WHERE {$outerWhereSql}
+             ORDER BY {$orderBy}
+             LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($outerParams);
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        foreach ($items as &$row) {
+            $row = self::enrichCourseRow($row);
+        }
+        unset($row);
+
+        return [
+            'items' => $items,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{courses: int, approved: int, present: int, absent: int, sessions_marked: int}
+     */
+    public static function getSummaryStats(array $filters = []): array
+    {
+        $statsFilters = $filters;
+        unset($statsFilters['sort']);
+        $result = self::findCoursesPaginated($statsFilters, 1, 10000);
+
+        $approved = 0;
+        $present = 0;
+        $absent = 0;
+        $sessionsMarked = 0;
+
+        foreach ($result['items'] as $row) {
+            $approved += (int) ($row['approved_count'] ?? 0);
+            $present += (int) ($row['present_count'] ?? 0);
+            $absent += (int) ($row['absent_count'] ?? 0);
+            $sessionsMarked += (int) ($row['sessions_marked'] ?? 0);
+        }
+
+        return [
+            'courses' => $result['total'],
+            'approved' => $approved,
+            'present' => $present,
+            'absent' => $absent,
+            'sessions_marked' => $sessionsMarked,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private static function enrichCourseRow(array $row): array
+    {
+        $approved = (int) ($row['approved_count'] ?? 0);
+        $present = (int) ($row['present_count'] ?? 0);
+        $sessionsMarked = (int) ($row['sessions_marked'] ?? 0);
+        $totalSessions = (int) ($row['total_sessions'] ?? 0);
+        $denominator = max($approved * max($sessionsMarked, 1), 1);
+
+        $row['attendance_rate'] = $sessionsMarked > 0 && $approved > 0
+            ? round(($present / $denominator) * 100, 1)
+            : 0.0;
+
+        if ($sessionsMarked === 0) {
+            $row['marking_status'] = 'not_started';
+        } elseif ($totalSessions > 0 && $sessionsMarked >= $totalSessions) {
+            $row['marking_status'] = 'complete';
+        } else {
+            $row['marking_status'] = 'in_progress';
+        }
+
+        $row['session_progress'] = $totalSessions > 0
+            ? min(100, (int) round(($sessionsMarked / $totalSessions) * 100))
+            : 0;
+
+        return $row;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getApprovedParticipants(int $courseId): array
+    {
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            "SELECT u.id, u.full_name_en, u.full_name_ar, u.email, u.username
+             FROM course_applications ca
+             INNER JOIN users u ON u.id = ca.user_id
+             WHERE ca.course_id = :course_id AND ca.status = 'approved'
+             ORDER BY u.full_name_en ASC"
+        );
+        $stmt->execute(['course_id' => $courseId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getSessionAttendance(int $courseId, string $sessionDate): array
+    {
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            'SELECT * FROM attendance
+             WHERE course_id = :course_id AND session_date = :session_date'
+        );
+        $stmt->execute([
+            'course_id' => $courseId,
+            'session_date' => $sessionDate,
+        ]);
+
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[(int) $row['user_id']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    public static function supportsStatusColumn(): bool
+    {
+        if (self::$hasStatusColumn !== null) {
+            return self::$hasStatusColumn;
+        }
+
+        try {
+            $db = Database::getInstance();
+            $stmt = $db->query("SHOW COLUMNS FROM attendance LIKE 'attendance_status'");
+            self::$hasStatusColumn = (bool) $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (\Throwable) {
+            self::$hasStatusColumn = false;
+        }
+
+        return self::$hasStatusColumn;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    public static function rowStatus(array $row): string
+    {
+        if (self::supportsStatusColumn() && !empty($row['attendance_status'])) {
+            $status = (string) $row['attendance_status'];
+            if (in_array($status, self::SESSION_STATUSES, true)) {
+                return $status;
+            }
+        }
+
+        return !empty($row['is_present']) ? 'present' : 'absent';
+    }
+
+    public static function markSession(int $courseId, string $sessionDate, array $presentUserIds, int $markedBy, ?int $sessionNumber = null): void
+    {
+        $statuses = [];
+        $participants = self::getApprovedParticipants($courseId);
+        foreach ($participants as $participant) {
+            $userId = (int) $participant['id'];
+            $statuses[$userId] = in_array($userId, $presentUserIds, true) ? 'present' : 'absent';
+        }
+
+        self::markSessionStatuses($courseId, $sessionDate, $statuses, $markedBy, $sessionNumber);
+    }
+
+    /**
+     * @param array<int, string> $statuses user_id => present|absent|excused
+     */
+    public static function markSessionStatuses(
+        int $courseId,
+        string $sessionDate,
+        array $statuses,
+        int $markedBy,
+        ?int $sessionNumber = null
+    ): void {
+        if (self::isSessionLocked($courseId, $sessionDate)) {
+            return;
+        }
+
+        $db = Database::getInstance();
+        $participants = self::getApprovedParticipants($courseId);
+        $withStatus = self::supportsStatusColumn();
+
+        if ($withStatus) {
+            $upsert = $db->prepare(
+                'INSERT INTO attendance (user_id, course_id, session_date, session_number, is_present, attendance_status, marked_by)
+                 VALUES (:user_id, :course_id, :session_date, :session_number, :is_present, :attendance_status, :marked_by)
+                 ON DUPLICATE KEY UPDATE
+                    is_present = VALUES(is_present),
+                    attendance_status = VALUES(attendance_status),
+                    marked_by = VALUES(marked_by),
+                    marked_at = CURRENT_TIMESTAMP'
+            );
+        } else {
+            $upsert = $db->prepare(
+                'INSERT INTO attendance (user_id, course_id, session_date, session_number, is_present, marked_by)
+                 VALUES (:user_id, :course_id, :session_date, :session_number, :is_present, :marked_by)
+                 ON DUPLICATE KEY UPDATE
+                    is_present = VALUES(is_present),
+                    marked_by = VALUES(marked_by),
+                    marked_at = CURRENT_TIMESTAMP'
+            );
+        }
+
+        foreach ($participants as $participant) {
+            $userId = (int) $participant['id'];
+            $status = (string) ($statuses[$userId] ?? 'absent');
+            if (!in_array($status, self::SESSION_STATUSES, true)) {
+                $status = 'absent';
+            }
+            $isPresent = $status === 'present' ? 1 : 0;
+            $params = [
+                'user_id' => $userId,
+                'course_id' => $courseId,
+                'session_date' => $sessionDate,
+                'session_number' => $sessionNumber,
+                'is_present' => $isPresent,
+                'marked_by' => $markedBy,
+            ];
+            if ($withStatus) {
+                $params['attendance_status'] = $status;
+            }
+            $upsert->execute($params);
+        }
+    }
+
+    public static function isSessionLocked(int $courseId, string $sessionDate): bool
+    {
+        try {
+            $db = Database::getInstance();
+            $stmt = $db->prepare(
+                'SELECT COUNT(*) FROM attendance_session_locks
+                 WHERE course_id = :course_id AND session_date = :session_date'
+            );
+            $stmt->execute(['course_id' => $courseId, 'session_date' => $sessionDate]);
+
+            return (int) $stmt->fetchColumn() > 0;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    public static function lockSession(int $courseId, string $sessionDate, int $lockedBy): void
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'INSERT INTO attendance_session_locks (course_id, session_date, locked_by)
+             VALUES (:course_id, :session_date, :locked_by)
+             ON DUPLICATE KEY UPDATE locked_by = VALUES(locked_by), locked_at = CURRENT_TIMESTAMP'
+        );
+        $stmt->execute([
+            'course_id' => $courseId,
+            'session_date' => $sessionDate,
+            'locked_by' => $lockedBy,
+        ]);
+    }
+
+    public static function unlockSession(int $courseId, string $sessionDate): void
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'DELETE FROM attendance_session_locks WHERE course_id = :course_id AND session_date = :session_date'
+        );
+        $stmt->execute(['course_id' => $courseId, 'session_date' => $sessionDate]);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function getSessionMarkingReminders(): array
+    {
+        $result = self::findCoursesPaginated(['marking' => 'in_progress'], 1, 50);
+        $reminders = [];
+        foreach ($result['items'] as $course) {
+            $reminders[] = [
+                'course_id' => (int) $course['id'],
+                'title_en' => (string) ($course['title_en'] ?? ''),
+                'title_ar' => (string) ($course['title_ar'] ?? ''),
+                'sessions_marked' => (int) ($course['sessions_marked'] ?? 0),
+                'total_sessions' => (int) ($course['total_sessions'] ?? 0),
+            ];
+        }
+
+        $notStarted = self::findCoursesPaginated(['marking' => 'not_started'], 1, 20);
+        foreach ($notStarted['items'] as $course) {
+            if ((int) ($course['approved_count'] ?? 0) === 0) {
+                continue;
+            }
+            $reminders[] = [
+                'course_id' => (int) $course['id'],
+                'title_en' => (string) ($course['title_en'] ?? ''),
+                'title_ar' => (string) ($course['title_ar'] ?? ''),
+                'sessions_marked' => 0,
+                'total_sessions' => (int) ($course['total_sessions'] ?? 0),
+            ];
+        }
+
+        return $reminders;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function getParticipantHistory(int $userId, int $courseId): array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            "SELECT a.*, u.username AS marker_username, u.full_name_en AS marker_name_en
+             FROM attendance a
+             LEFT JOIN users u ON u.id = a.marked_by
+             WHERE a.user_id = :user_id AND a.course_id = :course_id
+             ORDER BY a.marked_at DESC, a.session_date ASC"
+        );
+        $stmt->execute(['user_id' => $userId, 'course_id' => $courseId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as &$row) {
+            $row['status'] = self::rowStatus($row);
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * @return array{eligible: bool, rate: float, present: int, total: int, threshold: int}
+     */
+    public static function getCertificateEligibility(int $userId, int $courseId, int $threshold): array
+    {
+        $breakdown = self::getAttendanceRateBreakdown($userId, $courseId);
+
+        return [
+            'eligible' => $breakdown['total'] > 0 && $breakdown['rate'] >= $threshold,
+            'rate' => $breakdown['rate'],
+            'present' => $breakdown['present'],
+            'total' => $breakdown['total'],
+            'threshold' => $threshold,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return list<array<string, mixed>>
+     */
+    public static function exportRows(array $filters = []): array
+    {
+        $db = Database::getInstance();
+        $where = ["c.deleted_at IS NULL", "c.status IN ('scheduled', 'in_progress', 'completed')"];
+        $params = [];
+
+        if (!empty($filters['course_id'])) {
+            $where[] = 'c.id = ?';
+            $params[] = (int) $filters['course_id'];
+        }
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(c.title_en LIKE ? OR c.title_ar LIKE ? OR u.full_name_en LIKE ? OR u.email LIKE ?)';
+            array_push($params, $term, $term, $term, $term);
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $presentExpr = self::supportsStatusColumn()
+            ? "SUM(CASE WHEN a.attendance_status IN ('present','excused') THEN 1 ELSE 0 END)"
+            : 'COALESCE(SUM(a.is_present), 0)';
+
+        $stmt = $db->prepare(
+            "SELECT c.id AS course_id, c.title_en, c.title_ar, u.id AS user_id,
+                    u.full_name_en, u.full_name_ar, u.email,
+                    COUNT(a.id) AS sessions_marked,
+                    {$presentExpr} AS sessions_attended
+             FROM courses c
+             INNER JOIN course_applications ca ON ca.course_id = c.id AND ca.status = 'approved'
+             INNER JOIN users u ON u.id = ca.user_id
+             LEFT JOIN attendance a ON a.course_id = c.id AND a.user_id = u.id
+             WHERE {$whereSql}
+             GROUP BY c.id, c.title_en, c.title_ar, u.id, u.full_name_en, u.full_name_ar, u.email
+             ORDER BY c.title_en ASC, u.full_name_en ASC"
+        );
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $threshold = (new Setting())->getInt('attendance_threshold', 75);
+
+        foreach ($rows as &$row) {
+            $total = (int) ($row['sessions_marked'] ?? 0);
+            $present = (int) ($row['sessions_attended'] ?? 0);
+            $row['attendance_rate'] = $total > 0 ? round(($present / $total) * 100, 1) : 0.0;
+            $row['cert_eligible'] = $total > 0 && $row['attendance_rate'] >= $threshold ? 'yes' : 'no';
+        }
+        unset($row);
+
+        return $rows;
+    }
+
+    /**
+     * @return array{imported: int, skipped: int, errors: list<string>}
+     */
+    public static function importCsv(int $courseId, string $csvPath, int $markedBy): array
+    {
+        $handle = fopen($csvPath, 'rb');
+        if ($handle === false) {
+            return ['imported' => 0, 'skipped' => 0, 'errors' => [lang('import_file_invalid')]];
+        }
+
+        $participants = self::getApprovedParticipants($courseId);
+        $emailMap = [];
+        foreach ($participants as $p) {
+            $emailMap[strtolower((string) $p['email'])] = (int) $p['id'];
+        }
+
+        $grouped = [];
+        $errors = [];
+        $header = fgetcsv($handle);
+        if ($header === false) {
+            fclose($handle);
+
+            return ['imported' => 0, 'skipped' => 0, 'errors' => [lang('import_file_invalid')]];
+        }
+
+        while (($line = fgetcsv($handle)) !== false) {
+            if (count($line) < 3) {
+                $errors[] = lang('import_row_invalid');
+                continue;
+            }
+            $email = strtolower(trim((string) $line[0]));
+            $sessionKey = normalize_course_text(trim((string) $line[1]));
+            $status = strtolower(trim((string) $line[2]));
+            if (!isset($emailMap[$email])) {
+                $errors[] = lang('import_unknown_email', ['email' => $email]);
+                continue;
+            }
+            if (!in_array($status, self::SESSION_STATUSES, true)) {
+                $errors[] = lang('import_invalid_status', ['status' => $status]);
+                continue;
+            }
+            if ($sessionKey === '') {
+                continue;
+            }
+            $userId = $emailMap[$email];
+            $grouped[$sessionKey][$userId] = $status;
+        }
+        fclose($handle);
+
+        $imported = 0;
+        $skipped = 0;
+        foreach ($grouped as $sessionKey => $statuses) {
+            if (self::isSessionLocked($courseId, $sessionKey)) {
+                $skipped += count($statuses);
+                $errors[] = lang('import_session_locked', ['session' => $sessionKey]);
+                continue;
+            }
+            self::markSessionStatuses($courseId, $sessionKey, $statuses, $markedBy, null);
+            $imported += count($statuses);
+        }
+
+        return ['imported' => $imported, 'skipped' => $skipped, 'errors' => $errors];
+    }
+
+    /**
+     * @return array{present: int, total: int, rate: float}
+     */
+    public static function getAttendanceRateBreakdown(int $userId, int $courseId): array
+    {
+        $db = Database::getInstance();
+
+        $presentExpr = self::supportsStatusColumn()
+            ? "SUM(CASE WHEN attendance_status IN ('present','excused') THEN 1 ELSE 0 END)"
+            : 'COALESCE(SUM(is_present), 0)';
+
+        $stmt = $db->prepare(
+            "SELECT COUNT(*) AS total, {$presentExpr} AS present
+             FROM attendance
+             WHERE user_id = :user_id AND course_id = :course_id"
+        );
+        $stmt->execute(['user_id' => $userId, 'course_id' => $courseId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $total = (int) ($row['total'] ?? 0);
+        $present = (int) ($row['present'] ?? 0);
+        $rate = $total > 0 ? round(($present / $total) * 100, 1) : 0.0;
+
+        return [
+            'present' => $present,
+            'total' => $total,
+            'rate' => $rate,
+        ];
+    }
+
+    public static function getAttendanceRate(int $userId, int $courseId): float
+    {
+        return self::getAttendanceRateBreakdown($userId, $courseId)['rate'];
+    }
+
+    /**
+     * Approved courses for a participant with attendance progress.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function getUserAttendanceSummary(int $userId): array
+    {
+        $db = Database::getInstance();
+        $presentExpr = self::supportsStatusColumn()
+            ? "COALESCE(SUM(CASE WHEN a.attendance_status IN ('present','excused') THEN 1 ELSE 0 END), 0)"
+            : 'COALESCE(SUM(a.is_present), 0)';
+
+        $stmt = $db->prepare(
+            "SELECT c.id, c.slug, c.title_en, c.title_ar, c.status AS course_status,
+                    c.start_date, c.end_date, c.session_dates, c.cover_image_path,
+                    cat.name_en AS category_name_en, cat.name_ar AS category_name_ar,
+                    cat.color AS category_color,
+                    COUNT(a.id) AS sessions_marked,
+                    {$presentExpr} AS present_count,
+                    CASE
+                        WHEN c.session_dates IS NOT NULL AND JSON_LENGTH(c.session_dates) > 0 THEN JSON_LENGTH(c.session_dates)
+                        WHEN c.start_date IS NOT NULL THEN 1
+                        ELSE 0
+                    END AS total_sessions
+             FROM course_applications ca
+             INNER JOIN courses c ON c.id = ca.course_id AND c.deleted_at IS NULL
+             LEFT JOIN course_categories cat ON cat.id = c.category_id
+             LEFT JOIN attendance a ON a.course_id = c.id AND a.user_id = ca.user_id
+             WHERE ca.user_id = :user_id AND ca.status = 'approved'
+             GROUP BY c.id, c.slug, c.title_en, c.title_ar, c.status, c.start_date, c.end_date,
+                      c.session_dates, c.cover_image_path, cat.name_en, cat.name_ar, cat.color
+             ORDER BY c.start_date DESC, c.title_en ASC"
+        );
+        $stmt->execute(['user_id' => $userId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        foreach ($rows as &$row) {
+            $present = (int) ($row['present_count'] ?? 0);
+            $sessionsMarked = (int) ($row['sessions_marked'] ?? 0);
+            $totalSessions = (int) ($row['total_sessions'] ?? 0);
+            $denominator = $totalSessions > 0 ? $totalSessions : max($sessionsMarked, 1);
+
+            $row['attendance_percentage'] = $sessionsMarked > 0 || $totalSessions > 0
+                ? (int) round(($present / $denominator) * 100)
+                : 0;
+
+            if ($totalSessions === 0 && $sessionsMarked > 0) {
+                $row['total_sessions'] = $sessionsMarked;
+            }
+
+            if (empty($row['category_color'])) {
+                $row['category_color'] = '#1E5AA8';
+            }
+        }
+        unset($row);
+
+        return $rows;
+    }
+}

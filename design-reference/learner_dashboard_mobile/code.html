@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CTDHR Learner Dashboard</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#17721c",
+                        "outline": "#757683",
+                        "on-primary-fixed-variant": "#274093",
+                        "tertiary-fixed-dim": "#ffb872",
+                        "tertiary": "#6b3c00",
+                        "surface-dim": "#dcd9d9",
+                        "accent-sky": "#00B0FF",
+                        "surface-tint": "#4159ac",
+                        "surface-container-highest": "#e4e2e1",
+                        "background": "#fbf9f8",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "status-cancelled": "#D32F2F",
+                        "status-progress": "#FFBF00",
+                        "status-completed": "#30872F",
+                        "on-surface": "#1b1c1c",
+                        "accent-magenta": "#D81B60",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#444651",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e4e2e1",
+                        "tertiary-container": "#8d5100",
+                        "surface-gray": "#F5F5F5",
+                        "status-certified": "#D4AF37",
+                        "inverse-surface": "#303030",
+                        "primary-container": "#425aad",
+                        "secondary-container": "#9af58e",
+                        "error": "#ba1a1a",
+                        "status-announced": "#425AAD",
+                        "outline-variant": "#c5c5d3",
+                        "inverse-primary": "#b6c4ff",
+                        "status-draft": "#9E9E9E",
+                        "on-primary-fixed": "#001550",
+                        "on-tertiary-fixed-variant": "#6a3c00",
+                        "on-tertiary-container": "#ffd2aa",
+                        "tertiary-fixed": "#ffdcbf",
+                        "secondary": "#106e18",
+                        "accent-yellow": "#FFD600",
+                        "on-background": "#1b1c1c",
+                        "surface-bright": "#fbf9f8",
+                        "on-secondary-fixed": "#002202",
+                        "surface-container": "#f0eded",
+                        "on-primary": "#ffffff",
+                        "surface": "#fbf9f8",
+                        "inverse-on-surface": "#f3f0f0",
+                        "on-tertiary-fixed": "#2d1600",
+                        "status-scheduled": "#008080",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f6f3f2",
+                        "accent-coral": "#FF7043",
+                        "on-primary-container": "#d1d8ff",
+                        "secondary-fixed": "#9df891",
+                        "primary-fixed": "#dce1ff",
+                        "primary": "#284194",
+                        "on-secondary-fixed-variant": "#00530b",
+                        "secondary-fixed-dim": "#82db77",
+                        "error-container": "#ffdad6",
+                        "surface-container-high": "#eae8e7"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit-xs": "4px",
+                        "margin-mobile": "16px",
+                        "container-max": "1280px",
+                        "unit-lg": "24px",
+                        "unit-xl": "48px",
+                        "unit-md": "16px",
+                        "margin-desktop": "40px",
+                        "gutter": "24px",
+                        "unit-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["IBM Plex Sans"],
+                        "headline-md": ["IBM Plex Sans"],
+                        "headline-lg": ["IBM Plex Sans"],
+                        "headline-sm": ["IBM Plex Sans"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["IBM Plex Sans"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "16px", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "fontWeight": "500"}],
+                        "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .rainbow-accent {
+            background: linear-gradient(90deg, #284194 0%, #30872F 25%, #425AAD 50%, #D4AF37 75%, #ba1a1a 100%);
+            height: 4px;
+        }
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-body-md text-on-surface pb-24">
+<!-- Top Navigation Bar (Mobile) -->
+<header class="bg-surface sticky top-0 z-50 w-full">
+<div class="flex justify-between items-center h-16 px-margin-mobile">
+<div class="flex items-center gap-unit-sm">
+<div class="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined text-[20px]">school</span>
+</div>
+<h1 class="font-headline-sm text-headline-sm text-primary tracking-tight">CTDHR</h1>
+</div>
+<div class="flex items-center gap-unit-md">
+<button class="text-on-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="w-10 h-10 rounded-full border-2 border-primary-container overflow-hidden bg-surface-container-highest">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a middle-aged academic instructor with a warm expression, set against a blurred university campus background. The lighting is soft and natural, emphasizing a high-trust professional atmosphere. The color palette incorporates subtle Dhofari blue tones in the background to maintain brand consistency with the CTDHR portal's academic aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBfwdXiB5lKbuVHXRB0TvkwyBnat2AHM7AVYXH-Am_CVE1YbhvnxFXL2obn-FJuA9f6-OQHCeEFZhfvyHHgBV4P_w0pxD766zWJd1POv5KTc08OXHrURdEA9IJs80o4W6JG7EoQx2mlmA-TN-XQ3oUaocPidIXaC-yIpzFDXOjOGOkxuv4NdTgqO6B5YOfN4LcirNewLE-B-LHxI3kFLwb2gRzwGRAVflYIClcyh4B1KF4sfFnzf0Wn1-NgcsIzS_fj1pXNzlMw1Frl"/>
+</div>
+</div>
+</div>
+</header>
+<main class="px-margin-mobile pt-unit-md space-y-unit-lg">
+<!-- Welcome Section -->
+<section>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Welcome back, Salim</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-unit-xs">You have 2 sessions scheduled for today.</p>
+</section>
+<!-- Upcoming Sessions (Alert Style) -->
+<section class="space-y-unit-sm">
+<div class="flex items-center justify-between">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Upcoming Sessions</h3>
+<span class="text-primary font-label-sm text-label-sm">View Calendar</span>
+</div>
+<div class="bg-primary-container/10 border-l-4 border-primary rounded-xl p-unit-md flex items-start gap-unit-md relative overflow-hidden">
+<div class="bg-primary/10 rounded-lg p-unit-sm text-primary flex items-center justify-center">
+<span class="material-symbols-outlined">event_upcoming</span>
+</div>
+<div class="flex-1">
+<h4 class="font-label-md text-label-md text-primary">Strategic Leadership Workshop</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Starts in 45 minutes • Hall B2</p>
+</div>
+<button class="bg-primary text-white px-unit-md py-unit-xs rounded-full font-label-sm text-label-sm self-center">
+                    Join
+                </button>
+</div>
+</section>
+<!-- Vertical Stats Cards -->
+<section class="space-y-unit-md">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Your Progress</h3>
+<div class="grid grid-cols-1 gap-unit-md">
+<!-- Course Stat -->
+<div class="bg-surface-container-low rounded-xl p-unit-md border border-outline-variant flex items-center justify-between">
+<div class="flex items-center gap-unit-md">
+<div class="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined">menu_book</span>
+</div>
+<div>
+<span class="font-headline-sm text-headline-sm text-on-surface block">12</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Active Courses</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<!-- Hours Stat -->
+<div class="bg-surface-container-low rounded-xl p-unit-md border border-outline-variant flex items-center justify-between">
+<div class="flex items-center gap-unit-md">
+<div class="w-12 h-12 rounded-full bg-tertiary-fixed flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+<div>
+<span class="font-headline-sm text-headline-sm text-on-surface block">48.5</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Training Hours</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<!-- Certificates Stat -->
+<div class="bg-surface-container-low rounded-xl p-unit-md border border-outline-variant flex items-center justify-between">
+<div class="flex items-center gap-unit-md">
+<div class="w-12 h-12 rounded-full bg-primary-fixed flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">verified</span>
+</div>
+<div>
+<span class="font-headline-sm text-headline-sm text-on-surface block">04</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Certificates</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+</div>
+</section>
+<!-- Current Learning Bento-ish Card -->
+<section class="space-y-unit-sm pb-8">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Continue Learning</h3>
+<div class="relative rounded-xl overflow-hidden shadow-md group active:scale-95 transition-transform duration-200">
+<div class="rainbow-accent"></div>
+<div class="h-40 relative">
+<div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent z-10"></div>
+<img class="w-full h-full object-cover" data-alt="A diverse group of university staff sitting in a modern, sunlit conference room engaging in a collaborative professional development workshop. The aesthetic is clean and corporate, featuring high-end digital equipment and a minimalist interior. The color palette focuses on deep blues and forest greens to match the CTDHR brand colors, with a soft cinematic lighting that suggests progress and innovation." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCOwAJJeHo6mIeEqMCntgFnnGExSBiV4jTRdAWpH2Xr2qMiddAj0FDgKo0kN5GkGwerDUikOQSiNP_Bc2oCJrc684BHfmzsJxHRRyR4ceHcvUvpTKVH6Jx6kVuEZbruQituAvj6zWxMAx5RdZ-WYS2DVV8tIx1P5eUGQCiR223mo1A6LHbsD_6q6r1sKubdwrph7dUpxihwQuUk68ABv54_DbJ8EgEwklY0dqmLE86iRk8gm_eC6DhemHu3ljY39KeCYRYbFE8bPIGV"/>
+<div class="absolute bottom-unit-md left-unit-md z-20 text-white">
+<span class="bg-accent-sky text-on-primary font-label-sm text-label-sm px-unit-sm py-0.5 rounded-full mb-unit-xs inline-block">Management</span>
+<h4 class="font-headline-sm text-headline-sm">Advanced Project Planning</h4>
+<div class="flex items-center gap-unit-sm mt-unit-xs">
+<div class="flex-1 h-1.5 bg-white/30 rounded-full overflow-hidden">
+<div class="w-3/4 h-full bg-secondary"></div>
+</div>
+<span class="font-label-sm text-label-sm text-white">75%</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar (Fixed) -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-xl bg-surface border-t border-outline-variant shadow-lg md:hidden">
+<div class="flex justify-around items-center h-16 px-unit-md pb-safe">
+<!-- Home: Active -->
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-sm text-label-sm">Home</span>
+</a>
+<!-- Courses: Inactive -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-highest rounded-full px-4 py-1 transition-colors" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-label-sm text-label-sm">Courses</span>
+</a>
+<!-- Certificates: Inactive -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-highest rounded-full px-4 py-1 transition-colors" href="#">
+<span class="material-symbols-outlined">verified</span>
+<span class="font-label-sm text-label-sm">Certificates</span>
+</a>
+<!-- Profile: Inactive -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-highest rounded-full px-4 py-1 transition-colors" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-sm text-label-sm">Profile</span>
+</a>
+</div>
+</nav>
+<!-- Micro-interaction script -->
+<script>
+        document.querySelectorAll('a, button').forEach(el => {
+            el.addEventListener('click', function(e) {
+                const ripple = document.createElement('div');
+                ripple.classList.add('ripple');
+                this.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            });
+        });
+    </script>
+<style>
+        .ripple {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            transform: scale(0);
+            animation: ripple 0.6s linear;
+            pointer-events: none;
+            width: 100px;
+            height: 100px;
+            margin-left: -50px;
+            margin-top: -50px;
+        }
+        @keyframes ripple {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+    </style>
+</body></html>

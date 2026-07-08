@@ -1,0 +1,76 @@
+<?php declare(strict_types=1); ?>
+<div class="admin-module-page">
+<?php
+admin_page_header([
+    'icon' => 'description',
+    'title' => lang('cert_templates'),
+    'subtitle' => lang('cert_templates_subtitle') ?? lang('cert_templates'),
+    'accent' => 'gold',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('certificates'), 'href' => url('admin/certificates')],
+        ['label' => lang('cert_templates')],
+    ],
+]);
+?>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="courses-form-panel">
+        <h3 class="courses-subtitle" style="margin-top:0"><?= e(lang('add_template')) ?></h3>
+        <form method="POST" action="<?= e(url('admin/certificates/templates')) ?>" enctype="multipart/form-data" class="courses-form-grid courses-form-grid--single">
+            <?= csrf_field() ?>
+            <div class="courses-field courses-field--full">
+                <label class="courses-label"><?= e(lang('name')) ?> <span class="courses-req">*</span></label>
+                <input type="text" name="name" required class="courses-input">
+            </div>
+            <div class="courses-field courses-field--full">
+                <label class="courses-label"><?= e(lang('background')) ?></label>
+                <input type="file" name="background" accept="image/*,.pdf" class="courses-input">
+            </div>
+            <div class="courses-field courses-field--checks">
+                <label class="courses-check">
+                    <input type="checkbox" name="is_default" class="courses-checkbox">
+                    <?= e(lang('set_default')) ?>
+                </label>
+            </div>
+            <div class="courses-field courses-field--full">
+                <button type="submit" class="courses-btn-save">
+                    <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                    <?= e(lang('save')) ?>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div class="courses-form-panel">
+        <h3 class="courses-subtitle" style="margin-top:0"><?= e(lang('cert_templates')) ?></h3>
+        <?php if (empty($templates)): ?>
+        <div class="courses-empty-state">
+            <span class="material-symbols-outlined">description</span>
+            <p><?= e(lang('no_templates')) ?></p>
+        </div>
+        <?php else: ?>
+        <ul class="cert-template-list">
+            <?php foreach ($templates as $tpl): ?>
+            <li class="cert-template-card">
+                <div class="cert-template-card__main">
+                    <span class="cert-template-card__icon" aria-hidden="true">
+                        <span class="material-symbols-outlined">description</span>
+                    </span>
+                    <div>
+                        <p class="cert-template-card__name"><?= e($tpl['name']) ?></p>
+                        <p class="cert-template-card__meta">
+                            <?= !empty($tpl['is_default']) ? e(lang('default')) : e(lang('cert_template')) ?>
+                        </p>
+                    </div>
+                </div>
+                <?php if (!empty($tpl['is_default'])): ?>
+                <span class="courses-badge courses-badge--active"><?= e(lang('default')) ?></span>
+                <?php endif; ?>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+    </div>
+</div>
+</div>

@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * UTF-8 Arabic for news ticker — applied via PDO (avoids Windows CLI SQL encoding issues).
+ *
+ * @return array<int, array{title_ar: string, text_ar: string}>
+ */
+return [
+    1 => [
+        'title_ar' => 'تصفح الدورات',
+        'text_ar' => 'استكشف برامج التطوير المهني في CTDHR.',
+    ],
+    2 => [
+        'title_ar' => 'التحقق من الشهادة',
+        'text_ar' => 'تحقق فوراً من شهادات التدريب عبر الإنترنت.',
+    ],
+    3 => [
+        'title_ar' => 'التسجيل',
+        'text_ar' => 'أنشئ حسابك وتقدم للدورات القادمة.',
+    ],
+    4 => [
+        'title_ar' => 'عن CTDHR',
+        'text_ar' => 'تعرّف على مهمتنا وتميزنا في التدريب.',
+    ],
+    5 => [
+        'title_ar' => 'اتصل بنا',
+        'text_ar' => 'لديك أسئلة؟ فريقنا جاهز لمساعدتك.',
+    ],
+];

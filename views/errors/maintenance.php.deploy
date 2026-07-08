@@ -1,0 +1,71 @@
+<?php declare(strict_types=1);
+
+/** @var string $title */
+/** @var string $message */
+
+$title = $title ?? lang('maintenance_title');
+$message = $message ?? lang('maintenance_default_message');
+
+ob_start();
+?>
+
+<div class="w-full max-w-2xl maintenance-card-enter">
+    <div class="maintenance-glass-card">
+        <div class="maintenance-rainbow" aria-hidden="true"></div>
+
+        <div class="maintenance-card-body">
+            <div class="maintenance-status-pill">
+                <span class="maintenance-status-dot" aria-hidden="true"></span>
+                <?= e(lang('maintenance_status_badge')) ?>
+            </div>
+
+            <div class="maintenance-icon-wrap" aria-hidden="true">
+                <div class="maintenance-icon-ring"></div>
+                <div class="maintenance-icon-core">
+                    <span class="material-symbols-outlined">construction</span>
+                </div>
+            </div>
+
+            <h1 class="maintenance-title"><?= e($title) ?></h1>
+            <p class="maintenance-subtitle"><?= e(lang('maintenance_subtitle')) ?></p>
+
+            <div class="maintenance-message-panel">
+                <span class="material-symbols-outlined maintenance-message-icon">info</span>
+                <p><?= e($message) ?></p>
+            </div>
+
+            <div class="maintenance-info-grid">
+                <div class="maintenance-info-item">
+                    <span class="material-symbols-outlined">schedule</span>
+                    <div>
+                        <p class="maintenance-info-label"><?= e(lang('maintenance_expected_label')) ?></p>
+                        <p class="maintenance-info-value"><?= e(lang('maintenance_back_soon')) ?></p>
+                    </div>
+                </div>
+                <div class="maintenance-info-item">
+                    <span class="material-symbols-outlined">support_agent</span>
+                    <div>
+                        <p class="maintenance-info-label"><?= e(lang('maintenance_need_help')) ?></p>
+                        <p class="maintenance-info-value"><?= e(lang('maintenance_contact_cta')) ?></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="maintenance-actions">
+                <a href="<?= e(url('contact')) ?>" class="maintenance-btn maintenance-btn-primary">
+                    <span class="material-symbols-outlined text-[18px]">mail</span>
+                    <?= e(lang('contact')) ?>
+                </a>
+                <a href="<?= e(url('login')) ?>" class="maintenance-btn maintenance-btn-ghost">
+                    <span class="material-symbols-outlined text-[18px]">login</span>
+                    <?= e(lang('sign_in')) ?>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = $title;
+require view_path('layouts/maintenance.php');

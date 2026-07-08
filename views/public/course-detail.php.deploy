@@ -1,0 +1,313 @@
+<?php declare(strict_types=1);
+
+/** @var array<string, mixed> $course */
+$course = $course ?? [];
+$canApply = in_array($course['status'] ?? '', ['announced', 'accepting_applications'], true);
+$deadlinePassed = !empty($course['application_deadline']) && strtotime((string) $course['application_deadline']) < time();
+$isLoggedIn = !empty($_SESSION['user_id']);
+$applyEligibility = $applyEligibility ?? ['eligible' => true, 'reason_key' => ''];
+$userEligible = (bool) ($applyEligibility['eligible'] ?? true);
+$ineligibilityKey = (string) ($applyEligibility['reason_key'] ?? '');
+$userApplication = $userApplication ?? null;
+$hasActiveApplication = $userApplication !== null
+    && in_array($userApplication['status'] ?? '', ['pending', 'approved', 'waitlisted'], true);
+
+$outcomes = course_learning_outcomes($course);
+$scheduleLines = course_schedule_lines($course);
+$descriptionHtml = course_description_html($course);
+$shortDescription = trim((string) localized($course, 'short_description'));
+$borderAccents = ['border-accent-sky', 'border-secondary', 'border-accent-magenta', 'border-accent-coral'];
+$coverRelative = course_cover_relative($course, (int) ($course['id'] ?? 0));
+$categoryColor = (string) ($course['category_color'] ?? '#425AAD');
+
+ob_start();
+?>
+
+<?php
+page_hero([
+    'icon' => 'menu_book',
+    'title' => localized($course, 'title'),
+    'subtitle' => localized($course, 'short_description') ?: localized($course, 'category_name'),
+    'accent' => 'sky',
+    'breadcrumbs' => [
+        ['label' => lang('home'), 'href' => url('/')],
+        ['label' => lang('courses'), 'href' => url('courses')],
+        ['label' => localized($course, 'title')],
+    ],
+]);
+?>
+
+<main class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop py-unit-xl">
+    <!-- Hero -->
+    <section class="course-detail-hero reveal-fade-up" data-reveal>
+        <div class="course-detail-hero-bg">
+            <?php if ($coverRelative !== null): ?>
+                <?= portal_img(['path' => $coverRelative, 'alt' => localized($course, 'title'), 'sizes' => '100vw', 'class' => 'course-detail-hero-image']) ?>
+            <?php else: ?>
+                <img src="<?= e(course_cover($course)) ?>" alt="<?= e(localized($course, 'title')) ?>" class="course-detail-hero-image" loading="eager" decoding="async">
+            <?php endif; ?>
+            <div class="course-detail-hero-scrim" aria-hidden="true"></div>
+            <div class="course-detail-hero-mesh" aria-hidden="true"></div>
+        </div>
+        <div class="rainbow-accent absolute top-0 left-0 w-full z-20" aria-hidden="true"></div>
+
+        <div class="course-detail-hero-content">
+            <div class="max-w-3xl">
+                <span class="course-detail-hero-category" style="--cat-color: <?= e($categoryColor) ?>">
+                    <?php if (!empty($course['category_icon'])): ?>
+                    <?= category_icon_element((string) $course['category_icon'], 'text-[16px]') ?>
+                    <?php endif; ?>
+                    <?= e(localized($course, 'category_name')) ?>
+                </span>
+                <h1 class="course-detail-hero-title"><?= e(localized($course, 'title')) ?></h1>
+                <?php if ($shortDescription !== ''): ?>
+                <p class="course-detail-hero-lead"><?= e($shortDescription) ?></p>
+                <?php endif; ?>
+                <div class="flex flex-wrap gap-unit-sm mt-unit-md">
+                    <span class="<?= e(course_status_badge_class((string) ($course['status'] ?? ''))) ?>">
+                        <span class="w-2 h-2 rounded-full <?= e(course_status_dot_class((string) ($course['status'] ?? ''))) ?>"></span>
+                        <?= e(course_status_label((string) ($course['status'] ?? ''))) ?>
+                    </span>
+                    <?php if (!empty($course['is_featured'])): ?>
+                    <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-label-sm font-semibold text-on-primary bg-gradient-to-r from-[#D4AF37] to-[#8d5100]">
+                        <span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+                        <?= e(lang('featured')) ?>
+                    </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div class="course-detail-hero-actions">
+                <?php if ($hasActiveApplication): ?>
+                <div class="text-center space-y-unit-sm bg-white/10 backdrop-blur-md rounded-xl p-unit-md border border-white/20">
+                    <span class="<?= e(application_status_badge_class((string) ($userApplication['status'] ?? 'pending'))) ?>">
+                        <?= e(lang('status_' . ($userApplication['status'] ?? 'pending'))) ?>
+                    </span>
+                    <a href="<?= e(url('dashboard/applications')) ?>" class="btn-outline w-full bg-white/90"><?= e(lang('view_application')) ?></a>
+                </div>
+                <?php elseif ($canApply && !$deadlinePassed && $isLoggedIn && $userEligible): ?>
+                <form method="POST" action="<?= e(url('courses/' . ($course['slug'] ?? '') . '/apply')) ?>" class="bg-white/10 backdrop-blur-md rounded-xl p-unit-md border border-white/20">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="btn-primary w-full py-3 shadow-card"><?= e(lang('apply_now')) ?></button>
+                </form>
+                <?php elseif ($canApply && !$deadlinePassed && $isLoggedIn && !$userEligible): ?>
+                <div class="bg-white/10 backdrop-blur-md rounded-xl p-unit-md border border-white/20 text-center space-y-unit-sm">
+                    <span class="material-symbols-outlined text-on-primary/80">block</span>
+                    <p class="text-label-sm text-on-primary/90"><?= e(lang($ineligibilityKey ?: 'audience_not_eligible')) ?></p>
+                </div>
+                <?php elseif ($canApply && !$deadlinePassed): ?>
+                <a href="<?= e(url('login')) ?>" class="btn-primary w-full px-10 py-4 shadow-card text-center"><?= e(lang('apply_now')) ?></a>
+                <p class="text-label-sm text-on-primary/75 text-center"><?= e(lang('apply_login_note')) ?></p>
+                <?php else: ?>
+                <button class="w-full px-10 py-4 rounded-xl bg-white/15 text-on-primary/80 font-label-md cursor-not-allowed border border-white/20" disabled>
+                    <?= e($deadlinePassed ? lang('deadline_passed') : lang('applications_closed')) ?>
+                </button>
+                <?php endif; ?>
+            </div>
+        </div>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+        <div class="lg:col-span-4 flex flex-col gap-gutter">
+            <div class="course-detail-panel reveal-fade-up" data-reveal>
+                <div class="course-detail-panel-head">
+                    <div class="course-detail-panel-icon">
+                        <span class="material-symbols-outlined">fact_check</span>
+                    </div>
+                    <h2 class="course-detail-panel-title"><?= e(lang('key_facts')) ?></h2>
+                </div>
+                <div class="course-detail-panel-body space-y-unit-sm">
+                    <?php if (!empty($course['duration_hours'])): ?>
+                    <div class="course-detail-fact">
+                        <div class="course-detail-fact-icon">
+                            <span class="material-symbols-outlined text-primary">schedule</span>
+                        </div>
+                        <div>
+                            <p class="course-detail-fact-label"><?= e(lang('duration')) ?></p>
+                            <p class="course-detail-fact-value"><?= e((string) $course['duration_hours']) ?> <?= e(lang('hours')) ?></p>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (!empty($course['language'])): ?>
+                    <div class="course-detail-fact">
+                        <div class="course-detail-fact-icon">
+                            <span class="material-symbols-outlined text-primary">translate</span>
+                        </div>
+                        <div>
+                            <p class="course-detail-fact-label"><?= e(lang('language')) ?></p>
+                            <p class="course-detail-fact-value"><?= e($course['language'] === 'both' ? lang('bilingual') : ucfirst((string) $course['language'])) ?></p>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <div class="course-detail-fact">
+                        <div class="course-detail-fact-icon">
+                            <span class="material-symbols-outlined text-primary">public</span>
+                        </div>
+                        <div>
+                            <p class="course-detail-fact-label"><?= e(lang('participant_scope')) ?></p>
+                            <p class="course-detail-fact-value"><?= e(participant_scope_label((string) ($course['participant_scope'] ?? 'du_internal'))) ?></p>
+                        </div>
+                    </div>
+                    <div class="course-detail-fact">
+                        <div class="course-detail-fact-icon">
+                            <span class="material-symbols-outlined text-primary">group</span>
+                        </div>
+                        <div>
+                            <p class="course-detail-fact-label"><?= e(lang('audience')) ?></p>
+                            <p class="course-detail-fact-value"><?= e(audience_label((string) ($course['audience'] ?? 'all'))) ?></p>
+                        </div>
+                    </div>
+                    <div class="course-detail-fact">
+                        <div class="course-detail-fact-icon">
+                            <span class="material-symbols-outlined text-primary">verified</span>
+                        </div>
+                        <div>
+                            <p class="course-detail-fact-label"><?= e(lang('certification')) ?></p>
+                            <p class="course-detail-fact-value">CTDHR</p>
+                        </div>
+                    </div>
+                    <?php if (!empty($course['start_date'])): ?>
+                    <div class="course-detail-fact">
+                        <div class="course-detail-fact-icon">
+                            <span class="material-symbols-outlined text-primary">calendar_today</span>
+                        </div>
+                        <div>
+                            <p class="course-detail-fact-label"><?= e(lang('start_date')) ?></p>
+                            <p class="course-detail-fact-value"><?= e(format_date((string) $course['start_date'])) ?></p>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (localized($course, 'venue')): ?>
+                    <div class="course-detail-fact">
+                        <div class="course-detail-fact-icon">
+                            <span class="material-symbols-outlined text-primary">location_on</span>
+                        </div>
+                        <div>
+                            <p class="course-detail-fact-label"><?= e(lang('venue')) ?></p>
+                            <p class="course-detail-fact-value"><?= e(localized($course, 'venue')) ?></p>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <?php if (localized($course, 'instructor_names')): ?>
+            <div class="course-detail-panel course-detail-instructor reveal-fade-up" data-reveal data-reveal-delay="80">
+                <div class="course-detail-panel-body">
+                    <div class="course-detail-instructor-photo">
+                        <?= portal_img(['design' => 'faculty', 'alt' => localized($course, 'instructor_names'), 'sizes' => '128px']) ?>
+                    </div>
+                    <h3 class="font-headline-sm text-headline-sm text-primary"><?= e(localized($course, 'instructor_names')) ?></h3>
+                    <p class="text-label-md font-label-md text-on-surface-variant mb-unit-sm"><?= e(lang('instructor')) ?></p>
+                    <p class="text-body-sm text-on-surface-variant leading-relaxed">
+                        <?= e(localized($course, 'short_description')) ?>
+                    </p>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <div class="lg:col-span-8 flex flex-col gap-gutter">
+            <div class="course-detail-panel reveal-fade-up" data-reveal>
+                <div class="course-detail-panel-head">
+                    <div class="course-detail-panel-icon">
+                        <span class="material-symbols-outlined">description</span>
+                    </div>
+                    <h2 class="course-detail-panel-title"><?= e(lang('course_details')) ?></h2>
+                </div>
+                <div class="course-detail-panel-body">
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-unit-lg items-start">
+                        <div class="md:col-span-3 course-detail-prose">
+                            <?php if ($descriptionHtml !== ''): ?>
+                                <?= $descriptionHtml ?>
+                            <?php else: ?>
+                                <p><?= e(localized($course, 'short_description')) ?></p>
+                            <?php endif; ?>
+                        </div>
+                        <div class="md:col-span-2">
+                            <div class="course-detail-media">
+                                <?php if ($coverRelative !== null): ?>
+                                    <?= portal_img(['path' => $coverRelative, 'alt' => localized($course, 'title'), 'sizes' => '(min-width: 768px) 40vw, 100vw']) ?>
+                                <?php else: ?>
+                                    <img src="<?= e(course_cover($course)) ?>" alt="<?= e(localized($course, 'title')) ?>" class="w-full h-full object-cover" loading="lazy" decoding="async">
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <?php if (!empty($outcomes)): ?>
+            <div class="course-detail-panel reveal-fade-up" data-reveal data-reveal-delay="60">
+                <div class="course-detail-panel-head">
+                    <div class="course-detail-panel-icon">
+                        <span class="material-symbols-outlined">checklist</span>
+                    </div>
+                    <h2 class="course-detail-panel-title"><?= e(lang('learning_outcomes')) ?></h2>
+                </div>
+                <div class="course-detail-panel-body">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-unit-md">
+                        <?php foreach ($outcomes as $outcome): ?>
+                        <div class="course-detail-outcome">
+                            <span class="material-symbols-outlined text-secondary shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                            <p class="text-body-md text-on-surface-variant"><?= e($outcome) ?></p>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <?php if (!empty($scheduleLines)): ?>
+            <div class="course-detail-panel reveal-fade-up" data-reveal data-reveal-delay="100">
+                <div class="course-detail-panel-head">
+                    <div class="course-detail-panel-icon">
+                        <span class="material-symbols-outlined">calendar_month</span>
+                    </div>
+                    <h2 class="course-detail-panel-title"><?= e(lang('schedule')) ?></h2>
+                </div>
+                <div class="course-detail-panel-body space-y-unit-md">
+                    <?php foreach ($scheduleLines as $i => $line):
+                        $borderClass = $borderAccents[$i % count($borderAccents)];
+                    ?>
+                    <div class="course-detail-schedule-item <?= e($borderClass) ?>">
+                        <p class="text-body-md font-semibold text-on-surface flex-1"><?= e($line) ?></p>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <section class="mt-unit-xl reveal-fade-up" data-reveal>
+        <div class="flex items-center gap-unit-sm mb-unit-lg">
+            <div class="course-detail-panel-icon">
+                <span class="material-symbols-outlined">photo_library</span>
+            </div>
+            <h2 class="font-headline-sm text-headline-sm text-primary"><?= e(lang('workshop_highlights')) ?></h2>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+            <?php
+            $galleryItems = array_slice(du_gallery_images(), (int) ($course['id'] ?? 0) % 8, 3);
+            $galleryLabels = [lang('my_certificates'), lang('courses'), lang('campus_life')];
+            foreach ($galleryItems as $i => $imagePath):
+                $label = $galleryLabels[$i] ?? lang('university');
+            ?>
+            <div class="course-detail-gallery-item group">
+                <?= portal_img(['path' => $imagePath, 'alt' => $label, 'sizes' => '(min-width: 768px) 33vw, 100vw', 'class' => 'portal-img-zoom group-hover:scale-110 w-full h-full object-cover']) ?>
+                <div class="absolute inset-0 bg-gradient-to-t from-primary/85 via-primary/20 to-transparent flex items-end p-unit-md opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <p class="text-on-primary font-label-md"><?= e($label) ?></p>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </section>
+</main>
+
+<?php
+$content = ob_get_clean();
+$flashSuccess = flash('success');
+$flashError = flash('error');
+$showToast = flash('toast');
+require view_path('layouts/main.php');

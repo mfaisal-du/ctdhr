@@ -1,0 +1,166 @@
+<?php declare(strict_types=1);
+
+$result = $result ?? ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
+$filters = $filters ?? ['search' => '', 'status' => ''];
+
+$sentCount = 0;
+$failedCount = 0;
+$pendingCount = 0;
+foreach ($result['items'] as $log) {
+    $st = $log['status'] ?? 'pending';
+    if ($st === 'sent') {
+        $sentCount++;
+    } elseif ($st === 'failed') {
+        $failedCount++;
+    } else {
+        $pendingCount++;
+    }
+}
+
+$createBtn = '<a href="' . e(url('admin/emails/send')) . '" class="courses-btn-create">'
+    . '<span class="material-symbols-outlined">send</span>'
+    . e(lang('send_announcement'))
+    . '</a>';
+
+$statusLabels = [
+    'sent' => lang('sent'),
+    'failed' => lang('failed'),
+    'pending' => lang('pending'),
+];
+?>
+
+<div class="admin-module-page">
+<?php
+admin_page_header([
+    'icon' => 'mail',
+    'title' => lang('emails'),
+    'subtitle' => lang('email_log_subtitle'),
+    'accent' => 'sky',
+    'actions' => $createBtn,
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('emails')],
+    ],
+]);
+?>
+
+<div class="courses-kpi-grid">
+    <?php foreach ([
+        ['blue', 'mail', lang('total_emails'), (int) ($result['total'] ?? count($result['items']))],
+        ['green', 'check_circle', lang('sent'), $sentCount],
+        ['gold', 'pending', lang('pending'), $pendingCount],
+        ['sky', 'error', lang('failed'), $failedCount],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card">
+    <form method="GET" action="<?= e(url('admin/emails')) ?>" class="courses-filters">
+        <div class="courses-search">
+            <span class="material-symbols-outlined">search</span>
+            <input type="search"
+                   name="search"
+                   value="<?= e($filters['search'] ?? '') ?>"
+                   placeholder="<?= e(lang('email_search_placeholder')) ?>"
+                   class="courses-search-input"
+                   autocomplete="off">
+        </div>
+        <div class="courses-filter-group">
+            <div class="admin-select-wrap admin-select-wrap--sm admin-select-wrap--filter">
+                <select name="status" class="admin-form-select courses-filter-select" aria-label="<?= e(lang('status')) ?>">
+                    <option value=""><?= e(lang('all_statuses')) ?></option>
+                    <?php foreach (['sent', 'failed', 'pending'] as $st): ?>
+                    <option value="<?= e($st) ?>" <?= ($filters['status'] ?? '') === $st ? 'selected' : '' ?>><?= e($statusLabels[$st]) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button type="submit" class="courses-btn-filter">
+                <span class="material-symbols-outlined">filter_list</span>
+                <?= e(lang('filter')) ?>
+            </button>
+            <?php if (($filters['search'] ?? '') !== '' || ($filters['status'] ?? '') !== ''): ?>
+            <a href="<?= e(url('admin/emails')) ?>" class="courses-clear"><?= e(lang('clear_filters')) ?></a>
+            <?php endif; ?>
+        </div>
+    </form>
+
+    <div class="courses-table-container">
+        <table class="courses-table courses-table--auto">
+            <thead>
+                <tr>
+                    <th><?= e(lang('recipient')) ?></th>
+                    <th><?= e(lang('subject')) ?></th>
+                    <th><?= e(lang('status')) ?></th>
+                    <th><?= e(lang('sent_at')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($result['items'])): ?>
+                <tr>
+                    <td colspan="4" class="courses-empty">
+                        <span class="material-symbols-outlined">mail</span>
+                        <p><?= e(lang('no_emails')) ?></p>
+                        <a href="<?= e(url('admin/emails/send')) ?>" class="courses-btn-create courses-empty-cta">
+                            <span class="material-symbols-outlined">send</span>
+                            <?= e(lang('send_announcement')) ?>
+                        </a>
+                    </td>
+                </tr>
+                <?php else: foreach ($result['items'] as $log):
+                    $status = $log['status'] ?? 'pending';
+                    $badgeClass = $status === 'sent' ? 'sent' : ($status === 'failed' ? 'failed' : 'queued');
+                    $displayAt = $log['sent_at'] ?? $log['created_at'] ?? '';
+                ?>
+                <tr>
+                    <td>
+                        <div class="courses-td-title">
+                            <span class="courses-link-title" style="cursor:default;text-decoration:none;">
+                                <?= e($log['recipient_email']) ?>
+                            </span>
+                            <?php if (!empty($log['recipient_name'])): ?>
+                            <span class="courses-td-muted block text-xs mt-0.5"><?= e($log['recipient_name']) ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="line-clamp-2" title="<?= e($log['subject_en'] ?? '') ?>"><?= e($log['subject_en'] ?? '') ?></span>
+                        <?php if (!empty($log['template_type']) && $log['template_type'] !== 'custom'): ?>
+                        <span class="courses-td-muted block text-xs mt-0.5"><?= e($log['template_type']) ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <span class="courses-badge courses-badge--<?= e($badgeClass) ?>"><?= e($statusLabels[$status] ?? $status) ?></span>
+                    </td>
+                    <td class="courses-td-date"><?= $displayAt !== '' ? e(format_date((string) $displayAt)) : '—' ?></td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if (($result['pages'] ?? 1) > 1): ?>
+    <footer class="courses-list-pagination">
+        <span><?= e(lang('page')) ?> <?= (int) $result['page'] ?> / <?= (int) $result['pages'] ?></span>
+        <div class="courses-page-links">
+            <?php
+                $query = array_filter([
+                    'search' => $filters['search'] ?? '',
+                    'status' => $filters['status'] ?? '',
+                ], static fn ($v) => $v !== '');
+                for ($p = 1; $p <= min($result['pages'], 7); $p++):
+                    $query['page'] = (string) $p;
+            ?>
+            <a href="?<?= e(http_build_query($query)) ?>" class="courses-page-num<?= $p === $result['page'] ? ' is-active' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+        </div>
+    </footer>
+    <?php endif; ?>
+</div>
+</div>

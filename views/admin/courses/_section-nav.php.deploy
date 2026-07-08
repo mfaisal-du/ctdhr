@@ -1,0 +1,20 @@
+<?php declare(strict_types=1);
+
+$showCoverNav = $showCoverNav ?? true;
+$sections = [
+    ['id' => 'section-general', 'icon' => 'info', 'label' => lang('settings_tab_general')],
+    ['id' => 'section-schedule', 'icon' => 'calendar_month', 'label' => lang('schedule')],
+    ['id' => 'section-content', 'icon' => 'description', 'label' => lang('course_description')],
+];
+if ($showCoverNav) {
+    $sections[] = ['id' => 'section-cover', 'icon' => 'image', 'label' => lang('upload_cover')];
+}
+?>
+<nav class="courses-section-nav" aria-label="<?= e(lang('form_sections_nav')) ?>">
+    <?php foreach ($sections as $sec): ?>
+    <a href="#<?= e($sec['id']) ?>" class="courses-section-nav-link" data-section="<?= e($sec['id']) ?>">
+        <span class="material-symbols-outlined"><?= e($sec['icon']) ?></span>
+        <span><?= e($sec['label']) ?></span>
+    </a>
+    <?php endforeach; ?>
+</nav>

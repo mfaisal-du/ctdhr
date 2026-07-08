@@ -1,0 +1,53 @@
+-- News ticker items for public homepage announcements bar
+-- Note: Arabic columns are placeholders here. On Windows, run after migrate:
+--   php database/seed-news-ticker-arabic.php.deploy
+USE ctdhr_portal;
+SET NAMES utf8mb4;
+
+CREATE TABLE IF NOT EXISTS news_ticker_items (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    title_en        VARCHAR(200)    NOT NULL,
+    title_ar        VARCHAR(200)    NOT NULL,
+    text_en         VARCHAR(500)    NOT NULL,
+    text_ar         VARCHAR(500)    NOT NULL,
+    link_url        VARCHAR(500)    NOT NULL DEFAULT '/',
+    icon            VARCHAR(80)     NOT NULL DEFAULT 'campaign',
+    tone            ENUM('primary', 'gold', 'secondary', 'sky', 'magenta') NOT NULL DEFAULT 'primary',
+    display_order   INT             NOT NULL DEFAULT 0,
+    is_active       TINYINT(1)      NOT NULL DEFAULT 1,
+    starts_at       DATETIME        DEFAULT NULL,
+    expires_at      DATETIME        DEFAULT NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    KEY idx_news_ticker_active (is_active, display_order),
+    KEY idx_news_ticker_schedule (starts_at, expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO news_ticker_items (title_en, title_ar, text_en, text_ar, link_url, icon, tone, display_order, is_active)
+SELECT * FROM (
+    SELECT 'Browse Courses' AS title_en, 'Browse Courses' AS title_ar,
+           'Explore professional development programmes at CTDHR.' AS text_en,
+           'Explore professional development programmes at CTDHR.' AS text_ar,
+           'courses' AS link_url, 'menu_book' AS icon, 'primary' AS tone, 1 AS display_order, 1 AS is_active
+    UNION ALL
+    SELECT 'Verify Certificate', 'Verify Certificate',
+           'Instantly verify training certificates online.',
+           'Instantly verify training certificates online.',
+           'verify-certificate', 'verified', 'gold', 2, 1
+    UNION ALL
+    SELECT 'Register', 'Register',
+           'Create your account and apply for upcoming courses.',
+           'Create your account and apply for upcoming courses.',
+           'register', 'person_add', 'secondary', 3, 1
+    UNION ALL
+    SELECT 'About CTDHR', 'About CTDHR',
+           'Learn about our mission and training excellence.',
+           'Learn about our mission and training excellence.',
+           'about', 'school', 'sky', 4, 1
+    UNION ALL
+    SELECT 'Contact Us', 'Contact Us',
+           'Questions? Our team is ready to help.',
+           'Questions? Our team is ready to help.',
+           'contact', 'mail', 'magenta', 5, 1
+) AS seed
+WHERE NOT EXISTS (SELECT 1 FROM news_ticker_items LIMIT 1);

@@ -1,0 +1,139 @@
+<?php declare(strict_types=1);
+
+$result = $result ?? ['items' => [], 'page' => 1, 'pages' => 1, 'total' => 0];
+
+$adminCount = 0;
+$facultyCount = 0;
+$otherCount = 0;
+foreach ($result['items'] as $user) {
+    $role = $user['role'] ?? '';
+    if ($role === 'admin') $adminCount++;
+    elseif ($role === 'faculty') $facultyCount++;
+    else $otherCount++;
+}
+?>
+
+<div class="admin-module-page">
+<?php
+$pendingExternalCount = $pendingExternalCount ?? 0;
+$pendingBtn = '';
+if ($pendingExternalCount > 0) {
+    $pendingBtn = '<a href="' . e(url('admin/users/pending')) . '" class="courses-btn-primary">'
+        . '<span class="material-symbols-outlined text-[18px]">person_add</span>'
+        . e(lang('pending_external_accounts')) . ' (' . (int) $pendingExternalCount . ')'
+        . '</a>';
+}
+
+admin_page_header([
+    'icon' => 'manage_accounts',
+    'title' => lang('users'),
+    'subtitle' => lang('users_manage_subtitle') ?? lang('users'),
+    'accent' => 'primary',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('users')],
+    ],
+    'actions' => $pendingBtn,
+]);
+?>
+
+<div class="courses-kpi-grid">
+    <?php foreach ([
+        ['blue', 'groups', lang('total_users'), (int) ($result['total'] ?? count($result['items']))],
+        ['green', 'admin_panel_settings', lang('role_admin'), $adminCount],
+        ['sky', 'school', lang('role_faculty'), $facultyCount],
+        ['gold', 'person', lang('other_roles'), $otherCount],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card">
+    <form method="GET" action="<?= e(url('admin/users')) ?>" class="courses-filters">
+        <div class="courses-search">
+            <span class="material-symbols-outlined">search</span>
+            <input type="search" name="search" value="<?= e($filters['search'] ?? '') ?>" placeholder="<?= e(lang('search_placeholder')) ?>" class="courses-search-input" autocomplete="off">
+        </div>
+        <div class="courses-filter-group">
+            <div class="admin-select-wrap admin-select-wrap--sm">
+                <select name="role" class="admin-form-select" aria-label="<?= e(lang('role')) ?>">
+                    <option value=""><?= e(lang('all_roles')) ?></option>
+                    <?php foreach (['admin','faculty','staff','student'] as $role): ?>
+                    <option value="<?= e($role) ?>" <?= ($filters['role'] ?? '') === $role ? 'selected' : '' ?>><?= e(lang('role_' . $role)) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button type="submit" class="courses-btn-filter">
+                <span class="material-symbols-outlined">filter_list</span>
+                <?= e(lang('filter')) ?>
+            </button>
+            <?php if (!empty($filters['search']) || !empty($filters['role'])): ?>
+            <a href="<?= e(url('admin/users')) ?>" class="courses-clear"><?= e(lang('clear_filters')) ?></a>
+            <?php endif; ?>
+        </div>
+    </form>
+
+    <div class="courses-table-container">
+        <table class="courses-table courses-table--auto">
+            <thead>
+                <tr>
+                    <th><?= e(lang('full_name')) ?></th>
+                    <th><?= e(lang('email')) ?></th>
+                    <th><?= e(lang('role')) ?></th>
+                    <th><?= e(lang('participant_type')) ?></th>
+                    <th><?= e(lang('account_status')) ?></th>
+                    <th><?= e(lang('last_login')) ?></th>
+                    <th class="courses-th-actions"><?= e(lang('actions')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($result['items'])): ?>
+                <tr>
+                    <td colspan="7" class="courses-empty">
+                        <span class="material-symbols-outlined">manage_accounts</span>
+                        <p><?= e(lang('no_users')) ?></p>
+                    </td>
+                </tr>
+                <?php else: foreach ($result['items'] as $user): ?>
+                <tr>
+                    <td class="courses-td-title"><span class="courses-link-title" style="cursor:default;text-decoration:none;"><?= e(localized($user, 'full_name')) ?></span></td>
+                    <td class="courses-td-muted"><?= e($user['email']) ?></td>
+                    <td><span class="courses-badge courses-badge--role"><?= e(lang('role_' . $user['role'])) ?></span></td>
+                    <td><span class="courses-badge"><?= e(participant_type_label((string) ($user['participant_type'] ?? 'du'))) ?></span></td>
+                    <td><span class="courses-badge courses-badge--<?= e((string) ($user['account_status'] ?? 'active')) ?>"><?= e(account_status_label((string) ($user['account_status'] ?? 'active'))) ?></span></td>
+                    <td class="courses-td-date"><?= e($user['last_login_at'] ?? '-') ?></td>
+                    <td class="courses-td-actions">
+                        <?php if ($user['role'] !== 'admin'): ?>
+                        <form method="POST" action="<?= e(url('admin/users/' . $user['id'] . '/promote')) ?>" class="courses-inline-form">
+                            <?= csrf_field() ?>
+                            <button type="submit" class="courses-text-link" onclick="return confirm('<?= e(lang('confirm_promote')) ?>')"><?= e(lang('promote_admin')) ?></button>
+                        </form>
+                        <?php else: ?>
+                        <span class="courses-td-muted">-</span>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if (($result['pages'] ?? 1) > 1): ?>
+    <footer class="courses-list-pagination">
+        <span><?= e(lang('page')) ?> <?= (int) $result['page'] ?> / <?= (int) $result['pages'] ?></span>
+        <div class="courses-page-links">
+            <?php for ($p = 1; $p <= min($result['pages'], 7); $p++): ?>
+            <a href="?page=<?= $p ?>&search=<?= e(urlencode($filters['search'] ?? '')) ?>&role=<?= e(urlencode($filters['role'] ?? '')) ?>"
+               class="courses-page-num<?= $p === $result['page'] ? ' is-active' : '' ?>"><?= $p ?></a>
+            <?php endfor; ?>
+        </div>
+    </footer>
+    <?php endif; ?>
+</div>
+</div>

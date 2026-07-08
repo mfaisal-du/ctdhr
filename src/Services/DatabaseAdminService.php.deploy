@@ -1,0 +1,382 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Config\Database;
+use PDO;
+use RuntimeException;
+
+final class DatabaseAdminService
+{
+    private const BACKUP_DIR = 'C:/xampp/htdocs/CTDHR_Portal/Backup';
+
+    private const BACKUP_PREFIX = '02-Design-Backup-till-';
+
+    /**
+     * @return array<string, array{label: string, description: string, icon: string}>
+     */
+    public static function resetModules(): array
+    {
+        return [
+            'applications' => [
+                'label' => lang('applications'),
+                'description' => lang('db_reset_applications_desc'),
+                'icon' => 'group',
+            ],
+            'attendance' => [
+                'label' => lang('attendance'),
+                'description' => lang('db_reset_attendance_desc'),
+                'icon' => 'assignment_turned_in',
+            ],
+            'certificates' => [
+                'label' => lang('certificates'),
+                'description' => lang('db_reset_certificates_desc'),
+                'icon' => 'verified',
+            ],
+            'courses' => [
+                'label' => lang('courses'),
+                'description' => lang('db_reset_courses_desc'),
+                'icon' => 'school',
+            ],
+            'categories' => [
+                'label' => lang('categories'),
+                'description' => lang('db_reset_categories_desc'),
+                'icon' => 'category',
+            ],
+            'users' => [
+                'label' => lang('users'),
+                'description' => lang('db_reset_users_desc'),
+                'icon' => 'manage_accounts',
+            ],
+            'notifications' => [
+                'label' => lang('notifications'),
+                'description' => lang('db_reset_notifications_desc'),
+                'icon' => 'notifications',
+            ],
+            'emails' => [
+                'label' => lang('emails'),
+                'description' => lang('db_reset_emails_desc'),
+                'icon' => 'mail',
+            ],
+            'audit' => [
+                'label' => lang('audit_log'),
+                'description' => lang('db_reset_audit_desc'),
+                'icon' => 'history',
+            ],
+            'registrations' => [
+                'label' => lang('pending_registrations'),
+                'description' => lang('db_reset_registrations_desc'),
+                'icon' => 'person_add',
+            ],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function listBackups(): array
+    {
+        if (!is_dir(self::BACKUP_DIR)) {
+            return [];
+        }
+
+        $files = glob(self::BACKUP_DIR . DIRECTORY_SEPARATOR . self::BACKUP_PREFIX . '*.sql') ?: [];
+
+        usort($files, static fn (string $a, string $b): int => filemtime($b) <=> filemtime($a));
+
+        return array_map(static fn (string $path): string => basename($path), $files);
+    }
+
+    public function createBackup(): string
+    {
+        if (!is_dir(self::BACKUP_DIR) && !mkdir(self::BACKUP_DIR, 0775, true) && !is_dir(self::BACKUP_DIR)) {
+            throw new RuntimeException('Unable to create backup directory.');
+        }
+
+        $timestamp = date('Y-m-d_H-i-s');
+        $filename = self::BACKUP_PREFIX . $timestamp . '.sql';
+        $filepath = self::BACKUP_DIR . DIRECTORY_SEPARATOR . $filename;
+
+        if ($this->tryMysqldump($filepath)) {
+            return $filename;
+        }
+
+        $this->phpBackup($filepath);
+
+        if (!is_file($filepath) || filesize($filepath) === 0) {
+            throw new RuntimeException('Backup file was not created.');
+        }
+
+        return $filename;
+    }
+
+    /**
+     * @param list<string> $modules
+     */
+    public function resetModulesData(array $modules): void
+    {
+        $modules = array_values(array_unique(array_filter($modules)));
+        if ($modules === []) {
+            throw new RuntimeException(lang('db_reset_none_selected'));
+        }
+
+        $db = Database::getInstance();
+        $db->exec('SET FOREIGN_KEY_CHECKS = 0');
+
+        try {
+            if ($this->shouldReset($modules, 'courses') || $this->shouldReset($modules, 'categories')) {
+                $this->truncateTable($db, 'course_feedback');
+            }
+
+            if ($this->shouldReset($modules, 'users') || $this->shouldReset($modules, 'notifications')) {
+                $this->truncateTable($db, 'notifications');
+            }
+
+            if ($this->shouldReset($modules, 'users')) {
+                $this->truncateTable($db, 'remember_tokens');
+            }
+
+            if ($this->shouldReset($modules, 'attendance') || $this->shouldReset($modules, 'courses') || $this->shouldReset($modules, 'categories')) {
+                $this->truncateTable($db, 'attendance');
+            }
+
+            if ($this->shouldReset($modules, 'certificates') || $this->shouldReset($modules, 'courses') || $this->shouldReset($modules, 'categories')) {
+                $this->truncateTable($db, 'certificates');
+                if ($this->shouldReset($modules, 'certificates')) {
+                    $db->exec('DELETE FROM certificate_templates');
+                }
+            }
+
+            if ($this->shouldReset($modules, 'applications') || $this->shouldReset($modules, 'courses') || $this->shouldReset($modules, 'categories')) {
+                $this->truncateTable($db, 'course_applications');
+            }
+
+            if ($this->shouldReset($modules, 'courses') || $this->shouldReset($modules, 'categories')) {
+                $db->exec('DELETE FROM courses');
+            }
+
+            if ($this->shouldReset($modules, 'categories')) {
+                $db->exec('DELETE FROM course_categories');
+            }
+
+            if ($this->shouldReset($modules, 'users')) {
+                $db->exec("DELETE FROM users WHERE role <> 'admin'");
+            }
+
+            if ($this->shouldReset($modules, 'emails')) {
+                $this->truncateTable($db, 'email_logs');
+            }
+
+            if ($this->shouldReset($modules, 'audit')) {
+                $this->truncateTable($db, 'audit_logs');
+            }
+
+            if ($this->shouldReset($modules, 'registrations')) {
+                $this->truncateTable($db, 'pending_registrations');
+            }
+        } finally {
+            $db->exec('SET FOREIGN_KEY_CHECKS = 1');
+        }
+    }
+
+    public function seedDemoData(): void
+    {
+        $seedFile = CTDHR_ROOT . '/database/seed-demo.sql.deploy';
+        if (!is_file($seedFile)) {
+            throw new RuntimeException('Demo seed file not found.');
+        }
+
+        $sql = (string) file_get_contents($seedFile);
+        $sql = preg_replace('/^--.*$/m', '', $sql) ?? $sql;
+        $sql = preg_replace('/^USE\s+[^;]+;/mi', '', $sql) ?? $sql;
+
+        $statements = array_filter(
+            array_map('trim', explode(';', $sql)),
+            static fn (string $stmt): bool => $stmt !== '' && !preg_match('/^SET\s+FOREIGN_KEY_CHECKS/i', $stmt)
+        );
+
+        $db = Database::getInstance();
+        $db->exec('SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci');
+        $db->exec('SET FOREIGN_KEY_CHECKS = 0');
+
+        try {
+            foreach ($statements as $statement) {
+                $db->exec($statement);
+            }
+            $this->repairArabicContent();
+            $this->installDemoCertificateAssets();
+        } finally {
+            $db->exec('SET FOREIGN_KEY_CHECKS = 1');
+        }
+    }
+
+    public function repairArabicContent(): void
+    {
+        $dataFile = CTDHR_ROOT . '/database/arabic-content.php.deploy';
+        if (!is_file($dataFile)) {
+            $dataFile = CTDHR_ROOT . '/database/arabic-content.php';
+        }
+        if (!is_file($dataFile)) {
+            throw new RuntimeException('Arabic content data file not found.');
+        }
+
+        /** @var array{categories: array<string, string>, courses: array<string, array<string, string>>} $data */
+        $data = require $dataFile;
+        $db = Database::getInstance();
+        $db->exec('SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci');
+
+        $catStmt = $db->prepare('UPDATE course_categories SET name_ar = :name_ar WHERE slug = :slug');
+        foreach ($data['categories'] as $slug => $nameAr) {
+            $catStmt->execute(['name_ar' => $nameAr, 'slug' => $slug]);
+        }
+
+        $courseStmt = $db->prepare(
+            'UPDATE courses SET
+                title_ar = :title_ar,
+                short_description_ar = :short_description_ar,
+                description_ar = :description_ar,
+                learning_outcomes_ar = :learning_outcomes_ar,
+                instructor_names_ar = :instructor_names_ar,
+                venue_ar = :venue_ar
+             WHERE slug = :slug'
+        );
+
+        foreach ($data['courses'] as $slug => $fields) {
+            $courseStmt->execute([
+                'slug' => $slug,
+                'title_ar' => $fields['title_ar'],
+                'short_description_ar' => $fields['short_description_ar'],
+                'description_ar' => $fields['description_ar'],
+                'learning_outcomes_ar' => $fields['learning_outcomes_ar'],
+                'instructor_names_ar' => $fields['instructor_names_ar'],
+                'venue_ar' => $fields['venue_ar'],
+            ]);
+        }
+    }
+
+    private function shouldReset(array $modules, string $key): bool
+    {
+        return in_array($key, $modules, true);
+    }
+
+    private function truncateTable(PDO $db, string $table): void
+    {
+        $db->exec('TRUNCATE TABLE `' . str_replace('`', '``', $table) . '`');
+    }
+
+    private function tryMysqldump(string $filepath): bool
+    {
+        $candidates = [
+            'C:/xampp/mysql/bin/mysqldump.exe',
+            'C:/xampp/mysql/bin/mysqldump',
+            'mysqldump',
+        ];
+
+        $mysqldump = null;
+        foreach ($candidates as $candidate) {
+            if ($candidate === 'mysqldump' || is_file($candidate)) {
+                $mysqldump = $candidate;
+                break;
+            }
+        }
+
+        if ($mysqldump === null) {
+            return false;
+        }
+
+        $host = (string) env('DB_HOST', '127.0.0.1');
+        $port = (string) env('DB_PORT', '3306');
+        $database = (string) env('DB_DATABASE', 'ctdhr_portal');
+        $username = (string) env('DB_USERNAME', 'root');
+        $password = (string) env('DB_PASSWORD', '');
+
+        $passwordArg = $password !== '' ? '--password=' . escapeshellarg($password) : '';
+        $command = sprintf(
+            '"%s" -h%s -P%s -u%s %s --routines --triggers --single-transaction %s > "%s"',
+            $mysqldump,
+            $host,
+            $port,
+            $username,
+            $passwordArg,
+            $database,
+            $filepath
+        );
+
+        exec($command . ' 2>&1', $output, $exitCode);
+
+        return $exitCode === 0 && is_file($filepath) && filesize($filepath) > 0;
+    }
+
+    private function phpBackup(string $filepath): void
+    {
+        $db = Database::getInstance();
+        $database = (string) env('DB_DATABASE', 'ctdhr_portal');
+
+        $handle = fopen($filepath, 'wb');
+        if ($handle === false) {
+            throw new RuntimeException('Unable to write backup file.');
+        }
+
+        fwrite($handle, "-- CTDHR Portal Backup\n");
+        fwrite($handle, '-- Generated: ' . date('Y-m-d H:i:s') . "\n");
+        fwrite($handle, 'USE `' . $database . "`;\n\n");
+        fwrite($handle, "SET FOREIGN_KEY_CHECKS = 0;\n\n");
+
+        $tables = $db->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+
+        foreach ($tables as $table) {
+            $table = (string) $table;
+            $create = $db->query('SHOW CREATE TABLE `' . str_replace('`', '``', $table) . '`')->fetch(PDO::FETCH_ASSOC);
+            fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
+            fwrite($handle, ($create['Create Table'] ?? '') . ";\n\n");
+
+            $rows = $db->query('SELECT * FROM `' . str_replace('`', '``', $table) . '`');
+            while ($row = $rows->fetch(PDO::FETCH_ASSOC)) {
+                $columns = array_map(static fn (string $col): string => '`' . str_replace('`', '``', $col) . '`', array_keys($row));
+                $values = array_map(static fn ($value): string => $value === null ? 'NULL' : $db->quote((string) $value), array_values($row));
+                fwrite($handle, 'INSERT INTO `' . $table . '` (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ");\n");
+            }
+            fwrite($handle, "\n");
+        }
+
+        fwrite($handle, "SET FOREIGN_KEY_CHECKS = 1;\n");
+        fclose($handle);
+    }
+
+    private function installDemoCertificateAssets(): void
+    {
+        $seedScript = CTDHR_ROOT . '/database/seed-certificate-assets.php.deploy';
+        if (!is_file($seedScript)) {
+            $seedScript = CTDHR_ROOT . '/database/seed-certificate-assets.php';
+        }
+        if (!is_file($seedScript)) {
+            return;
+        }
+
+        $service = new CertificateService();
+        $db = Database::getInstance();
+
+        $defaultMappings = '{"participant_name":{"x":0,"y":82,"size":22,"field":"participant_name","align":"C","width":297},"awarded_line":{"x":0,"y":108,"size":11,"text":"has successfully completed","align":"C","width":297,"style":""},"course_title":{"x":0,"y":120,"size":16,"field":"course_title","align":"C","width":297},"duration_hours":{"x":0,"y":138,"size":10,"field":"duration_hours","prefix":"Duration: ","suffix":" hours","align":"C","width":297,"style":""},"completion_date":{"x":0,"y":152,"size":10,"field":"completion_date","prefix":"Completion Date: ","align":"C","width":297,"style":""},"cert_number":{"x":0,"y":168,"size":10,"field":"cert_number","prefix":"Certificate No: ","align":"C","width":297,"style":""},"qr_code":{"x":248,"y":154,"size":40,"type":"qr"}}';
+
+        $db->exec(
+            "UPDATE certificate_templates
+             SET field_mappings = " . $db->quote($defaultMappings) . ",
+                 background_path = 'uploads/certificates/templates/default-bg.jpg'
+             WHERE id = 1"
+        );
+        $db->exec(
+            "UPDATE certificates
+             SET pdf_path = REPLACE(pdf_path, 'storage/certificates/', 'uploads/certificates/')
+             WHERE pdf_path LIKE 'storage/certificates/%'"
+        );
+
+        $stmt = $db->query(
+            "SELECT * FROM certificates WHERE cert_number LIKE 'CTDHR-2026-DEMO%' ORDER BY id ASC"
+        );
+        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+            $service->regeneratePdfForRecord($row);
+        }
+    }
+}

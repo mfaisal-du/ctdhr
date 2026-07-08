@@ -1,0 +1,171 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers;
+
+use CTDHR\Models\Application;
+use CTDHR\Models\Attendance;
+use CTDHR\Models\Certificate;
+use CTDHR\Models\Notification;
+use CTDHR\Models\User;
+
+final class DashboardController
+{
+    private function userId(): int
+    {
+        return (int) ($_SESSION['user_id'] ?? 0);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function overview(array $params = []): void
+    {
+        $userId = $this->userId();
+
+        $stats = [
+            'pending_applications' => Application::countByUserAndStatus($userId, 'pending'),
+            'approved_courses' => Application::countByUserAndStatus($userId, 'approved'),
+            'certificates' => Certificate::countByUser($userId),
+            'unread_notifications' => Notification::unreadCount($userId),
+            'total_applications' => Application::countByUser($userId),
+        ];
+
+        view('dashboard.overview', [
+            'pageTitle' => lang('dashboard'),
+            'activeNav' => 'overview',
+            'userName' => $_SESSION['user_name'] ?? '',
+            'stats' => $stats,
+            'notifications' => Notification::findByUser($userId, 5),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function applications(array $params = []): void
+    {
+        $userId = $this->userId();
+
+        view('dashboard.applications', [
+            'pageTitle' => lang('my_applications'),
+            'activeNav' => 'applications',
+            'applications' => Application::findByUser($userId),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function myCourses(array $params = []): void
+    {
+        $userId = $this->userId();
+
+        view('dashboard.my-courses', [
+            'pageTitle' => lang('my_courses'),
+            'activeNav' => 'courses',
+            'courses' => Attendance::getUserAttendanceSummary($userId),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function certificates(array $params = []): void
+    {
+        $userId = $this->userId();
+
+        view('dashboard.certificates', [
+            'pageTitle' => lang('my_certificates'),
+            'activeNav' => 'certificates',
+            'certificates' => Certificate::findByUser($userId),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function notifications(array $params = []): void
+    {
+        $userId = $this->userId();
+
+        if (isset($_GET['mark_read'])) {
+            $notifId = (int) $_GET['mark_read'];
+            if ($notifId > 0) {
+                Notification::markRead($notifId, $userId);
+            }
+            redirect('dashboard/notifications');
+        }
+
+        if (isset($_GET['mark_all'])) {
+            Notification::markAllRead($userId);
+            flash('success', lang('notifications_marked_read'));
+            redirect('dashboard/notifications');
+        }
+
+        view('dashboard.notifications', [
+            'pageTitle' => lang('notifications'),
+            'activeNav' => 'notifications',
+            'notifications' => Notification::findByUser($userId, 100),
+            'unreadCount' => Notification::unreadCount($userId),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function profile(array $params = []): void
+    {
+        $userId = $this->userId();
+        $userModel = new User();
+        $user = $userModel->findById($userId);
+
+        if ($user === null) {
+            flash('error', lang('operation_failed'));
+            redirect('dashboard');
+
+            return;
+        }
+
+        view('dashboard.profile', [
+            'pageTitle' => lang('profile'),
+            'activeNav' => 'profile',
+            'user' => $user,
+            'profileUpdated' => !empty($_GET['updated']),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function updateProfile(array $params = []): void
+    {
+        $userId = $this->userId();
+        $userModel = new User();
+        $user = $userModel->findById($userId);
+
+        if ($user === null) {
+            flash('error', lang('operation_failed'));
+            redirect('dashboard/profile');
+        }
+
+        if (($user['participant_type'] ?? 'du') !== 'external') {
+            flash('error', lang('profile_edit_not_allowed'));
+            redirect('dashboard/profile');
+        }
+
+        $phone = trim((string) ($_POST['phone'] ?? ''));
+        if (strlen($phone) > 20) {
+            flash('error', lang('phone_too_long'));
+            redirect('dashboard/profile');
+        }
+
+        $userModel->update($userId, [
+            'phone' => $phone !== '' ? $phone : null,
+        ]);
+
+        flash('success', lang('profile_updated'));
+        redirect('dashboard/profile?updated=1');
+    }
+}

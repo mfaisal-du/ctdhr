@@ -1,0 +1,797 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Models\PendingRegistration;
+use CTDHR\Models\RememberToken;
+use CTDHR\Models\Setting;
+use CTDHR\Models\User;
+
+final class AuthService
+{
+    private const MAX_LOGIN_ATTEMPTS = 5;
+    private const LOCKOUT_MINUTES = 15;
+    private const RATE_LIMIT_DIR = CTDHR_ROOT . '/storage/cache/rate_limit';
+
+    private User $userModel;
+    private PendingRegistration $pendingModel;
+    private Setting $settings;
+    private EmailService $emailService;
+    private LdapService $ldapService;
+
+    public function __construct()
+    {
+        $this->userModel = new User();
+        $this->pendingModel = new PendingRegistration();
+        $this->settings = new Setting();
+        $this->emailService = new EmailService();
+        $this->ldapService = new LdapService();
+    }
+
+    public function isDuEmail(string $email): bool
+    {
+        return preg_match('/^[a-zA-Z0-9._%+\-]+@du\.edu\.om$/i', trim($email)) === 1;
+    }
+
+    /**
+     * @param array<string, string> $data
+     * @return array{success: bool, message?: string, message_key?: string, email?: string}
+     */
+    public function register(array $data): array
+    {
+        if (!$this->isDuEmail($data['email'] ?? '')) {
+            return [
+                'success' => false,
+                'message_key' => 'du_email_required',
+            ];
+        }
+
+        $email = strtolower(trim($data['email']));
+        $fullName = trim($data['full_name'] ?? '');
+        $password = $data['password'] ?? '';
+        $confirmPassword = $data['confirm_password'] ?? '';
+        $department = trim($data['department'] ?? '');
+
+        if ($fullName === '') {
+            return ['success' => false, 'message_key' => 'full_name_required'];
+        }
+
+        if (strlen($password) < 8) {
+            return ['success' => false, 'message_key' => 'password_too_short'];
+        }
+
+        if ($password !== $confirmPassword) {
+            return ['success' => false, 'message_key' => 'password_mismatch'];
+        }
+
+        if ($this->userModel->emailExists($email)) {
+            return ['success' => false, 'message_key' => 'email_already_registered'];
+        }
+
+        $username = $this->userModel->extractUsername($email);
+
+        if ($this->userModel->findByUsername($username) !== null) {
+            return ['success' => false, 'message_key' => 'email_already_registered'];
+        }
+
+        $otpLength = (int) config('otp.length', 6);
+        $otpExpiry = $this->settings->getInt('otp_expiry_minutes', (int) config('otp.expiry_minutes', 15));
+        $otpCode = $this->pendingModel->generateOtp($otpLength);
+        $expiresAt = date('Y-m-d H:i:s', time() + ($otpExpiry * 60));
+
+        $pendingData = [
+            'email' => $email,
+            'username' => $username,
+            'full_name_en' => $fullName,
+            'full_name_ar' => null,
+            'participant_type' => 'du',
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'otp_code' => $otpCode,
+            'otp_expires_at' => $expiresAt,
+        ];
+
+        $pendingId = $this->storePendingRegistration($pendingData, $otpCode, $expiresAt);
+
+        $_SESSION['pending_verify_email'] = $email;
+        $_SESSION['pending_participant_type'] = 'du';
+        if ($department !== '') {
+            $_SESSION['pending_department'] = $department;
+        }
+
+        $verifyToken = $this->generateVerificationToken($pendingId, $email);
+        $verifyUrl = url('verify?token=' . urlencode($verifyToken));
+
+        $sent = $this->emailService->sendOtp($email, $fullName, $otpCode, $verifyUrl, 'du');
+
+        if (!$sent) {
+            return ['success' => false, 'message_key' => 'otp_send_failed'];
+        }
+
+        return [
+            'success' => true,
+            'message_key' => 'otp_sent',
+            'email' => $email,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $data
+     * @return array{success: bool, message?: string, message_key?: string, email?: string}
+     */
+    public function registerExternal(array $data): array
+    {
+        $email = strtolower(trim($data['email'] ?? ''));
+
+        if ($this->isDuEmail($email)) {
+            return [
+                'success' => false,
+                'message_key' => 'external_du_email_not_allowed',
+            ];
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return ['success' => false, 'message_key' => 'external_email_invalid'];
+        }
+
+        $fullName = trim($data['full_name'] ?? '');
+        $organization = trim($data['organization'] ?? '');
+        $phone = trim($data['phone'] ?? '');
+        $password = $data['password'] ?? '';
+        $confirmPassword = $data['confirm_password'] ?? '';
+
+        if ($fullName === '') {
+            return ['success' => false, 'message_key' => 'full_name_required'];
+        }
+
+        if ($organization === '') {
+            return ['success' => false, 'message_key' => 'organization_required'];
+        }
+
+        if (strlen($password) < 8) {
+            return ['success' => false, 'message_key' => 'password_too_short'];
+        }
+
+        if ($password !== $confirmPassword) {
+            return ['success' => false, 'message_key' => 'password_mismatch'];
+        }
+
+        if ($this->userModel->emailExists($email)) {
+            return ['success' => false, 'message_key' => 'email_already_registered'];
+        }
+
+        $username = $this->generateExternalUsername($email);
+
+        $otpLength = (int) config('otp.length', 6);
+        $otpExpiry = $this->settings->getInt('otp_expiry_minutes', (int) config('otp.expiry_minutes', 15));
+        $otpCode = $this->pendingModel->generateOtp($otpLength);
+        $expiresAt = date('Y-m-d H:i:s', time() + ($otpExpiry * 60));
+
+        $pendingData = [
+            'email' => $email,
+            'username' => $username,
+            'full_name_en' => $fullName,
+            'full_name_ar' => null,
+            'participant_type' => 'external',
+            'organization_en' => $organization,
+            'phone' => $phone !== '' ? $phone : null,
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'otp_code' => $otpCode,
+            'otp_expires_at' => $expiresAt,
+        ];
+
+        $pendingId = $this->storePendingRegistration($pendingData, $otpCode, $expiresAt);
+
+        $_SESSION['pending_verify_email'] = $email;
+        $_SESSION['pending_participant_type'] = 'external';
+        unset($_SESSION['pending_department']);
+
+        $verifyToken = $this->generateVerificationToken($pendingId, $email);
+        $verifyUrl = url('verify?token=' . urlencode($verifyToken));
+
+        $sent = $this->emailService->sendOtp($email, $fullName, $otpCode, $verifyUrl, 'external');
+
+        if (!$sent) {
+            return ['success' => false, 'message_key' => 'otp_send_failed'];
+        }
+
+        return [
+            'success' => true,
+            'message_key' => 'external_otp_sent',
+            'email' => $email,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $pendingData
+     */
+    private function storePendingRegistration(array $pendingData, string $otpCode, string $expiresAt): int
+    {
+        $email = strtolower((string) $pendingData['email']);
+        $existing = $this->pendingModel->findByEmail($email);
+
+        if ($existing !== null) {
+            $this->pendingModel->delete((int) $existing['id']);
+        }
+
+        return $this->pendingModel->create($pendingData);
+    }
+
+    private function generateExternalUsername(string $email): string
+    {
+        $local = preg_replace('/[^a-z0-9]/', '', strtolower(explode('@', $email)[0] ?? 'user'));
+        if ($local === '') {
+            $local = 'user';
+        }
+
+        $base = 'ext_' . substr($local, 0, 20);
+        $username = $base;
+        $suffix = 1;
+
+        while ($this->userModel->findByUsername($username) !== null) {
+            $username = $base . $suffix;
+            $suffix++;
+        }
+
+        return $username;
+    }
+
+    /**
+     * @return array{success: bool, message_key?: string, user_id?: int}
+     */
+    public function verifyOtp(string $email, string $otpCode): array
+    {
+        $email = strtolower(trim($email));
+        $otpCode = trim($otpCode);
+
+        $pending = $this->pendingModel->findByEmail($email);
+        if ($pending === null) {
+            return ['success' => false, 'message_key' => 'verification_not_found'];
+        }
+
+        if ($this->pendingModel->isExpired($pending)) {
+            $this->pendingModel->delete((int) $pending['id']);
+
+            return ['success' => false, 'message_key' => 'otp_expired'];
+        }
+
+        $maxAttempts = (int) config('otp.max_attempts', 5);
+        if ((int) $pending['attempts'] >= $maxAttempts) {
+            return ['success' => false, 'message_key' => 'otp_max_attempts'];
+        }
+
+        if (!hash_equals((string) $pending['otp_code'], $otpCode)) {
+            $this->pendingModel->incrementAttempts((int) $pending['id']);
+
+            return ['success' => false, 'message_key' => 'otp_invalid'];
+        }
+
+        return $this->completeRegistration($pending);
+    }
+
+    /**
+     * @return array{success: bool, message_key?: string, user_id?: int}
+     */
+    public function verifyToken(string $token): array
+    {
+        $decoded = $this->decodeVerificationToken($token);
+        if ($decoded === null) {
+            return ['success' => false, 'message_key' => 'verification_link_invalid'];
+        }
+
+        $pending = $this->pendingModel->findById($decoded['id']);
+        if ($pending === null || strtolower((string) $pending['email']) !== $decoded['email']) {
+            return ['success' => false, 'message_key' => 'verification_link_invalid'];
+        }
+
+        if ($this->pendingModel->isExpired($pending)) {
+            $this->pendingModel->delete((int) $pending['id']);
+
+            return ['success' => false, 'message_key' => 'otp_expired'];
+        }
+
+        return $this->completeRegistration($pending);
+    }
+
+    /**
+     * @param array<string, mixed> $pending
+     * @return array{success: bool, message_key?: string, user_id?: int}
+     */
+    private function completeRegistration(array $pending): array
+    {
+        $email = strtolower((string) $pending['email']);
+        $participantType = (string) ($pending['participant_type'] ?? 'du');
+        $department = $_SESSION['pending_department'] ?? null;
+
+        if ($this->userModel->emailExists($email)) {
+            $this->pendingModel->delete((int) $pending['id']);
+
+            return ['success' => false, 'message_key' => 'email_already_registered'];
+        }
+
+        if ($participantType === 'external') {
+            return $this->completeExternalRegistration($pending, $email);
+        }
+
+        $role = $this->userModel->detectRole($email, is_string($department) ? $department : null);
+
+        $userId = $this->userModel->create([
+            'username' => $pending['username'],
+            'email' => $email,
+            'password_hash' => $pending['password_hash'],
+            'email_verified_at' => date('Y-m-d H:i:s'),
+            'full_name_en' => $pending['full_name_en'],
+            'full_name_ar' => $pending['full_name_ar'],
+            'role' => $role,
+            'participant_type' => 'du',
+            'account_status' => 'active',
+            'department_en' => is_string($department) && $department !== '' ? $department : null,
+            'is_active' => 1,
+        ]);
+
+        $this->pendingModel->delete((int) $pending['id']);
+        unset($_SESSION['pending_department'], $_SESSION['pending_verify_email'], $_SESSION['pending_participant_type']);
+
+        $this->loginUser($userId, $email, (string) $pending['full_name_en'], $role);
+
+        return [
+            'success' => true,
+            'message_key' => 'registration_complete',
+            'participant_type' => 'du',
+            'user_id' => $userId,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $pending
+     * @return array{success: bool, message_key?: string, user_id?: int, participant_type?: string}
+     */
+    private function completeExternalRegistration(array $pending, string $email): array
+    {
+        $userId = $this->userModel->create([
+            'username' => $pending['username'],
+            'email' => $email,
+            'password_hash' => $pending['password_hash'],
+            'email_verified_at' => date('Y-m-d H:i:s'),
+            'full_name_en' => $pending['full_name_en'],
+            'full_name_ar' => $pending['full_name_ar'],
+            'role' => 'staff',
+            'participant_type' => 'external',
+            'account_status' => 'pending_admin',
+            'organization_en' => $pending['organization_en'] ?? null,
+            'phone' => $pending['phone'] ?? null,
+            'is_active' => 0,
+        ]);
+
+        $this->pendingModel->delete((int) $pending['id']);
+        unset($_SESSION['pending_department'], $_SESSION['pending_verify_email'], $_SESSION['pending_participant_type']);
+
+        $user = $this->userModel->findById($userId);
+        if ($user !== null) {
+            $this->emailService->sendExternalPendingUser($user);
+            $this->emailService->sendExternalPendingAdminAlert($user);
+            NotificationService::adminNewExternalAccount($user);
+        }
+
+        return [
+            'success' => true,
+            'message_key' => 'external_pending_admin',
+            'participant_type' => 'external',
+            'user_id' => $userId,
+        ];
+    }
+
+    /**
+     * @return array{success: bool, message_key?: string}
+     */
+    public function login(string $email, string $password, bool $remember = false): array
+    {
+        $email = strtolower(trim($email));
+
+        if ($this->isLockedOut($email)) {
+            $remaining = $this->getLockoutRemaining($email);
+
+            return [
+                'success' => false,
+                'message_key' => 'login_locked',
+                'remaining' => $remaining,
+            ];
+        }
+
+        $authMethod = $this->settings->get('auth_method', 'email');
+
+        if ($authMethod === 'ldap' && $this->ldapService->isEnabled()) {
+            return $this->loginViaLdap($email, $password, $remember);
+        }
+
+        return $this->loginViaEmail($email, $password, $remember);
+    }
+
+    /**
+     * @return array{success: bool, message_key?: string}
+     */
+    private function loginViaEmail(string $email, string $password, bool $remember): array
+    {
+        $user = $this->userModel->findByEmail($email);
+
+        if ($user === null) {
+            $this->recordFailedAttempt($email);
+
+            return ['success' => false, 'message_key' => 'login_failed'];
+        }
+
+        $accountStatus = (string) ($user['account_status'] ?? 'active');
+        if ($accountStatus === 'pending_admin') {
+            return ['success' => false, 'message_key' => 'account_pending_approval'];
+        }
+
+        if ($accountStatus === 'rejected') {
+            return ['success' => false, 'message_key' => 'account_rejected'];
+        }
+
+        if (!(bool) $user['is_active']) {
+            return ['success' => false, 'message_key' => 'account_inactive'];
+        }
+
+        if ($user['email_verified_at'] === null) {
+            return ['success' => false, 'message_key' => 'email_not_verified'];
+        }
+
+        if (empty($user['password_hash']) || !password_verify($password, (string) $user['password_hash'])) {
+            $this->recordFailedAttempt($email);
+
+            return ['success' => false, 'message_key' => 'login_failed'];
+        }
+
+        $this->clearFailedAttempts($email);
+        $this->loginUser(
+            (int) $user['id'],
+            (string) $user['email'],
+            (string) $user['full_name_en'],
+            (string) $user['role']
+        );
+        $this->userModel->updateLastLogin((int) $user['id']);
+
+        if ($remember) {
+            $this->issueRememberToken((int) $user['id']);
+        }
+
+        return ['success' => true, 'message_key' => 'login_success'];
+    }
+
+    /**
+     * @return array{success: bool, message_key?: string}
+     */
+    private function loginViaLdap(string $email, string $password, bool $remember = false): array
+    {
+        $username = $this->userModel->extractUsername($email);
+        $ldapUser = $this->ldapService->authenticate($username, $password);
+
+        if ($ldapUser === false) {
+            $this->recordFailedAttempt($email);
+
+            return ['success' => false, 'message_key' => 'login_failed'];
+        }
+
+        $user = $this->userModel->findByEmail((string) $ldapUser['email']);
+
+        if ($user === null) {
+            $role = $this->userModel->detectRole(
+                (string) $ldapUser['email'],
+                $ldapUser['department_en'] ?? null
+            );
+
+            $userId = $this->userModel->create([
+                'username' => $ldapUser['username'],
+                'email' => $ldapUser['email'],
+                'password_hash' => null,
+                'email_verified_at' => date('Y-m-d H:i:s'),
+                'full_name_en' => $ldapUser['full_name_en'],
+                'role' => $role,
+                'participant_type' => 'du',
+                'account_status' => 'active',
+                'department_en' => $ldapUser['department_en'] ?? null,
+                'employee_id' => $ldapUser['employee_id'] ?? null,
+                'phone' => $ldapUser['phone'] ?? null,
+                'is_active' => 1,
+            ]);
+
+            $user = $this->userModel->findById($userId);
+        }
+
+        if ($user === null || !(bool) $user['is_active']) {
+            return ['success' => false, 'message_key' => 'account_inactive'];
+        }
+
+        $this->clearFailedAttempts($email);
+        $this->loginUser(
+            (int) $user['id'],
+            (string) $user['email'],
+            (string) $user['full_name_en'],
+            (string) $user['role']
+        );
+        $this->userModel->updateLastLogin((int) $user['id']);
+
+        if ($remember) {
+            $this->issueRememberToken((int) $user['id']);
+        }
+
+        return ['success' => true, 'message_key' => 'login_success'];
+    }
+
+    public function attemptRememberLogin(): bool
+    {
+        if ($this->isAuthenticated()) {
+            return true;
+        }
+
+        $cookieName = RememberToken::cookieName();
+        $rawToken = $_COOKIE[$cookieName] ?? '';
+        if ($rawToken === '') {
+            return false;
+        }
+
+        $record = RememberToken::findValidUser($rawToken);
+        if ($record === null) {
+            RememberToken::clearCookie();
+
+            return false;
+        }
+
+        $this->loginUser(
+            (int) $record['user_id'],
+            (string) $record['email'],
+            (string) ($record['full_name_en'] ?? $record['full_name_ar'] ?? ''),
+            (string) $record['role']
+        );
+
+        return true;
+    }
+
+    public function logout(): void
+    {
+        $cookieName = RememberToken::cookieName();
+        if (!empty($_COOKIE[$cookieName])) {
+            RememberToken::deleteByToken((string) $_COOKIE[$cookieName]);
+        }
+        RememberToken::clearCookie();
+
+        $_SESSION = [];
+
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                time() - 42000,
+                $params['path'],
+                $params['domain'],
+                (bool) $params['secure'],
+                (bool) $params['httponly']
+            );
+        }
+
+        session_destroy();
+    }
+
+    /**
+     * @return array{success: bool, message_key?: string}
+     */
+    public function resendOtp(string $email): array
+    {
+        $email = strtolower(trim($email));
+        $pending = $this->pendingModel->findByEmail($email);
+
+        if ($pending === null) {
+            return ['success' => false, 'message_key' => 'verification_not_found'];
+        }
+
+        $otpLength = (int) config('otp.length', 6);
+        $otpExpiry = $this->settings->getInt('otp_expiry_minutes', (int) config('otp.expiry_minutes', 15));
+        $otpCode = $this->pendingModel->generateOtp($otpLength);
+        $expiresAt = date('Y-m-d H:i:s', time() + ($otpExpiry * 60));
+
+        $this->pendingModel->updateOtp((int) $pending['id'], $otpCode, $expiresAt);
+
+        $verifyToken = $this->generateVerificationToken((int) $pending['id'], $email);
+        $verifyUrl = url('verify?token=' . urlencode($verifyToken));
+
+        $participantType = (string) ($pending['participant_type'] ?? 'du');
+
+        $sent = $this->emailService->sendOtp(
+            $email,
+            (string) $pending['full_name_en'],
+            $otpCode,
+            $verifyUrl,
+            $participantType
+        );
+
+        if (!$sent) {
+            return ['success' => false, 'message_key' => 'otp_send_failed'];
+        }
+
+        return ['success' => true, 'message_key' => 'otp_resent'];
+    }
+
+    public function generateVerificationToken(int $pendingId, string $email): string
+    {
+        $payload = json_encode([
+            'id' => $pendingId,
+            'email' => strtolower($email),
+            'exp' => time() + 900,
+        ], JSON_THROW_ON_ERROR);
+
+        $encoded = rtrim(strtr(base64_encode($payload), '+/', '-_'), '=');
+        $signature = hash_hmac('sha256', $encoded, $this->getAppSecret());
+
+        return $encoded . '.' . $signature;
+    }
+
+    /**
+     * @return array{id: int, email: string}|null
+     */
+    private function decodeVerificationToken(string $token): ?array
+    {
+        $parts = explode('.', $token, 2);
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        [$encoded, $signature] = $parts;
+        $expected = hash_hmac('sha256', $encoded, $this->getAppSecret());
+
+        if (!hash_equals($expected, $signature)) {
+            return null;
+        }
+
+        $padded = strtr($encoded, '-_', '+/');
+        $padded .= str_repeat('=', (4 - strlen($padded) % 4) % 4);
+        $json = base64_decode($padded, true);
+
+        if ($json === false) {
+            return null;
+        }
+
+        try {
+            $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            return null;
+        }
+
+        if (!isset($data['id'], $data['email'], $data['exp'])) {
+            return null;
+        }
+
+        if ((int) $data['exp'] < time()) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $data['id'],
+            'email' => strtolower((string) $data['email']),
+        ];
+    }
+
+    private function loginUser(int $userId, string $email, string $name, string $role): void
+    {
+        session_regenerate_id(true);
+
+        $_SESSION['user_id'] = $userId;
+        $_SESSION['user_email'] = $email;
+        $_SESSION['user_name'] = $name;
+        $_SESSION['user_role'] = $role;
+        $_SESSION['last_activity'] = time();
+    }
+
+    private function issueRememberToken(int $userId): void
+    {
+        $rawToken = RememberToken::create(
+            $userId,
+            $_SERVER['REMOTE_ADDR'] ?? null,
+            $_SERVER['HTTP_USER_AGENT'] ?? null
+        );
+        RememberToken::setCookie($rawToken);
+    }
+
+    public function isAuthenticated(): bool
+    {
+        return !empty($_SESSION['user_id']);
+    }
+
+    private function getAppSecret(): string
+    {
+        return (string) env('APP_KEY', 'ctdhr-portal-secret-key-change-me');
+    }
+
+    private function getRateLimitPath(string $email): string
+    {
+        if (!is_dir(self::RATE_LIMIT_DIR)) {
+            mkdir(self::RATE_LIMIT_DIR, 0755, true);
+        }
+
+        return self::RATE_LIMIT_DIR . '/login_' . md5(strtolower($email)) . '.json';
+    }
+
+    /**
+     * @return array{attempts: int, locked_until: int|null}
+     */
+    private function getRateLimitData(string $email): array
+    {
+        $path = $this->getRateLimitPath($email);
+
+        if (!file_exists($path)) {
+            return ['attempts' => 0, 'locked_until' => null];
+        }
+
+        $data = json_decode((string) file_get_contents($path), true);
+
+        if (!is_array($data)) {
+            return ['attempts' => 0, 'locked_until' => null];
+        }
+
+        return [
+            'attempts' => (int) ($data['attempts'] ?? 0),
+            'locked_until' => isset($data['locked_until']) ? (int) $data['locked_until'] : null,
+        ];
+    }
+
+    private function saveRateLimitData(string $email, int $attempts, ?int $lockedUntil): void
+    {
+        $path = $this->getRateLimitPath($email);
+        file_put_contents($path, json_encode([
+            'attempts' => $attempts,
+            'locked_until' => $lockedUntil,
+            'updated_at' => time(),
+        ]));
+    }
+
+    private function isLockedOut(string $email): bool
+    {
+        $data = $this->getRateLimitData($email);
+
+        if ($data['locked_until'] === null) {
+            return false;
+        }
+
+        if ($data['locked_until'] > time()) {
+            return true;
+        }
+
+        $this->clearFailedAttempts($email);
+
+        return false;
+    }
+
+    private function getLockoutRemaining(string $email): int
+    {
+        $data = $this->getRateLimitData($email);
+        if ($data['locked_until'] === null) {
+            return 0;
+        }
+
+        return max(0, $data['locked_until'] - time());
+    }
+
+    private function recordFailedAttempt(string $email): void
+    {
+        $data = $this->getRateLimitData($email);
+        $attempts = $data['attempts'] + 1;
+        $lockedUntil = null;
+
+        if ($attempts >= self::MAX_LOGIN_ATTEMPTS) {
+            $lockedUntil = time() + (self::LOCKOUT_MINUTES * 60);
+            $attempts = 0;
+        }
+
+        $this->saveRateLimitData($email, $attempts, $lockedUntil);
+    }
+
+    private function clearFailedAttempts(string $email): void
+    {
+        $path = $this->getRateLimitPath($email);
+        if (file_exists($path)) {
+            unlink($path);
+        }
+    }
+}

@@ -1,0 +1,53 @@
+<?php declare(strict_types=1);
+
+/**
+ * @var array<int, array{icon: string, prompt: string, label: string, href: string, variant?: string}> $footLinks
+ * @var array{label: string, href: string}|null $footBack
+ */
+
+$footLinks = $footLinks ?? [];
+$footBack = $footBack ?? null;
+
+if ($footLinks === [] && $footBack === null) {
+    return;
+}
+?>
+<nav class="auth-foot-nav" aria-label="<?= e(lang('auth_foot_nav_label')) ?>">
+    <?php if ($footLinks !== []): ?>
+    <div class="auth-foot-nav-divider" aria-hidden="true">
+        <span><?= e(lang('auth_foot_nav_divider')) ?></span>
+    </div>
+
+    <div class="auth-foot-nav-links<?= count($footLinks) > 1 ? ' auth-foot-nav-links--stack' : '' ?>">
+        <?php foreach ($footLinks as $link): ?>
+        <?php
+        $variant = $link['variant'] ?? 'default';
+        $variantClass = match ($variant) {
+            'du' => 'auth-foot-link-card--du',
+            'external' => 'auth-foot-link-card--external',
+            default => 'auth-foot-link-card--default',
+        };
+        ?>
+        <a href="<?= e($link['href']) ?>" class="auth-foot-link-card <?= e($variantClass) ?>">
+            <span class="auth-foot-link-card-icon" aria-hidden="true">
+                <span class="material-symbols-outlined"><?= e($link['icon']) ?></span>
+            </span>
+            <span class="auth-foot-link-card-body">
+                <span class="auth-foot-link-card-prompt"><?= e($link['prompt']) ?></span>
+                <span class="auth-foot-link-card-label"><?= e($link['label']) ?></span>
+            </span>
+            <span class="auth-foot-link-card-arrow" aria-hidden="true">
+                <span class="material-symbols-outlined">arrow_forward</span>
+            </span>
+        </a>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($footBack !== null): ?>
+    <a href="<?= e($footBack['href']) ?>" class="auth-foot-back">
+        <span class="material-symbols-outlined" aria-hidden="true">arrow_back</span>
+        <?= e($footBack['label']) ?>
+    </a>
+    <?php endif; ?>
+</nav>

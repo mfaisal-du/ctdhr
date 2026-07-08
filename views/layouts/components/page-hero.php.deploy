@@ -1,0 +1,87 @@
+<?php declare(strict_types=1);
+
+/**
+ * @var string $pageHeroIcon
+ * @var string $pageHeroTitle
+ * @var string $pageHeroSubtitle
+ * @var array<int, array{label: string, href?: string}> $pageHeroBreadcrumbs
+ * @var string $pageHeroAccent
+ */
+
+$pageHeroIcon = $pageHeroIcon ?? 'article';
+$pageHeroTitle = $pageHeroTitle ?? '';
+$pageHeroSubtitle = $pageHeroSubtitle ?? '';
+$pageHeroAccent = $pageHeroAccent ?? 'primary';
+$pageHeroBreadcrumbs = $pageHeroBreadcrumbs ?? [
+    ['label' => lang('home'), 'href' => url('/')],
+    ['label' => $pageHeroTitle],
+];
+
+$accentMap = [
+    'primary' => 'page-hero-accent-primary',
+    'secondary' => 'page-hero-accent-secondary',
+    'sky' => 'page-hero-accent-sky',
+    'magenta' => 'page-hero-accent-magenta',
+];
+$accentClass = $accentMap[$pageHeroAccent] ?? $accentMap['primary'];
+$overlayBg = graduation_overlay_image();
+?>
+<section class="page-hero <?= e($accentClass) ?> relative overflow-hidden">
+    <img src="<?= e($overlayBg) ?>" alt="" class="du-overlay-image" loading="lazy" decoding="async" aria-hidden="true">
+    <div class="du-overlay-scrim du-overlay-scrim-hero" aria-hidden="true"></div>
+    <div class="page-hero-pattern" aria-hidden="true"></div>
+
+    <?php
+    $eduIcons = ['school', 'menu_book', 'verified', 'history_edu'];
+    foreach ($eduIcons as $i => $eduIcon):
+    ?>
+    <span class="page-hero-float-icon material-symbols-outlined" style="--float-delay: <?= e((string) ($i * 1.2)) ?>s; --float-x: <?= e((string) (12 + $i * 22)) ?>%;" aria-hidden="true"><?= e($eduIcon) ?></span>
+    <?php endforeach; ?>
+
+    <div class="relative max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop py-unit-sm md:py-unit-md">
+        <nav class="reveal-fade-up mb-1.5" data-reveal aria-label="Breadcrumb">
+            <ol class="page-breadcrumb flex flex-wrap items-center gap-1">
+                <?php foreach ($pageHeroBreadcrumbs as $i => $crumb):
+                    $isLast = $i === count($pageHeroBreadcrumbs) - 1;
+                    $label = $crumb['label'] ?? '';
+                    $href = $crumb['href'] ?? null;
+                ?>
+                <?php if ($i > 0): ?>
+                <li class="page-breadcrumb-sep" aria-hidden="true">
+                    <span class="material-symbols-outlined text-[12px]"><?= is_rtl() ? 'chevron_left' : 'chevron_right' ?></span>
+                </li>
+                <?php endif; ?>
+                <li>
+                    <?php if (!$isLast && $href): ?>
+                    <a href="<?= e($href) ?>" class="page-breadcrumb-link">
+                        <?php if ($i === 0): ?>
+                        <span class="material-symbols-outlined text-[14px]">home</span>
+                        <?php endif; ?>
+                        <span><?= e($label) ?></span>
+                    </a>
+                    <?php else: ?>
+                    <span class="page-breadcrumb-current" aria-current="page"><?= e($label) ?></span>
+                    <?php endif; ?>
+                </li>
+                <?php endforeach; ?>
+            </ol>
+        </nav>
+
+        <div class="flex items-center gap-unit-sm md:gap-unit-md min-w-0">
+            <div class="page-hero-icon reveal-scale shrink-0" data-reveal data-reveal-delay="50">
+                <span class="material-symbols-outlined text-[18px]"><?= e($pageHeroIcon) ?></span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h1 class="reveal-fade-up font-headline-sm text-headline-sm md:font-headline-md md:text-headline-md text-on-primary leading-tight truncate md:whitespace-normal" data-reveal data-reveal-delay="100">
+                    <?= e($pageHeroTitle) ?>
+                </h1>
+                <?php if ($pageHeroSubtitle !== ''): ?>
+                <p class="reveal-fade-up font-body-sm text-on-primary/75 line-clamp-2 md:line-clamp-1 mt-0.5" data-reveal data-reveal-delay="150">
+                    <?= e($pageHeroSubtitle) ?>
+                </p>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <div class="rainbow-accent w-full absolute bottom-0 left-0 h-[3px] opacity-80" aria-hidden="true"></div>
+</section>

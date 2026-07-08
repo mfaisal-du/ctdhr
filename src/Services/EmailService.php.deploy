@@ -1,0 +1,552 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Models\Setting;
+use CTDHR\Models\User;
+use PHPMailer\PHPMailer\Exception as MailerException;
+use PHPMailer\PHPMailer\PHPMailer;
+
+final class EmailService
+{
+    private Setting $settings;
+
+    public function __construct()
+    {
+        $this->settings = new Setting();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function getMailConfig(): array
+    {
+        $fileConfig = require CTDHR_ROOT . '/config/mail.php.deploy';
+
+        return [
+            'host' => $this->settings->get('smtp_host') ?: ($fileConfig['host'] ?? env('MAIL_HOST', 'smtp.example.com')),
+            'port' => $this->settings->getInt('smtp_port') ?: (int) ($fileConfig['port'] ?? env('MAIL_PORT', 587)),
+            'username' => $this->settings->get('smtp_username') ?: ($fileConfig['username'] ?? env('MAIL_USERNAME', '')),
+            'password' => $this->settings->get('smtp_password') ?: ($fileConfig['password'] ?? env('MAIL_PASSWORD', '')),
+            'encryption' => $this->settings->get('smtp_encryption') ?: ($fileConfig['encryption'] ?? env('MAIL_ENCRYPTION', 'tls')),
+            'from_address' => $this->settings->get('email_from') ?: ($fileConfig['from']['address'] ?? env('MAIL_FROM_ADDRESS', 'noreply@du.edu.om')),
+            'from_name' => $this->settings->get('email_from_name') ?: ($fileConfig['from']['name'] ?? env('MAIL_FROM_NAME', 'CTDHR Portal')),
+        ];
+    }
+
+    private function isSmtpConfigured(): bool
+    {
+        $config = $this->getMailConfig();
+        $host = strtolower(trim((string) $config['host']));
+
+        if ($host === '' || in_array($host, ['smtp.example.com', 'localhost', '127.0.0.1', 'mailhog', 'mailpit'], true)) {
+            return !empty($config['username']) && !empty($config['password']);
+        }
+
+        return true;
+    }
+
+    private function createMailer(): PHPMailer
+    {
+        $config = $this->getMailConfig();
+        $mail = new PHPMailer(true);
+
+        $mail->isSMTP();
+        $mail->Host = (string) $config['host'];
+        $mail->Port = (int) $config['port'];
+        $mail->SMTPAuth = !empty($config['username']);
+        $mail->Username = (string) $config['username'];
+        $mail->Password = (string) $config['password'];
+        $mail->Timeout = 15;
+
+        $encryption = strtolower((string) $config['encryption']);
+        if ($encryption === 'ssl') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } elseif ($encryption === 'tls') {
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        } else {
+            $mail->SMTPAutoTLS = false;
+            $mail->SMTPSecure = false;
+        }
+
+        $mail->CharSet = 'UTF-8';
+        $mail->setFrom((string) $config['from_address'], (string) $config['from_name']);
+
+        return $mail;
+    }
+
+    /**
+     * @return array{success: bool, transport: string}
+     */
+    private function sendViaFile(
+        string $toEmail,
+        string $toName,
+        string $subject,
+        string $htmlBody,
+        string $altBody
+    ): array {
+        $dir = CTDHR_ROOT . '/storage/mail';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $safeEmail = preg_replace('/[^a-zA-Z0-9._-]/', '_', $toEmail) ?? 'recipient';
+        $filename = $dir . '/' . date('Y-m-d_His') . '_' . $safeEmail . '.html';
+
+        $content = <<<HTML
+<!--
+To: {$toName} <{$toEmail}>
+Subject: {$subject}
+Transport: file (local development)
+-->
+{$htmlBody}
+HTML;
+
+        $written = file_put_contents($filename, $content) !== false;
+
+        if ($written && $altBody !== '') {
+            $textFile = preg_replace('/\.html$/', '.txt', $filename);
+            file_put_contents($textFile, "To: {$toName} <{$toEmail}>\nSubject: {$subject}\n\n{$altBody}");
+        }
+
+        if (config('debug')) {
+            error_log("CTDHR mail saved to: {$filename}");
+        }
+
+        return ['success' => $written, 'transport' => 'file'];
+    }
+
+    public function sendOtp(
+        string $email,
+        string $name,
+        string $otpCode,
+        ?string $verifyUrl = null,
+        string $participantType = 'du'
+    ): bool {
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+        $isAr = $locale === 'ar';
+        $isExternal = $participantType === 'external';
+
+        $subject = $isAr
+            ? ($isExternal ? 'تأكيد بريدك الإلكتروني - بوابة CTDHR' : 'رمز التحقق - بوابة CTDHR')
+            : ($isExternal ? 'Verify Your Email - CTDHR Portal' : 'Verification Code - CTDHR Portal');
+
+        $greeting = $isAr ? 'مرحباً' : 'Hello';
+        $bodyIntro = $isAr
+            ? ($isExternal
+                ? 'شكراً لتسجيلك كمشارك خارجي. استخدم رمز التحقق التالي لتأكيد بريدك الإلكتروني:'
+                : 'استخدم رمز التحقق التالي لإكمال تسجيل حسابك في بوابة CTDHR:')
+            : ($isExternal
+                ? 'Thank you for registering as an external participant. Use the verification code below to confirm your email:'
+                : 'Use the following verification code to complete your CTDHR Portal registration:');
+
+        $expiryNote = $isAr
+            ? 'ينتهي صلاحية هذا الرمز خلال 15 دقيقة.'
+            : 'This code expires in 15 minutes.';
+
+        $ignoreNote = $isAr
+            ? 'إذا لم تطلب هذا الرمز، يمكنك تجاهل هذه الرسالة.'
+            : 'If you did not request this code, you can safely ignore this email.';
+
+        $linkNote = '';
+        if ($verifyUrl !== null) {
+            $linkNote = $isAr
+                ? '<p style="margin-top:16px;">أو انقر على الرابط التالي للتحقق:<br><a href="' . htmlspecialchars($verifyUrl) . '">' . htmlspecialchars($verifyUrl) . '</a></p>'
+                : '<p style="margin-top:16px;">Or click the link below to verify:<br><a href="' . htmlspecialchars($verifyUrl) . '">' . htmlspecialchars($verifyUrl) . '</a></p>';
+        }
+
+        $html = <<<HTML
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f5f7fa;padding:24px;">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border-top:4px solid #1E5AA8;">
+    <h2 style="color:#1E5AA8;margin:0 0 16px;">CTDHR Portal</h2>
+    <p>{$greeting} <strong>{$name}</strong>,</p>
+    <p>{$bodyIntro}</p>
+    <div style="font-size:32px;font-weight:bold;letter-spacing:8px;text-align:center;padding:20px;background:#f0f4f8;border-radius:8px;color:#1E5AA8;margin:20px 0;">
+      {$otpCode}
+    </div>
+    <p style="color:#666;font-size:14px;">{$expiryNote}</p>
+    {$linkNote}
+    <p style="color:#999;font-size:12px;margin-top:24px;">{$ignoreNote}</p>
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+    <p style="color:#999;font-size:11px;text-align:center;">Dhofar University &copy; CTDHR</p>
+  </div>
+</body>
+</html>
+HTML;
+
+        $altBody = "{$greeting} {$name},\n\n{$bodyIntro}\n\n{$otpCode}\n\n{$expiryNote}";
+
+        $sent = $this->send($email, $name, $subject, $html, $altBody);
+
+        if ($sent && ($_SESSION['_last_mail_transport'] ?? '') === 'file') {
+            $_SESSION['dev_otp_hint'] = $otpCode;
+        }
+
+        return $sent;
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     */
+    public function sendExternalPendingUser(array $user): bool
+    {
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+        $isAr = $locale === 'ar';
+        $name = (string) ($user['full_name_en'] ?? $user['full_name_ar'] ?? 'Participant');
+        $email = (string) ($user['email'] ?? '');
+
+        $subject = $isAr
+            ? 'تم استلام طلب حسابك - بوابة CTDHR'
+            : 'Account Request Received - CTDHR Portal';
+
+        $greeting = $isAr ? 'مرحباً' : 'Hello';
+        $intro = $isAr
+            ? 'تم التحقق من بريدك الإلكتروني بنجاح. طلب حسابك قيد المراجعة من قبل فريق CTDHR.'
+            : 'Your email has been verified successfully. Your account request is now under review by the CTDHR team.';
+        $bodyContent = $isAr
+            ? '<p style="color:#666;">ستتلقى رسالة بريد إلكتروني عند الموافقة على حسابك. بعد ذلك يمكنك تسجيل الدخول والتقديم على الدورات المتاحة للمشاركين الخارجيين.</p>'
+            : '<p style="color:#666;">You will receive an email once your account is approved. After approval, you can sign in and apply to courses open to external participants.</p>';
+
+        $html = $this->buildEmailTemplate($greeting, $name, $intro, $bodyContent);
+        $altBody = "{$greeting} {$name},\n\n{$intro}";
+
+        return $this->send($email, $name, $subject, $html, $altBody);
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     */
+    public function sendExternalPendingAdminAlert(array $user): bool
+    {
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+        $isAr = $locale === 'ar';
+        $name = (string) ($user['full_name_en'] ?? $user['full_name_ar'] ?? 'Participant');
+        $email = (string) ($user['email'] ?? '');
+        $organization = (string) ($user['organization_en'] ?? '—');
+        $phone = (string) ($user['phone'] ?? '—');
+
+        $subject = $isAr
+            ? 'طلب حساب خارجي جديد - بوابة CTDHR'
+            : 'New External Account Pending Approval - CTDHR Portal';
+
+        $greeting = $isAr ? 'مرحباً' : 'Hello';
+        $intro = $isAr
+            ? 'تم تسجيل مشارك خارجي جديد ويحتاج إلى موافقة المسؤول:'
+            : 'A new external participant has registered and requires admin approval:';
+
+        $details = '<table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;">'
+            . '<tr><td style="padding:8px 0;color:#666;">' . ($isAr ? 'الاسم' : 'Name') . '</td><td style="padding:8px 0;"><strong>' . htmlspecialchars($name) . '</strong></td></tr>'
+            . '<tr><td style="padding:8px 0;color:#666;">' . ($isAr ? 'البريد' : 'Email') . '</td><td style="padding:8px 0;">' . htmlspecialchars($email) . '</td></tr>'
+            . '<tr><td style="padding:8px 0;color:#666;">' . ($isAr ? 'الجهة' : 'Organization') . '</td><td style="padding:8px 0;">' . htmlspecialchars($organization) . '</td></tr>'
+            . '<tr><td style="padding:8px 0;color:#666;">' . ($isAr ? 'الهاتف' : 'Phone') . '</td><td style="padding:8px 0;">' . htmlspecialchars($phone) . '</td></tr>'
+            . '</table>';
+
+        $reviewUrl = url('admin/users/pending');
+        $adminNote = $isAr
+            ? '<p style="margin-top:16px;"><a href="' . htmlspecialchars($reviewUrl) . '" style="color:#1E5AA8;font-weight:600;">مراجعة طلبات الحسابات الخارجية</a></p>'
+            : '<p style="margin-top:16px;"><a href="' . htmlspecialchars($reviewUrl) . '" style="color:#1E5AA8;font-weight:600;">Review external account requests</a></p>';
+
+        $html = $this->buildEmailTemplate($greeting, 'CTDHR Admin', $intro, $details . $adminNote);
+        $altBody = "{$intro}\n\nName: {$name}\nEmail: {$email}\nOrganization: {$organization}\nPhone: {$phone}";
+
+        $userModel = new User();
+        $admins = $userModel->findAdminContacts();
+        $sent = false;
+
+        foreach ($admins as $admin) {
+            if ($this->send((string) $admin['email'], (string) $admin['full_name_en'], $subject, $html, $altBody)) {
+                $sent = true;
+            }
+        }
+
+        if (!$sent && config('debug')) {
+            $fallback = (string) config('mail.admin_fallback', env('MAIL_FROM_ADDRESS', 'noreply@du.edu.om'));
+            if ($fallback !== '') {
+                $sent = $this->send($fallback, 'CTDHR Admin', $subject, $html, $altBody);
+            }
+        }
+
+        return $sent;
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     */
+    public function sendExternalAccountApproved(array $user): bool
+    {
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+        $isAr = $locale === 'ar';
+        $name = (string) ($user['full_name_en'] ?? $user['full_name_ar'] ?? 'Participant');
+        $email = (string) ($user['email'] ?? '');
+
+        $subject = $isAr
+            ? 'تم اعتماد حسابك - بوابة CTDHR'
+            : 'Your Account Has Been Approved - CTDHR Portal';
+
+        $greeting = $isAr ? 'مرحباً' : 'Hello';
+        $intro = $isAr
+            ? 'يسعدنا إبلاغك بأن حسابك كمشارك خارجي قد تم اعتماده. يمكنك الآن تسجيل الدخول والتقديم على الدورات المتاحة.'
+            : 'We are pleased to inform you that your external participant account has been approved. You can now sign in and apply to eligible courses.';
+        $loginUrl = url('login/external');
+        $bodyContent = $isAr
+            ? '<p style="margin-top:16px;"><a href="' . htmlspecialchars($loginUrl) . '" style="display:inline-block;padding:12px 24px;background:#1E5AA8;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">تسجيل الدخول</a></p>'
+            : '<p style="margin-top:16px;"><a href="' . htmlspecialchars($loginUrl) . '" style="display:inline-block;padding:12px 24px;background:#1E5AA8;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Sign In Now</a></p>';
+
+        $html = $this->buildEmailTemplate($greeting, $name, $intro, $bodyContent);
+        $altBody = "{$greeting} {$name},\n\n{$intro}\n\n{$loginUrl}";
+
+        return $this->send($email, $name, $subject, $html, $altBody);
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     */
+    public function sendExternalAccountRejected(array $user, string $reason): bool
+    {
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+        $isAr = $locale === 'ar';
+        $name = (string) ($user['full_name_en'] ?? $user['full_name_ar'] ?? 'Participant');
+        $email = (string) ($user['email'] ?? '');
+        $safeReason = htmlspecialchars($reason);
+
+        $subject = $isAr
+            ? 'تحديث بخصوص طلب حسابك - بوابة CTDHR'
+            : 'Update on Your Account Request - CTDHR Portal';
+
+        $greeting = $isAr ? 'مرحباً' : 'Hello';
+        $intro = $isAr
+            ? 'نأسف لإبلاغك بأنه لم تتم الموافقة على طلب حسابك كمشارك خارجي في الوقت الحالي.'
+            : 'We regret to inform you that your external participant account request was not approved at this time.';
+        $reasonLabel = $isAr ? 'السبب' : 'Reason';
+        $contactNote = $isAr
+            ? 'إذا كانت لديك أسئلة، يرجى التواصل مع فريق CTDHR.'
+            : 'If you have questions, please contact the CTDHR team.';
+        $bodyContent = '<p style="color:#666;margin:16px 0;"><strong>' . $reasonLabel . ':</strong> ' . $safeReason . '</p>'
+            . '<p style="color:#666;">' . $contactNote . '</p>';
+
+        $html = $this->buildEmailTemplate($greeting, $name, $intro, $bodyContent);
+        $altBody = "{$greeting} {$name},\n\n{$intro}\n\n{$reasonLabel}: {$reason}\n\n{$contactNote}";
+
+        return $this->send($email, $name, $subject, $html, $altBody);
+    }
+
+    public function sendTestEmail(string $email): bool
+    {
+        $subject = 'CTDHR Portal - Test Email';
+        $html = '<p>This is a test email from CTDHR Portal. SMTP configuration is working.</p>';
+        $altBody = 'This is a test email from CTDHR Portal. SMTP configuration is working.';
+
+        return $this->send($email, 'Test Recipient', $subject, $html, $altBody);
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     * @param array<string, mixed> $course
+     * @param array<string, mixed> $application
+     */
+    public function sendApplicationConfirmation(array $user, array $course, array $application): bool
+    {
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+        $isAr = $locale === 'ar';
+        $name = (string) ($user['full_name_en'] ?? $user['full_name_ar'] ?? 'Participant');
+        $email = (string) ($user['email'] ?? '');
+        $courseTitle = $isAr
+            ? (string) ($course['title_ar'] ?? $course['title_en'] ?? '')
+            : (string) ($course['title_en'] ?? '');
+
+        $subject = $isAr
+            ? 'تأكيد تقديم الطلب - بوابة CTDHR'
+            : 'Application Confirmation - CTDHR Portal';
+
+        $greeting = $isAr ? 'مرحباً' : 'Hello';
+        $intro = $isAr
+            ? 'تم استلام طلبك للتسجيل في الدورة التالية:'
+            : 'We have received your application for the following course:';
+        $statusNote = $isAr
+            ? 'حالة الطلب: قيد المراجعة'
+            : 'Application status: Pending review';
+        $dashboardNote = $isAr
+            ? 'يمكنك متابعة حالة طلبك من لوحة التحكم.'
+            : 'You can track your application status from your dashboard.';
+        $dashboardUrl = url('dashboard/applications');
+
+        $html = $this->buildEmailTemplate(
+            $greeting,
+            $name,
+            $intro,
+            '<p style="font-size:18px;font-weight:600;color:#1E5AA8;margin:16px 0;">' . htmlspecialchars($courseTitle) . '</p>'
+            . '<p style="color:#666;">' . htmlspecialchars($statusNote) . '</p>'
+            . '<p style="margin-top:16px;"><a href="' . htmlspecialchars($dashboardUrl) . '" style="color:#1E5AA8;">' . htmlspecialchars($dashboardNote) . '</a></p>'
+        );
+
+        $altBody = "{$greeting} {$name},\n\n{$intro}\n\n{$courseTitle}\n\n{$statusNote}\n\n{$dashboardUrl}";
+
+        return $this->send($email, $name, $subject, $html, $altBody);
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     * @param array<string, mixed> $course
+     * @param array<string, mixed> $application
+     */
+    public function sendApplicationStatusChange(
+        array $user,
+        array $course,
+        array $application,
+        string $oldStatus,
+        string $newStatus
+    ): bool {
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+        $isAr = $locale === 'ar';
+        $name = (string) ($user['full_name_en'] ?? $user['full_name_ar'] ?? 'Participant');
+        $email = (string) ($user['email'] ?? '');
+        $courseTitle = $isAr
+            ? (string) ($course['title_ar'] ?? $course['title_en'] ?? '')
+            : (string) ($course['title_en'] ?? '');
+
+        $statusLabels = [
+            'pending' => $isAr ? 'قيد الانتظار' : 'Pending',
+            'approved' => $isAr ? 'مقبول' : 'Approved',
+            'rejected' => $isAr ? 'مرفوض' : 'Rejected',
+            'cancelled' => $isAr ? 'ملغى' : 'Cancelled',
+            'waitlisted' => $isAr ? 'قائمة الانتظار' : 'Waitlisted',
+        ];
+
+        $newLabel = $statusLabels[$newStatus] ?? $newStatus;
+
+        $subject = $isAr
+            ? 'تحديث حالة الطلب - بوابة CTDHR'
+            : 'Application Status Update - CTDHR Portal';
+
+        $greeting = $isAr ? 'مرحباً' : 'Hello';
+        $intro = $isAr
+            ? 'تم تحديث حالة طلبك للدورة:'
+            : 'Your application status has been updated for:';
+        $statusLine = $isAr
+            ? 'الحالة الجديدة: <strong>' . htmlspecialchars($newLabel) . '</strong>'
+            : 'New status: <strong>' . htmlspecialchars($newLabel) . '</strong>';
+        $dashboardUrl = url('dashboard/applications');
+        $linkNote = $isAr
+            ? '<p style="margin-top:16px;"><a href="' . htmlspecialchars($dashboardUrl) . '">عرض طلباتي</a></p>'
+            : '<p style="margin-top:16px;"><a href="' . htmlspecialchars($dashboardUrl) . '">View my applications</a></p>';
+
+        $html = $this->buildEmailTemplate(
+            $greeting,
+            $name,
+            $intro,
+            '<p style="font-size:18px;font-weight:600;color:#1E5AA8;margin:16px 0;">' . htmlspecialchars($courseTitle) . '</p>'
+            . '<p>' . $statusLine . '</p>'
+            . $linkNote
+        );
+
+        $altBody = "{$greeting} {$name},\n\n{$intro}\n\n{$courseTitle}\n\nNew status: {$newLabel}\n\n{$dashboardUrl}";
+
+        return $this->send($email, $name, $subject, $html, $altBody);
+    }
+
+    private function buildEmailTemplate(
+        string $greeting,
+        string $name,
+        string $intro,
+        string $bodyContent
+    ): string {
+        return <<<HTML
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f5f7fa;padding:24px;">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border-top:4px solid #1E5AA8;">
+    <h2 style="color:#1E5AA8;margin:0 0 16px;">CTDHR Portal</h2>
+    <p>{$greeting} <strong>{$name}</strong>,</p>
+    <p>{$intro}</p>
+    {$bodyContent}
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+    <p style="color:#999;font-size:11px;text-align:center;">Dhofar University &copy; CTDHR</p>
+  </div>
+</body>
+</html>
+HTML;
+    }
+
+    public function sendContactMessage(
+        string $recipient,
+        string $senderName,
+        string $senderEmail,
+        string $subject,
+        string $message
+    ): bool {
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+        $isAr = $locale === 'ar';
+
+        $mailSubject = $subject !== ''
+            ? ($isAr ? 'رسالة تواصل: ' : 'Contact message: ') . $subject
+            : ($isAr ? 'رسالة تواصل جديدة' : 'New contact message');
+
+        $safeName = htmlspecialchars($senderName);
+        $safeEmail = htmlspecialchars($senderEmail);
+        $safeSubject = htmlspecialchars($subject !== '' ? $subject : ($isAr ? 'بدون موضوع' : 'No subject'));
+        $safeMessage = nl2br(htmlspecialchars($message));
+
+        $html = <<<HTML
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;background:#f5f7fa;padding:24px;">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border-top:4px solid #1E5AA8;">
+    <h2 style="color:#1E5AA8;margin:0 0 16px;">CTDHR Contact Form</h2>
+    <p><strong>Name:</strong> {$safeName}</p>
+    <p><strong>Email:</strong> <a href="mailto:{$safeEmail}">{$safeEmail}</a></p>
+    <p><strong>Subject:</strong> {$safeSubject}</p>
+    <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
+    <p>{$safeMessage}</p>
+  </div>
+</body>
+</html>
+HTML;
+
+        $altBody = "Name: {$senderName}\nEmail: {$senderEmail}\nSubject: {$subject}\n\n{$message}";
+
+        return $this->send($recipient, 'CTDHR Team', $mailSubject, $html, $altBody);
+    }
+
+    public function send(
+        string $toEmail,
+        string $toName,
+        string $subject,
+        string $htmlBody,
+        string $altBody = ''
+    ): bool {
+        $altBody = $altBody !== '' ? $altBody : strip_tags($htmlBody);
+
+        if ($this->isSmtpConfigured()) {
+            try {
+                $mail = $this->createMailer();
+                $mail->addAddress($toEmail, $toName);
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body = $htmlBody;
+                $mail->AltBody = $altBody;
+
+                if ($mail->send()) {
+                    $_SESSION['_last_mail_transport'] = 'smtp';
+
+                    return true;
+                }
+            } catch (MailerException $e) {
+                if (config('debug')) {
+                    error_log('SMTP send failed, falling back to file: ' . $e->getMessage());
+                }
+            }
+        }
+
+        $fileResult = $this->sendViaFile($toEmail, $toName, $subject, $htmlBody, $altBody);
+        $_SESSION['_last_mail_transport'] = $fileResult['transport'];
+
+        return $fileResult['success'];
+    }
+}

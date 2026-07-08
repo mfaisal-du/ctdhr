@@ -1,0 +1,227 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Models\Setting;
+use CTDHR\Services\AuditService;
+use CTDHR\Services\EmailService;
+use CTDHR\Services\LdapService;
+use Symfony\Component\Ldap\Adapter\ExtLdap\Adapter;
+use Symfony\Component\Ldap\Ldap;
+
+final class SettingsController
+{
+    private Setting $settings;
+    private AuditService $audit;
+
+    public function __construct()
+    {
+        $this->settings = new Setting();
+        $this->audit = new AuditService();
+    }
+
+    public function index(): void
+    {
+        $ldapConfig = require CTDHR_ROOT . '/config/ldap.php.deploy';
+
+        admin_view('admin.settings.index', [
+            'pageTitle' => lang('settings'),
+            'settings' => $this->settings->getAll(),
+            'ldapConfig' => $ldapConfig,
+            'activeTab' => $_GET['tab'] ?? 'general',
+        ]);
+    }
+
+    public function saveGeneral(): void
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        $keys = ['site_name_en', 'site_name_ar', 'certificate_prefix', 'max_upload_size_mb', 'application_auto_approve'];
+
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $_POST)) {
+                $value = $key === 'application_auto_approve'
+                    ? (isset($_POST[$key]) ? 'true' : 'false')
+                    : trim((string) $_POST[$key]);
+                $this->settings->set($key, $value, $userId);
+            }
+        }
+
+        $this->audit->log('settings.general', 'settings', null);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/settings?tab=general');
+    }
+
+    public function saveSmtp(): void
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        $keys = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 'smtp_encryption', 'email_from', 'email_from_name'];
+
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $_POST)) {
+                continue;
+            }
+
+            $value = trim((string) $_POST[$key]);
+
+            // Keep existing app password when the field is left blank on save.
+            if ($key === 'smtp_password' && $value === '') {
+                continue;
+            }
+
+            $this->settings->set($key, $value, $userId);
+        }
+
+        $this->audit->log('settings.smtp', 'settings', null);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/settings?tab=smtp');
+    }
+
+    public function testSmtp(): void
+    {
+        $testEmail = trim($_POST['test_email'] ?? $_SESSION['user_email'] ?? '');
+        if ($testEmail === '' || !filter_var($testEmail, FILTER_VALIDATE_EMAIL)) {
+            flash('error', lang('invalid_email'));
+            redirect('admin/settings?tab=smtp');
+        }
+
+        $emailService = new EmailService();
+        if ($emailService->sendTestEmail($testEmail)) {
+            $this->audit->log('settings.smtp_test', 'settings', null, ['email' => $testEmail]);
+            flash('success', lang('smtp_test_success'));
+        } else {
+            flash('error', lang('smtp_test_failed'));
+        }
+
+        redirect('admin/settings?tab=smtp');
+    }
+
+    public function saveLdap(): void
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+        $this->settings->set('ldap_enabled', isset($_POST['ldap_enabled']) ? 'true' : 'false', $userId);
+
+        $ldapKeys = ['ldap_host', 'ldap_port', 'ldap_base_dn', 'ldap_bind_dn', 'ldap_bind_password', 'ldap_use_tls'];
+        foreach ($ldapKeys as $key) {
+            if (array_key_exists($key, $_POST)) {
+                $value = $key === 'ldap_use_tls'
+                    ? (isset($_POST[$key]) ? 'true' : 'false')
+                    : trim((string) $_POST[$key]);
+                $this->settings->set($key, $value, $userId);
+            }
+        }
+
+        $this->audit->log('settings.ldap', 'settings', null);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/settings?tab=ldap');
+    }
+
+    public function testLdap(): void
+    {
+        $enabled = isset($_POST['ldap_enabled']) || $this->settings->getBool('ldap_enabled', false);
+
+        if (!$enabled) {
+            flash('error', lang('ldap_disabled'));
+            redirect('admin/settings?tab=ldap');
+        }
+
+        $host = trim($_POST['ldap_host'] ?? $this->settings->get('ldap_host', '') ?? '');
+        $port = (int) ($_POST['ldap_port'] ?? $this->settings->get('ldap_port', '389') ?? 389);
+        $bindDn = trim($_POST['ldap_bind_dn'] ?? $this->settings->get('ldap_bind_dn', '') ?? '');
+        $bindPassword = trim($_POST['ldap_bind_password'] ?? $this->settings->get('ldap_bind_password', '') ?? '');
+        $useTls = isset($_POST['ldap_use_tls']) || $this->settings->getBool('ldap_use_tls', false);
+
+        if ($host === '') {
+            $fileConfig = require CTDHR_ROOT . '/config/ldap.php.deploy';
+            $host = (string) preg_replace('#^ldaps?://#i', '', (string) ($fileConfig['host'] ?? 'du.edu.om'));
+            $port = (int) ($fileConfig['port'] ?? 389);
+            $bindDn = (string) ($fileConfig['bind_dn'] ?? '');
+            $bindPassword = (string) ($fileConfig['bind_password'] ?? '');
+        } else {
+            $host = (string) preg_replace('#^ldaps?://#i', '', $host);
+        }
+
+        try {
+            if (!extension_loaded('ldap')) {
+                flash('error', lang('ldap_extension_missing'));
+                redirect('admin/settings?tab=ldap');
+            }
+
+            $adapter = new Adapter([
+                'host' => $host,
+                'port' => $port,
+                'encryption' => $useTls ? 'tls' : 'none',
+            ]);
+            $ldap = new Ldap($adapter);
+            $ldap->bind($bindDn, $bindPassword);
+
+            $this->audit->log('settings.ldap_test', 'settings', null, ['host' => $host]);
+            flash('success', lang('ldap_test_success'));
+        } catch (\Throwable $e) {
+            if (config('debug')) {
+                error_log('LDAP test: ' . $e->getMessage());
+            }
+            flash('error', lang('ldap_test_failed'));
+        }
+
+        redirect('admin/settings?tab=ldap');
+    }
+
+    public function saveAttendance(): void
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        $threshold = max(0, min(100, (int) ($_POST['attendance_threshold'] ?? 75)));
+        $this->settings->set('attendance_threshold', (string) $threshold, $userId);
+        $this->settings->set('certificate_auto_generate', isset($_POST['certificate_auto_generate']) ? 'true' : 'false', $userId);
+        $this->settings->set('certificate_validity_months', (string) max(0, min(120, (int) ($_POST['certificate_validity_months'] ?? 0))), $userId);
+        $this->settings->set('bulk_email_delay_seconds', (string) max(1, min(30, (int) ($_POST['bulk_email_delay_seconds'] ?? 3))), $userId);
+        $this->settings->set('cert_email_subject_en', trim((string) ($_POST['cert_email_subject_en'] ?? '')), $userId);
+        $this->settings->set('cert_email_subject_ar', trim((string) ($_POST['cert_email_subject_ar'] ?? '')), $userId);
+        $this->settings->set('cert_email_body_en', trim((string) ($_POST['cert_email_body_en'] ?? '')), $userId);
+        $this->settings->set('cert_email_body_ar', trim((string) ($_POST['cert_email_body_ar'] ?? '')), $userId);
+
+        $this->audit->log('settings.attendance', 'settings', null, ['threshold' => $threshold]);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/settings?tab=attendance');
+    }
+
+    public function saveLanguage(): void
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        $locale = in_array($_POST['default_locale'] ?? '', ['en', 'ar'], true) ? $_POST['default_locale'] : 'en';
+        $this->settings->set('default_locale', $locale, $userId);
+
+        $this->audit->log('settings.language', 'settings', null);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/settings?tab=language');
+    }
+
+    public function saveSecurity(): void
+    {
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+
+        $this->settings->set('maintenance_mode', isset($_POST['maintenance_mode']) ? 'true' : 'false', $userId);
+
+        $securityKeys = [
+            'maintenance_message_en',
+            'maintenance_message_ar',
+            'recaptcha_site_key',
+            'recaptcha_secret_key',
+            'recaptcha_score_threshold',
+            'admin_ip_whitelist',
+            'contact_email',
+        ];
+
+        foreach ($securityKeys as $key) {
+            if (array_key_exists($key, $_POST)) {
+                $this->settings->set($key, trim((string) $_POST[$key]), $userId);
+            }
+        }
+
+        $this->audit->log('settings.security', 'settings', null);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/settings?tab=security');
+    }
+}

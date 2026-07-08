@@ -1,0 +1,132 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class PendingRegistration
+{
+    private PDO $db;
+
+    public function __construct()
+    {
+        $this->db = Database::getInstance();
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM pending_registrations WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch();
+
+        return $row !== false ? $row : null;
+    }
+
+    public function findByEmail(string $email): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM pending_registrations WHERE email = :email LIMIT 1'
+        );
+        $stmt->execute(['email' => strtolower(trim($email))]);
+        $row = $stmt->fetch();
+
+        return $row !== false ? $row : null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function create(array $data): int
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO pending_registrations (
+                email, username, full_name_en, full_name_ar,
+                participant_type, organization_en, phone,
+                password_hash, otp_code, otp_expires_at, attempts
+            ) VALUES (
+                :email, :username, :full_name_en, :full_name_ar,
+                :participant_type, :organization_en, :phone,
+                :password_hash, :otp_code, :otp_expires_at, 0
+            )'
+        );
+
+        $stmt->execute([
+            'email' => strtolower((string) $data['email']),
+            'username' => strtolower((string) $data['username']),
+            'full_name_en' => $data['full_name_en'],
+            'full_name_ar' => $data['full_name_ar'] ?? null,
+            'participant_type' => $data['participant_type'] ?? 'du',
+            'organization_en' => $data['organization_en'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'password_hash' => $data['password_hash'],
+            'otp_code' => $data['otp_code'],
+            'otp_expires_at' => $data['otp_expires_at'],
+        ]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    public function updateOtp(int $id, string $otpCode, string $expiresAt): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE pending_registrations
+             SET otp_code = :otp_code, otp_expires_at = :otp_expires_at, attempts = 0
+             WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            'id' => $id,
+            'otp_code' => $otpCode,
+            'otp_expires_at' => $expiresAt,
+        ]);
+    }
+
+    public function incrementAttempts(int $id): bool
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE pending_registrations SET attempts = attempts + 1 WHERE id = :id'
+        );
+
+        return $stmt->execute(['id' => $id]);
+    }
+
+    public function delete(int $id): bool
+    {
+        $stmt = $this->db->prepare('DELETE FROM pending_registrations WHERE id = :id');
+
+        return $stmt->execute(['id' => $id]);
+    }
+
+    public function deleteByEmail(string $email): bool
+    {
+        $stmt = $this->db->prepare('DELETE FROM pending_registrations WHERE email = :email');
+
+        return $stmt->execute(['email' => strtolower(trim($email))]);
+    }
+
+    public function deleteExpired(): int
+    {
+        $stmt = $this->db->prepare(
+            'DELETE FROM pending_registrations WHERE otp_expires_at < NOW()'
+        );
+        $stmt->execute();
+
+        return $stmt->rowCount();
+    }
+
+    public function generateOtp(int $length = 6): string
+    {
+        $min = (int) str_pad('1', $length, '0');
+        $max = (int) str_pad('9', $length, '9');
+
+        return (string) random_int($min, $max);
+    }
+
+    public function isExpired(array $pending): bool
+    {
+        return strtotime((string) $pending['otp_expires_at']) < time();
+    }
+}

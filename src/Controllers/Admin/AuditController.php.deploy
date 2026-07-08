@@ -1,0 +1,25 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Models\AuditLog;
+
+final class AuditController
+{
+    public function index(): void
+    {
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $filters = [
+            'action' => $_GET['action'] ?? '',
+            'search' => $_GET['search'] ?? '',
+        ];
+
+        admin_view('admin.audit.index', [
+            'pageTitle' => lang('audit_log'),
+            'result' => AuditLog::findAll($filters, $page),
+            'filters' => $filters,
+        ]);
+    }
+}

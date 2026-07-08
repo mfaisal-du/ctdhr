@@ -1,0 +1,150 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Config\Database;
+use CTDHR\Models\Attendance;
+use CTDHR\Models\Certificate;
+use CTDHR\Models\Setting;
+use PDO;
+
+final class ParticipantTimelineService
+{
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function build(int $userId, ?int $courseId = null): array
+    {
+        $db = Database::getInstance();
+        $events = [];
+        $params = ['user_id' => $userId];
+        $courseSql = '';
+
+        if ($courseId !== null && $courseId > 0) {
+            $courseSql = ' AND ca.course_id = :course_id';
+            $params['course_id'] = $courseId;
+        }
+
+        $stmt = $db->prepare(
+            "SELECT ca.*, c.title_en, c.title_ar, c.slug
+             FROM course_applications ca
+             INNER JOIN courses c ON c.id = ca.course_id
+             WHERE ca.user_id = :user_id {$courseSql}
+             ORDER BY ca.applied_at ASC"
+        );
+        $stmt->execute($params);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $events[] = [
+                'type' => 'application',
+                'at' => (string) ($row['applied_at'] ?? ''),
+                'label' => lang('timeline_applied'),
+                'detail' => localized($row, 'title'),
+                'meta' => ['status' => (string) ($row['status'] ?? '')],
+            ];
+            if (!empty($row['reviewed_at'])) {
+                $events[] = [
+                    'type' => 'application_review',
+                    'at' => (string) $row['reviewed_at'],
+                    'label' => lang('timeline_application_' . ($row['status'] ?? 'updated')),
+                    'detail' => localized($row, 'title'),
+                    'meta' => ['status' => (string) ($row['status'] ?? '')],
+                ];
+            }
+        }
+
+        $attParams = ['user_id' => $userId];
+        $attCourseSql = '';
+        if ($courseId !== null && $courseId > 0) {
+            $attCourseSql = ' AND a.course_id = :course_id';
+            $attParams['course_id'] = $courseId;
+        }
+
+        $attStmt = $db->prepare(
+            "SELECT a.*, c.title_en, c.title_ar, u.username AS marker_username
+             FROM attendance a
+             INNER JOIN courses c ON c.id = a.course_id
+             LEFT JOIN users u ON u.id = a.marked_by
+             WHERE a.user_id = :user_id {$attCourseSql}
+             ORDER BY a.marked_at ASC"
+        );
+        $attStmt->execute($attParams);
+        foreach ($attStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $status = Attendance::rowStatus($row);
+            $events[] = [
+                'type' => 'attendance',
+                'at' => (string) ($row['marked_at'] ?? ''),
+                'label' => lang('timeline_attendance_' . $status),
+                'detail' => localized($row, 'title') . ' — ' . normalize_course_text((string) ($row['session_date'] ?? '')),
+                'meta' => [
+                    'status' => $status,
+                    'marked_by' => (string) ($row['marker_username'] ?? ''),
+                ],
+            ];
+        }
+
+        $certParams = ['user_id' => $userId];
+        $certCourseSql = '';
+        if ($courseId !== null && $courseId > 0) {
+            $certCourseSql = ' AND cert.course_id = :course_id';
+            $certParams['course_id'] = $courseId;
+        }
+
+        $certStmt = $db->prepare(
+            "SELECT cert.*, c.title_en, c.title_ar
+             FROM certificates cert
+             INNER JOIN courses c ON c.id = cert.course_id
+             WHERE cert.user_id = :user_id {$certCourseSql}
+             ORDER BY cert.generated_at ASC"
+        );
+        $certStmt->execute($certParams);
+        foreach ($certStmt->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $events[] = [
+                'type' => 'certificate',
+                'at' => (string) ($row['generated_at'] ?? ''),
+                'label' => !empty($row['revoked_at']) ? lang('timeline_cert_revoked') : lang('timeline_cert_issued'),
+                'detail' => (string) ($row['cert_number'] ?? '') . ' — ' . localized($row, 'course_title'),
+                'meta' => [
+                    'cert_id' => (int) ($row['id'] ?? 0),
+                    'emailed' => !empty($row['is_emailed']),
+                    'revoked' => !empty($row['revoked_at']),
+                ],
+            ];
+            if (!empty($row['emailed_at'])) {
+                $events[] = [
+                    'type' => 'certificate_email',
+                    'at' => (string) $row['emailed_at'],
+                    'label' => lang('timeline_cert_emailed'),
+                    'detail' => (string) ($row['cert_number'] ?? ''),
+                    'meta' => ['cert_id' => (int) ($row['id'] ?? 0)],
+                ];
+            }
+        }
+
+        usort($events, static function (array $a, array $b): int {
+            return strcmp((string) ($a['at'] ?? ''), (string) ($b['at'] ?? ''));
+        });
+
+        $threshold = (new Setting())->getInt('attendance_threshold', 75);
+        if ($courseId !== null && $courseId > 0) {
+            $breakdown = Attendance::getAttendanceRateBreakdown($userId, $courseId);
+            $events[] = [
+                'type' => 'summary',
+                'at' => date('Y-m-d H:i:s'),
+                'label' => lang('timeline_summary'),
+                'detail' => lang('attendance_rate_hint', [
+                    'present' => (string) $breakdown['present'],
+                    'total' => (string) $breakdown['total'],
+                    'rate' => (string) $breakdown['rate'],
+                ]),
+                'meta' => [
+                    'eligible' => $breakdown['rate'] >= $threshold && $breakdown['total'] > 0,
+                    'threshold' => $threshold,
+                ],
+            ];
+        }
+
+        return $events;
+    }
+}

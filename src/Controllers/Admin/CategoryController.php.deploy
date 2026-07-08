@@ -1,0 +1,164 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Models\Category;
+use CTDHR\Services\AuditService;
+
+final class CategoryController
+{
+    private AuditService $audit;
+
+    public function __construct()
+    {
+        $this->audit = new AuditService();
+    }
+
+    public function index(): void
+    {
+        admin_view('admin.categories.index', [
+            'pageTitle' => lang('categories'),
+            'categories' => Category::findAllAdmin(),
+        ]);
+    }
+
+    public function store(): void
+    {
+        $data = $this->validateInput();
+        if ($data === null) {
+            redirect('admin/categories');
+        }
+
+        $id = Category::create($data);
+        $this->audit->logCreate('category', $id, $data);
+        flash('success', lang('saved_successfully'));
+        redirect('admin/categories');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function update(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $category = Category::findByIdAdmin($id);
+        if ($category === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/categories');
+        }
+
+        $data = $this->validateInput($id);
+        if ($data === null) {
+            redirect('admin/categories');
+        }
+
+        Category::update($id, $data);
+        $this->audit->logUpdate('category', $id, $data);
+        flash('success', lang('updated_successfully'));
+        redirect('admin/categories');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function uploadCardImage(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $category = Category::findByIdAdmin($id);
+        if ($category === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/categories');
+        }
+
+        if (!isset($_FILES['card_image']) || $_FILES['card_image']['error'] !== UPLOAD_ERR_OK) {
+            flash('error', lang('upload_failed'));
+            redirect('admin/categories');
+        }
+
+        $file = $_FILES['card_image'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
+
+        if (!in_array($ext, $allowed, true)) {
+            flash('error', lang('invalid_file_type'));
+            redirect('admin/categories');
+        }
+
+        if (!is_dir(CTDHR_UPLOADS_CATEGORIES)) {
+            mkdir(CTDHR_UPLOADS_CATEGORIES, 0755, true);
+        }
+
+        $filename = 'category-' . $id . '-' . time() . '.' . $ext;
+        $relativePath = 'uploads/categories/' . $filename;
+        $fullPath = CTDHR_PUBLIC . '/assets/' . $relativePath;
+
+        if (!move_uploaded_file($file['tmp_name'], $fullPath)) {
+            flash('error', lang('upload_failed'));
+            redirect('admin/categories');
+        }
+
+        $previousPath = trim((string) ($category['card_image_path'] ?? ''));
+        if ($previousPath !== '') {
+            $previousFull = CTDHR_PUBLIC . '/assets/' . ltrim($previousPath, '/');
+            if (is_file($previousFull)) {
+                @unlink($previousFull);
+            }
+        }
+
+        Category::update($id, ['card_image_path' => $relativePath]);
+        $this->audit->log('category.upload_card_image', 'category', $id);
+        flash('success', lang('image_uploaded'));
+        redirect('admin/categories');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function destroy(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        if (Category::findByIdAdmin($id) === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/categories');
+        }
+
+        Category::softDelete($id);
+        $this->audit->logDelete('category', $id);
+        flash('success', lang('deleted_successfully'));
+        redirect('admin/categories');
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function validateInput(?int $excludeId = null): ?array
+    {
+        $nameEn = trim($_POST['name_en'] ?? '');
+        $nameAr = trim($_POST['name_ar'] ?? '');
+        $slug = trim($_POST['slug'] ?? '') ?: slugify($nameEn);
+
+        if ($nameEn === '' || $nameAr === '') {
+            flash('error', lang('required_fields_missing'));
+            return null;
+        }
+
+        if (Category::slugExists($slug, $excludeId)) {
+            flash('error', lang('slug_exists'));
+            return null;
+        }
+
+        return [
+            'name_en' => $nameEn,
+            'name_ar' => $nameAr,
+            'slug' => $slug,
+            'description_en' => trim($_POST['description_en'] ?? '') ?: null,
+            'description_ar' => trim($_POST['description_ar'] ?? '') ?: null,
+            'icon' => trim($_POST['icon'] ?? '') ?: null,
+            'color' => trim($_POST['color'] ?? '') ?: null,
+            'display_order' => (int) ($_POST['display_order'] ?? 0),
+            'is_active' => isset($_POST['is_active']) ? 1 : 0,
+        ];
+    }
+}

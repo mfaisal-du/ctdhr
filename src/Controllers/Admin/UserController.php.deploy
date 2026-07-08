@@ -1,0 +1,203 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Models\User;
+use CTDHR\Services\AuditService;
+use CTDHR\Services\EmailService;
+use CTDHR\Services\NotificationService;
+
+final class UserController
+{
+    private User $users;
+    private AuditService $audit;
+    private EmailService $email;
+
+    public function __construct()
+    {
+        $this->users = new User();
+        $this->audit = new AuditService();
+        $this->email = new EmailService();
+    }
+
+    public function index(): void
+    {
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $filters = [
+            'role' => $_GET['role'] ?? '',
+            'search' => $_GET['search'] ?? '',
+            'participant_type' => $_GET['participant_type'] ?? '',
+            'account_status' => $_GET['account_status'] ?? '',
+        ];
+
+        admin_view('admin.users.index', [
+            'pageTitle' => lang('users'),
+            'result' => $this->users->findAll($filters, $page),
+            'filters' => $filters,
+            'pendingExternalCount' => $this->users->countPendingExternal(),
+        ]);
+    }
+
+    public function pendingExternal(): void
+    {
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $tab = ($_GET['tab'] ?? 'pending') === 'history' ? 'history' : 'pending';
+        $filters = [
+            'search' => trim((string) ($_GET['search'] ?? '')),
+            'waiting' => (string) ($_GET['waiting'] ?? ''),
+        ];
+        $highlightId = max(0, (int) ($_GET['account'] ?? 0));
+
+        $stats = $this->users->getExternalApprovalStats();
+        $result = $tab === 'history'
+            ? $this->users->findRecentlyReviewedExternal($page)
+            : $this->users->findPendingExternalList($filters, $page);
+
+        admin_view('admin.users.pending', [
+            'pageTitle' => lang('pending_external_accounts'),
+            'result' => $result,
+            'stats' => $stats,
+            'filters' => $filters,
+            'tab' => $tab,
+            'highlightId' => $highlightId,
+        ]);
+    }
+
+    public function exportPendingExternal(): void
+    {
+        $filters = [
+            'search' => trim((string) ($_GET['search'] ?? '')),
+            'waiting' => (string) ($_GET['waiting'] ?? ''),
+        ];
+
+        $rows = $this->users->exportPendingExternalList($filters);
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="pending-external-' . date('Y-m-d') . '.csv"');
+
+        $out = fopen('php://output', 'w');
+        fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($out, ['ID', 'Name', 'Email', 'Organization', 'Phone', 'Waiting Days', 'Registered At', 'Email Verified']);
+
+        foreach ($rows as $row) {
+            $waitDays = pending_wait_days((string) ($row['created_at'] ?? ''));
+            fputcsv($out, [
+                $row['id'],
+                $row['full_name_en'],
+                $row['email'],
+                $row['organization_en'] ?? '',
+                $row['phone'] ?? '',
+                $waitDays,
+                $row['created_at'],
+                $row['email_verified_at'] ?? '',
+            ]);
+        }
+
+        fclose($out);
+        $this->audit->log('user.export_pending_external', 'user', null, ['count' => count($rows)]);
+        exit;
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function promote(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $user = $this->users->findById($id);
+
+        if ($user === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/users');
+        }
+
+        if ($user['role'] === 'admin') {
+            flash('info', lang('already_admin'));
+            redirect('admin/users');
+        }
+
+        $this->users->promoteToAdmin($id);
+        $this->audit->log('user.promote_admin', 'user', $id, ['email' => $user['email']]);
+        flash('success', lang('user_promoted'));
+        redirect('admin/users');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function approveExternal(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $user = $this->users->findById($id);
+        $adminId = (int) ($_SESSION['user_id'] ?? 0);
+
+        if ($user === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/users/pending');
+        }
+
+        if (!$this->users->approveExternalAccount($id, $adminId)) {
+            flash('error', lang('external_approval_failed'));
+            redirect('admin/users/pending');
+        }
+
+        $updated = $this->users->findById($id);
+        if ($updated !== null) {
+            $this->email->sendExternalAccountApproved($updated);
+        }
+
+        NotificationService::resolveExternalAccountReview($id, (string) ($user['email'] ?? ''));
+
+        $this->audit->log('user.approve_external', 'user', $id, [
+            'email' => $user['email'],
+            'approved_by' => $adminId,
+        ]);
+
+        flash('success', lang('external_account_approved'));
+        redirect('admin/users/pending');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function rejectExternal(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        $user = $this->users->findById($id);
+        $adminId = (int) ($_SESSION['user_id'] ?? 0);
+        $reason = trim((string) ($_POST['rejection_reason'] ?? ''));
+
+        if ($user === null) {
+            flash('error', lang('not_found'));
+            redirect('admin/users/pending');
+        }
+
+        if ($reason === '') {
+            flash('error', lang('rejection_reason_required'));
+            redirect('admin/users/pending');
+        }
+
+        if (!$this->users->rejectExternalAccount($id, $adminId, $reason)) {
+            flash('error', lang('external_rejection_failed'));
+            redirect('admin/users/pending');
+        }
+
+        $updated = $this->users->findById($id);
+        if ($updated !== null) {
+            $this->email->sendExternalAccountRejected($updated, $reason);
+        }
+
+        NotificationService::resolveExternalAccountReview($id, (string) ($user['email'] ?? ''));
+
+        $this->audit->log('user.reject_external', 'user', $id, [
+            'email' => $user['email'],
+            'rejected_by' => $adminId,
+            'reason' => $reason,
+        ]);
+
+        flash('success', lang('external_account_rejected'));
+        redirect('admin/users/pending');
+    }
+}

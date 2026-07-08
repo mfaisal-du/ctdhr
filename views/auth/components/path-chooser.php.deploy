@@ -1,0 +1,173 @@
+<?php declare(strict_types=1);
+
+/**
+ * @var string $chooserMode 'login' | 'register'
+ * @var string $chooserTitle
+ * @var string $chooserSubtitle
+ * @var string $chooserIcon
+ */
+
+$chooserMode = $chooserMode ?? 'login';
+$chooserTitle = $chooserTitle ?? lang('login');
+$chooserSubtitle = $chooserSubtitle ?? '';
+$chooserIcon = $chooserIcon ?? 'login';
+
+$duHref = $chooserMode === 'login' ? url('login/du') : url('register/du');
+$externalHref = $chooserMode === 'login' ? url('login/external') : url('register/external');
+
+if ($chooserMode === 'login') {
+    $duBadge = lang('auth_path_badge_du');
+    $duTitle = lang('login_du_title');
+    $duDesc = lang('login_du_card_desc');
+    $duFeatures = [
+        lang('auth_path_feature_du_email'),
+        lang('auth_path_feature_du_ldap'),
+        lang('auth_path_feature_du_courses'),
+    ];
+    $externalBadge = lang('auth_path_badge_external');
+    $externalTitle = lang('login_external_title');
+    $externalDesc = lang('login_external_card_desc');
+    $externalFeatures = [
+        lang('auth_path_feature_ext_email'),
+        lang('auth_path_feature_ext_approval'),
+        lang('auth_path_feature_ext_courses'),
+    ];
+} else {
+    $duBadge = lang('auth_path_badge_du');
+    $duTitle = lang('register_du_member');
+    $duDesc = lang('register_du_card_desc');
+    $duFeatures = [
+        lang('auth_path_feature_reg_du_email'),
+        lang('auth_path_feature_reg_du_verify'),
+        lang('auth_path_feature_reg_du_instant'),
+    ];
+    $externalBadge = lang('auth_path_badge_external');
+    $externalTitle = lang('register_external');
+    $externalDesc = lang('register_external_card_desc');
+    $externalFeatures = [
+        lang('auth_path_feature_reg_ext_org'),
+        lang('auth_path_feature_ext_approval'),
+        lang('auth_path_feature_reg_ext_cert'),
+    ];
+}
+?>
+
+<div class="auth-chooser">
+    <div class="auth-chooser-hero">
+        <div class="auth-chooser-hero-icon" aria-hidden="true">
+            <span class="material-symbols-outlined"><?= e($chooserIcon) ?></span>
+        </div>
+        <h1 class="auth-chooser-title"><?= e($chooserTitle) ?></h1>
+        <?php if ($chooserSubtitle !== ''): ?>
+        <p class="auth-chooser-subtitle"><?= e($chooserSubtitle) ?></p>
+        <?php endif; ?>
+    </div>
+
+    <div class="auth-chooser-grid">
+        <a href="<?= e($duHref) ?>" class="auth-path-card auth-path-card--du" style="animation-delay: 0.05s">
+            <div class="auth-path-card-accent" aria-hidden="true"></div>
+            <div class="auth-path-card-body">
+                <span class="auth-path-card-badge auth-path-card-badge--du"><?= e($duBadge) ?></span>
+                <div class="auth-path-card-icon-row">
+                    <div class="auth-path-card-icon-wrap">
+                        <span class="material-symbols-outlined">school</span>
+                    </div>
+                </div>
+                <h2 class="auth-path-card-title"><?= e($duTitle) ?></h2>
+                <p class="auth-path-card-desc"><?= e($duDesc) ?></p>
+                <ul class="auth-path-card-features">
+                    <?php foreach ($duFeatures as $feature): ?>
+                    <li>
+                        <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                        <span><?= e($feature) ?></span>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+            <div class="auth-path-card-footer">
+                <span class="auth-path-card-cta">
+                    <?= e(lang('continue')) ?>
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                </span>
+            </div>
+        </a>
+
+        <a href="<?= e($externalHref) ?>" class="auth-path-card auth-path-card--external" style="animation-delay: 0.12s">
+            <div class="auth-path-card-accent" aria-hidden="true"></div>
+            <div class="auth-path-card-body">
+                <span class="auth-path-card-badge auth-path-card-badge--external"><?= e($externalBadge) ?></span>
+                <div class="auth-path-card-icon-row">
+                    <div class="auth-path-card-icon-wrap">
+                        <span class="material-symbols-outlined">groups</span>
+                    </div>
+                </div>
+                <h2 class="auth-path-card-title"><?= e($externalTitle) ?></h2>
+                <p class="auth-path-card-desc"><?= e($externalDesc) ?></p>
+                <ul class="auth-path-card-features">
+                    <?php foreach ($externalFeatures as $feature): ?>
+                    <li>
+                        <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+                        <span><?= e($feature) ?></span>
+                    </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+            <div class="auth-path-card-footer">
+                <span class="auth-path-card-cta">
+                    <?= e(lang('continue')) ?>
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                </span>
+            </div>
+        </a>
+    </div>
+
+    <nav class="auth-chooser-foot auth-foot-nav" aria-label="<?= e(lang('auth_foot_nav_label')) ?>">
+        <div class="auth-foot-nav-divider" aria-hidden="true">
+            <span><?= e(lang('auth_foot_nav_divider')) ?></span>
+        </div>
+
+        <?php if ($chooserMode === 'login'): ?>
+        <div class="auth-foot-nav-links auth-foot-nav-links--chooser">
+            <a href="<?= e(url('register/du')) ?>" class="auth-foot-link-card auth-foot-link-card--du">
+                <span class="auth-foot-link-card-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">person_add</span>
+                </span>
+                <span class="auth-foot-link-card-body">
+                    <span class="auth-foot-link-card-prompt"><?= e(lang('no_account_du')) ?></span>
+                    <span class="auth-foot-link-card-label"><?= e(lang('register_du_member')) ?></span>
+                </span>
+                <span class="auth-foot-link-card-arrow" aria-hidden="true">
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                </span>
+            </a>
+            <a href="<?= e(url('register/external')) ?>" class="auth-foot-link-card auth-foot-link-card--external">
+                <span class="auth-foot-link-card-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">group_add</span>
+                </span>
+                <span class="auth-foot-link-card-body">
+                    <span class="auth-foot-link-card-prompt"><?= e(lang('no_account_external')) ?></span>
+                    <span class="auth-foot-link-card-label"><?= e(lang('register_external')) ?></span>
+                </span>
+                <span class="auth-foot-link-card-arrow" aria-hidden="true">
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                </span>
+            </a>
+        </div>
+        <?php else: ?>
+        <div class="auth-foot-nav-links auth-foot-nav-links--chooser auth-foot-nav-links--single">
+            <a href="<?= e(url('login')) ?>" class="auth-foot-link-card auth-foot-link-card--default">
+                <span class="auth-foot-link-card-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">login</span>
+                </span>
+                <span class="auth-foot-link-card-body">
+                    <span class="auth-foot-link-card-prompt"><?= e(lang('have_account')) ?></span>
+                    <span class="auth-foot-link-card-label"><?= e(lang('sign_in')) ?></span>
+                </span>
+                <span class="auth-foot-link-card-arrow" aria-hidden="true">
+                    <span class="material-symbols-outlined">arrow_forward</span>
+                </span>
+            </a>
+        </div>
+        <?php endif; ?>
+    </nav>
+</div>

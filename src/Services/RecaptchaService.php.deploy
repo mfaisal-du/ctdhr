@@ -1,0 +1,101 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Models\Setting;
+
+final class RecaptchaService
+{
+    private Setting $settings;
+
+    public function __construct()
+    {
+        $this->settings = new Setting();
+    }
+
+    public function isEnabled(): bool
+    {
+        return $this->siteKey() !== '' && $this->secretKey() !== '';
+    }
+
+    public function siteKey(): string
+    {
+        $fromSettings = trim((string) $this->settings->get('recaptcha_site_key', ''));
+        if ($fromSettings !== '') {
+            return $fromSettings;
+        }
+
+        return trim((string) env('RECAPTCHA_SITE_KEY', ''));
+    }
+
+    public function secretKey(): string
+    {
+        $fromSettings = trim((string) $this->settings->get('recaptcha_secret_key', ''));
+        if ($fromSettings !== '') {
+            return $fromSettings;
+        }
+
+        return trim((string) env('RECAPTCHA_SECRET_KEY', ''));
+    }
+
+    public function scoreThreshold(): float
+    {
+        $threshold = (float) $this->settings->get('recaptcha_score_threshold', '0.5');
+
+        return max(0.0, min(1.0, $threshold));
+    }
+
+    public function verify(?string $token, string $action = 'submit'): bool
+    {
+        if (!$this->isEnabled()) {
+            return true;
+        }
+
+        $token = trim((string) $token);
+        if ($token === '') {
+            return false;
+        }
+
+        $payload = http_build_query([
+            'secret' => $this->secretKey(),
+            'response' => $token,
+            'remoteip' => $_SERVER['REMOTE_ADDR'] ?? '',
+        ]);
+
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+                'content' => $payload,
+                'timeout' => 10,
+            ],
+        ]);
+
+        $response = @file_get_contents('https://www.google.com/recaptcha/api/siteverify', false, $context);
+        if ($response === false) {
+            return false;
+        }
+
+        try {
+            $data = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            return false;
+        }
+
+        if (!($data['success'] ?? false)) {
+            return false;
+        }
+
+        if (isset($data['action']) && $data['action'] !== $action) {
+            return false;
+        }
+
+        if (isset($data['score']) && (float) $data['score'] < $this->scoreThreshold()) {
+            return false;
+        }
+
+        return true;
+    }
+}

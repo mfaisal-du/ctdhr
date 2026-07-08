@@ -1,0 +1,79 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Models\User;
+
+final class CourseEligibilityService
+{
+    /**
+     * @param array<string, mixed>|null $user
+     * @param array<string, mixed> $course
+     * @return array{eligible: bool, reason_key: string}
+     */
+    public function check(?array $user, array $course): array
+    {
+        if ($user === null) {
+            return ['eligible' => true, 'reason_key' => ''];
+        }
+
+        $participantType = (string) ($user['participant_type'] ?? 'du');
+        $scope = (string) ($course['participant_scope'] ?? 'du_internal');
+
+        if ($scope === 'du_internal' && $participantType !== 'du') {
+            return ['eligible' => false, 'reason_key' => 'scope_du_internal_only'];
+        }
+
+        if ($scope === 'external_only' && $participantType !== 'external') {
+            return ['eligible' => false, 'reason_key' => 'scope_external_only'];
+        }
+
+        if ($participantType === 'external') {
+            return ['eligible' => true, 'reason_key' => ''];
+        }
+
+        if (!$this->matchesDuAudience($user, $course)) {
+            return ['eligible' => false, 'reason_key' => 'audience_not_eligible'];
+        }
+
+        return ['eligible' => true, 'reason_key' => ''];
+    }
+
+    public function canApply(int $userId, array $course): bool
+    {
+        $userModel = new User();
+        $user = $userModel->findById($userId);
+        $result = $this->check($user, $course);
+
+        return $result['eligible'];
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     * @param array<string, mixed> $course
+     */
+    private function matchesDuAudience(array $user, array $course): bool
+    {
+        $audience = (string) ($course['audience'] ?? 'all');
+        if ($audience === 'all') {
+            return true;
+        }
+
+        $role = (string) ($user['role'] ?? 'staff');
+        if ($role === 'admin') {
+            return true;
+        }
+
+        $roleMap = [
+            'faculty' => 'faculty',
+            'staff' => 'staff',
+            'student' => 'students',
+        ];
+
+        $userAudience = $roleMap[$role] ?? 'staff';
+
+        return $audience === $userAudience;
+    }
+}

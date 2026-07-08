@@ -1,0 +1,72 @@
+<?php declare(strict_types=1);
+
+ob_start();
+?>
+<div class="auth-form-page p-unit-lg md:p-unit-xl">
+    <div class="auth-form-hero">
+        <div class="auth-form-hero-icon auth-form-hero-icon--external">
+            <span class="material-symbols-outlined">groups</span>
+        </div>
+        <h1 class="auth-form-hero-title"><?= e(lang('login_external_title')) ?></h1>
+        <p class="auth-form-hero-subtitle"><?= e(lang('login_external_subtitle')) ?></p>
+    </div>
+
+    <div class="auth-info-callout auth-info-callout--external" role="note">
+        <div class="auth-info-callout-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">verified_user</span>
+        </div>
+        <p class="auth-info-callout-text"><?= e(lang('login_external_notice')) ?></p>
+    </div>
+
+    <form method="POST" action="<?= e(url('login')) ?>" class="auth-form-fields space-y-unit-md">
+        <?= csrf_field() ?>
+
+        <div>
+            <label for="email" class="block text-label-sm text-on-surface-variant mb-unit-xs"><?= e(lang('email')) ?></label>
+            <div class="relative">
+                <span class="material-symbols-outlined absolute top-1/2 -translate-y-1/2 <?= is_rtl() ? 'right-3' : 'left-3' ?> text-outline text-sm">mail</span>
+                <input type="email" id="email" name="email" value="<?= e(old('email')) ?>" required autocomplete="email" placeholder="you@organization.com"
+                       class="stitch-input <?= is_rtl() ? 'pr-10' : 'pl-10' ?>">
+            </div>
+        </div>
+
+        <div x-data="{ show: false }">
+            <label for="password" class="block text-label-sm text-on-surface-variant mb-unit-xs"><?= e(lang('password')) ?></label>
+            <div class="relative">
+                <span class="material-symbols-outlined absolute top-1/2 -translate-y-1/2 <?= is_rtl() ? 'right-3' : 'left-3' ?> text-outline text-sm">lock</span>
+                <input :type="show ? 'text' : 'password'" id="password" name="password" required autocomplete="current-password"
+                       class="stitch-input <?= is_rtl() ? 'pr-10 pl-10' : 'pl-10 pr-10' ?>">
+                <button type="button" @click="show = !show" class="absolute top-1/2 -translate-y-1/2 <?= is_rtl() ? 'left-3' : 'right-3' ?> text-outline hover:text-primary cursor-pointer bg-transparent border-0" tabindex="-1">
+                    <span class="material-symbols-outlined text-sm" x-text="show ? 'visibility_off' : 'visibility'"></span>
+                </button>
+            </div>
+        </div>
+
+        <label class="flex items-center gap-2 cursor-pointer text-body-sm text-on-surface-variant">
+            <input type="checkbox" name="remember" value="1" class="rounded border-outline-variant text-primary focus:ring-primary/20">
+            <?= e(lang('remember_me')) ?>
+        </label>
+
+        <button type="submit" class="btn-primary w-full py-3"><?= e(lang('sign_in')) ?></button>
+        <?php $action = 'login'; require view_path('layouts/components/recaptcha.php'); ?>
+    </form>
+
+    <?php
+    $footLinks = [[
+        'icon' => 'group_add',
+        'prompt' => lang('no_account_external'),
+        'label' => lang('register_external'),
+        'href' => url('register/external'),
+        'variant' => 'external',
+    ]];
+    $footBack = [
+        'label' => lang('back_to_login_chooser'),
+        'href' => url('login'),
+    ];
+    require view_path('auth/components/auth-foot-nav.php');
+    ?>
+</div>
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('login_external_title');
+require view_path('layouts/auth.php');

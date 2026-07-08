@@ -1,0 +1,226 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+/**
+ * Admin CRUD operations for courses.
+ */
+final class CourseAdmin
+{
+    /** @var array<int, string> */
+    public const ALL_STATUSES = [
+        'draft', 'announced', 'accepting_applications', 'scheduled',
+        'in_progress', 'completed', 'cancelled',
+    ];
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public static function findAll(array $filters = [], int $page = 1, int $perPage = 15): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $where = ['c.deleted_at IS NULL'];
+        $params = [];
+
+        if (!empty($filters['status'])) {
+            $where[] = 'c.status = ?';
+            $params[] = (string) $filters['status'];
+        }
+
+        if (!empty($filters['category_id'])) {
+            $where[] = 'c.category_id = ?';
+            $params[] = (int) $filters['category_id'];
+        }
+
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(c.title_en LIKE ? OR c.title_ar LIKE ?)';
+            array_push($params, $term, $term);
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $db = Database::getInstance();
+
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM courses c WHERE {$whereSql}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $offset = ($page - 1) * $perPage;
+        $stmt = $db->prepare(
+            "SELECT c.*, cat.name_en AS category_name_en, cat.name_ar AS category_name_ar
+             FROM courses c
+             INNER JOIN course_categories cat ON cat.id = c.category_id
+             WHERE {$whereSql}
+             ORDER BY c.updated_at DESC
+             LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($params);
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findById(int $id): ?array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'SELECT c.*, cat.name_en AS category_name_en, cat.name_ar AS category_name_ar
+             FROM courses c
+             INNER JOIN course_categories cat ON cat.id = c.category_id
+             WHERE c.id = :id AND c.deleted_at IS NULL LIMIT 1'
+        );
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function create(array $data): int
+    {
+        $db = Database::getInstance();
+        $fields = [
+            'category_id', 'title_en', 'title_ar', 'slug', 'description_en', 'description_ar',
+            'short_description_en', 'short_description_ar', 'language', 'instructor_names_en', 'instructor_names_ar',
+            'audience', 'participant_scope', 'announcement_date', 'application_deadline', 'start_date', 'end_date', 'session_dates',
+            'duration_hours', 'venue_en', 'venue_ar', 'time_slot', 'min_participants', 'max_participants',
+            'cover_image_path', 'learning_outcomes_en', 'learning_outcomes_ar', 'status', 'is_featured',
+            'is_certificate_eligible', 'cert_template_id', 'created_by',
+        ];
+
+        $columns = [];
+        $placeholders = [];
+        $params = [];
+
+        foreach ($fields as $field) {
+            if (!array_key_exists($field, $data)) {
+                continue;
+            }
+            $columns[] = $field;
+            $placeholders[] = ':' . $field;
+            $value = $data[$field];
+            if ($field === 'session_dates' && is_array($value)) {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+            }
+            $params[$field] = $value;
+        }
+
+        $sql = 'INSERT INTO courses (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $placeholders) . ')';
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $db->lastInsertId();
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function update(int $id, array $data): bool
+    {
+        $db = Database::getInstance();
+        $allowed = [
+            'category_id', 'title_en', 'title_ar', 'slug', 'description_en', 'description_ar',
+            'short_description_en', 'short_description_ar', 'language', 'instructor_names_en', 'instructor_names_ar',
+            'audience', 'participant_scope', 'announcement_date', 'application_deadline', 'start_date', 'end_date', 'session_dates',
+            'duration_hours', 'venue_en', 'venue_ar', 'time_slot', 'min_participants', 'max_participants',
+            'cover_image_path', 'learning_outcomes_en', 'learning_outcomes_ar', 'status', 'is_featured',
+            'is_certificate_eligible', 'cert_template_id',
+        ];
+
+        $sets = [];
+        $params = ['id' => $id];
+
+        foreach ($data as $key => $value) {
+            if (!in_array($key, $allowed, true)) {
+                continue;
+            }
+            if ($key === 'session_dates' && is_array($value)) {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE);
+            }
+            $sets[] = "{$key} = :{$key}";
+            $params[$key] = $value;
+        }
+
+        if ($sets === []) {
+            return false;
+        }
+
+        $stmt = $db->prepare('UPDATE courses SET ' . implode(', ', $sets) . ' WHERE id = :id AND deleted_at IS NULL');
+
+        return $stmt->execute($params);
+    }
+
+    public static function softDelete(int $id): bool
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare('UPDATE courses SET deleted_at = NOW() WHERE id = :id');
+
+        return $stmt->execute(['id' => $id]);
+    }
+
+    public static function updateStatus(int $id, string $status): bool
+    {
+        if (!in_array($status, self::ALL_STATUSES, true)) {
+            return false;
+        }
+
+        $db = Database::getInstance();
+        $stmt = $db->prepare('UPDATE courses SET status = :status WHERE id = :id AND deleted_at IS NULL');
+
+        return $stmt->execute(['status' => $status, 'id' => $id]);
+    }
+
+    public static function slugExists(string $slug, ?int $excludeId = null): bool
+    {
+        $db = Database::getInstance();
+        $sql = 'SELECT COUNT(*) FROM courses WHERE slug = :slug AND deleted_at IS NULL';
+        $params = ['slug' => $slug];
+
+        if ($excludeId !== null) {
+            $sql .= ' AND id != :exclude_id';
+            $params['exclude_id'] = $excludeId;
+        }
+
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    public static function countAll(): int
+    {
+        $db = Database::getInstance();
+
+        return (int) $db->query('SELECT COUNT(*) FROM courses WHERE deleted_at IS NULL')->fetchColumn();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function countByStatus(): array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->query(
+            'SELECT status, COUNT(*) AS count FROM courses WHERE deleted_at IS NULL GROUP BY status'
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+}

@@ -1,0 +1,480 @@
+<?php declare(strict_types=1);
+
+$items = $items ?? [];
+$tones = $tones ?? ['primary', 'gold', 'secondary', 'sky', 'magenta'];
+$tableReady = (bool) ($tableReady ?? false);
+$corruptedCount = (int) ($corruptedCount ?? 0);
+
+$toneOptions = [
+    'primary' => ['label' => lang('news_ticker_tone_primary'), 'hex' => '#425AAD'],
+    'gold' => ['label' => lang('news_ticker_tone_gold'), 'hex' => '#D4AF37'],
+    'secondary' => ['label' => lang('news_ticker_tone_secondary'), 'hex' => '#30872F'],
+    'sky' => ['label' => lang('news_ticker_tone_sky'), 'hex' => '#00B0FF'],
+    'magenta' => ['label' => lang('news_ticker_tone_magenta'), 'hex' => '#D81B60'],
+];
+
+$educationIcons = [
+    'campaign', 'school', 'menu_book', 'library_books', 'auto_stories', 'cast_for_education',
+    'psychology', 'science', 'biotech', 'history_edu', 'workspace_premium', 'verified',
+    'emoji_events', 'groups', 'person_celebrate', 'lightbulb', 'laptop_mac', 'translate',
+    'record_voice_over', 'assignment', 'fact_check', 'military_tech', 'stars', 'bookmark',
+];
+
+$activeCount = 0;
+foreach ($items as $row) {
+    if (!empty($row['is_active'])) {
+        $activeCount++;
+    }
+}
+
+$createBtn = '<button type="button" onclick="openTickerModal()" class="courses-btn-create">'
+    . '<span class="material-symbols-outlined">add_circle</span>'
+    . e(lang('add_news_ticker_item'))
+    . '</button>'
+    . '<a href="' . e(url('/')) . '" target="_blank" rel="noopener" class="courses-btn-secondary">'
+    . '<span class="material-symbols-outlined">visibility</span>'
+    . e(lang('preview_on_site'))
+    . '</a>';
+?>
+
+<div class="admin-module-page">
+<?php
+admin_page_header([
+    'icon' => 'campaign',
+    'title' => lang('news_ticker'),
+    'subtitle' => lang('news_ticker_subtitle'),
+    'accent' => 'sky',
+    'actions' => $createBtn,
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('news_ticker')],
+    ],
+]);
+?>
+
+<?php if (!$tableReady): ?>
+<div class="admin-flash admin-flash-error mb-4" role="alert">
+    <span class="material-symbols-outlined admin-flash-icon">error</span>
+    <span><?= e(lang('news_ticker_table_missing')) ?></span>
+</div>
+<?php elseif ($corruptedCount > 0): ?>
+<div class="admin-flash admin-flash-info mb-4" role="status">
+    <span class="material-symbols-outlined admin-flash-icon">info</span>
+    <span><?= e(lang('news_ticker_arabic_corrupt_hint')) ?></span>
+</div>
+<?php endif; ?>
+
+<div class="courses-kpi-grid courses-kpi-grid--three">
+    <?php foreach ([
+        ['blue', 'campaign', lang('total_items'), count($items)],
+        ['green', 'check_circle', lang('active'), $activeCount],
+        ['gold', 'pause_circle', lang('inactive'), max(0, count($items) - $activeCount)],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card courses-card--ticker">
+    <div class="ticker-table-card">
+        <div class="ticker-table-card-head">
+            <div class="ticker-table-card-head-main">
+                <span class="ticker-table-card-icon material-symbols-outlined" aria-hidden="true">campaign</span>
+                <h2><?= e(lang('announcements')) ?></h2>
+            </div>
+            <p class="ticker-table-card-hint"><?= e(lang('news_ticker_hint')) ?></p>
+        </div>
+
+        <div class="courses-table-container">
+        <table class="courses-table courses-table--auto courses-table--ticker">
+            <thead>
+                <tr>
+                    <th><span class="courses-th-label"><span class="material-symbols-outlined">title</span><?= e(lang('title')) ?></span></th>
+                    <th><span class="courses-th-label"><span class="material-symbols-outlined">chat</span><?= e(lang('news_ticker_message')) ?></span></th>
+                    <th><span class="courses-th-label"><span class="material-symbols-outlined">link</span><?= e(lang('link')) ?></span></th>
+                    <th><span class="courses-th-label"><span class="material-symbols-outlined">palette</span><?= e(lang('tone')) ?></span></th>
+                    <th><span class="courses-th-label"><span class="material-symbols-outlined">sort</span><?= e(lang('order')) ?></span></th>
+                    <th><span class="courses-th-label"><span class="material-symbols-outlined">toggle_on</span><?= e(lang('status')) ?></span></th>
+                    <th class="courses-th-actions"><span class="courses-th-label"><span class="material-symbols-outlined">more_horiz</span><?= e(lang('actions')) ?></span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($items)): ?>
+                <tr>
+                    <td colspan="7" class="courses-empty">
+                        <span class="material-symbols-outlined">campaign</span>
+                        <p><?= e(lang('no_news_ticker_items')) ?></p>
+                        <?php if ($tableReady): ?>
+                        <button type="button" onclick="openTickerModal()" class="courses-btn-create courses-empty-cta">
+                            <span class="material-symbols-outlined">add_circle</span>
+                            <?= e(lang('add_news_ticker_item')) ?>
+                        </button>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php else: foreach ($items as $item):
+                    $itemTone = (string) ($item['tone'] ?? 'primary');
+                    $toneMeta = $toneOptions[$itemTone] ?? $toneOptions['primary'];
+                    $itemIcon = (string) ($item['icon'] ?? 'campaign');
+                ?>
+                <tr>
+                    <td class="courses-td-title">
+                        <div class="ticker-row-title-wrap">
+                            <span class="ticker-row-icon" aria-hidden="true">
+                                <span class="material-symbols-outlined"><?= e($itemIcon) ?></span>
+                            </span>
+                            <div class="min-w-0">
+                                <span class="courses-td-name"><?= e(localized($item, 'title')) ?></span>
+                                <?php if (!empty($item['starts_at']) || !empty($item['expires_at'])): ?>
+                                <span class="ticker-row-sub">
+                                    <?php if (!empty($item['starts_at'])): ?>
+                                    <?= e(lang('starts_at')) ?>: <?= e(format_date(substr((string) $item['starts_at'], 0, 10))) ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($item['expires_at'])): ?>
+                                    · <?= e(lang('expires_at')) ?>: <?= e(format_date(substr((string) $item['expires_at'], 0, 10))) ?>
+                                    <?php endif; ?>
+                                </span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="courses-td-muted"><?= e(mb_strimwidth(localized($item, 'text'), 0, 80, '…')) ?></span></td>
+                    <td class="courses-td-mono"><span><?= e((string) ($item['link_url'] ?: '—')) ?></span></td>
+                    <td>
+                        <span class="news-ticker-admin-tone news-ticker-admin-tone--<?= e($itemTone) ?>">
+                            <?= e($toneMeta['label']) ?>
+                        </span>
+                    </td>
+                    <td><span class="courses-td-mono"><?= (int) ($item['display_order'] ?? 0) ?></span></td>
+                    <td>
+                        <span class="courses-badge courses-badge--<?= !empty($item['is_active']) ? 'active' : 'inactive' ?>">
+                            <?= !empty($item['is_active']) ? e(lang('active')) : e(lang('inactive')) ?>
+                        </span>
+                    </td>
+                    <td class="courses-td-actions">
+                        <div class="courses-actions-row">
+                            <button type="button" class="courses-action ticker-edit-btn" title="<?= e(lang('edit')) ?>"
+                                data-item="<?= e(json_encode($item, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE)) ?>">
+                                <span class="material-symbols-outlined">edit</span>
+                            </button>
+                            <form method="POST" action="<?= e(url('admin/news-ticker/' . (int) $item['id'] . '/delete')) ?>" class="courses-inline-form courses-delete-form">
+                                <?= csrf_field() ?>
+                                <button type="button" class="courses-action courses-action--delete" title="<?= e(lang('delete')) ?>"
+                                    data-title="<?= e(localized($item, 'title')) ?>"
+                                    data-confirm="<?= e(lang('confirm_delete')) ?>"
+                                    data-warning="<?= e(lang('delete_warning')) ?>"
+                                    data-delete-label="<?= e(lang('delete')) ?>"
+                                    data-cancel-label="<?= e(lang('cancel')) ?>">
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+
+<div id="tickerModal" class="courses-modal-backdrop is-hidden" data-modal-close>
+    <div class="courses-modal courses-modal--lg courses-modal--xl" role="dialog" aria-modal="true" aria-labelledby="tickerModalTitle">
+        <div class="courses-modal-head">
+            <h3 id="tickerModalTitle"><?= e(lang('add_news_ticker_item')) ?></h3>
+        </div>
+        <div class="courses-modal-body">
+            <form id="tickerForm" method="POST" action="<?= e(url('admin/news-ticker')) ?>">
+                <?= csrf_field() ?>
+
+                <section class="ticker-form-section">
+                    <h4 class="ticker-form-section-title">
+                        <span class="material-symbols-outlined">article</span>
+                        <?= e(lang('news_ticker_form_section_content')) ?>
+                    </h4>
+                    <div class="ticker-form-titles">
+                        <div class="courses-field">
+                            <label class="courses-label"><?= e(lang('title')) ?> (EN) <span class="courses-req">*</span></label>
+                            <input type="text" name="title_en" required maxlength="200" class="courses-input courses-input--lg" placeholder="<?= e(lang('title')) ?>">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label"><?= e(lang('title')) ?> (AR) <span class="courses-req">*</span></label>
+                            <input type="text" name="title_ar" required maxlength="200" dir="rtl" class="courses-input courses-input--lg" placeholder="<?= e(lang('title')) ?>">
+                        </div>
+                    </div>
+                    <div class="courses-field courses-field--full" style="margin-top:1rem">
+                        <label class="courses-label"><?= e(lang('news_ticker_message')) ?> (EN) <span class="courses-req">*</span></label>
+                        <textarea name="text_en" required maxlength="500" rows="3" class="courses-input courses-input--message" placeholder="<?= e(lang('news_ticker_message')) ?>"></textarea>
+                    </div>
+                    <div class="courses-field courses-field--full">
+                        <label class="courses-label"><?= e(lang('news_ticker_message')) ?> (AR) <span class="courses-req">*</span></label>
+                        <textarea name="text_ar" required maxlength="500" rows="3" dir="rtl" class="courses-input courses-input--message" placeholder="<?= e(lang('news_ticker_message')) ?>"></textarea>
+                    </div>
+                </section>
+
+                <section class="ticker-form-section">
+                    <h4 class="ticker-form-section-title">
+                        <span class="material-symbols-outlined">tune</span>
+                        <?= e(lang('news_ticker_form_section_display')) ?>
+                    </h4>
+                    <div class="courses-form-grid" style="grid-template-columns:1fr">
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label"><?= e(lang('link')) ?></label>
+                            <input type="text" name="link_url" class="courses-input" placeholder="courses, register, https://example.com">
+                            <p class="courses-field-hint"><?= e(lang('news_ticker_link_hint')) ?></p>
+                        </div>
+                    </div>
+                    <div class="ticker-form-display-grid">
+                        <div class="courses-field">
+                            <label class="courses-label"><?= e(lang('icon')) ?></label>
+                            <div class="ticker-icon-picker" id="tickerIconPicker">
+                                <input type="hidden" name="icon" id="tickerIconInput" value="campaign">
+                                <button type="button" class="ticker-picker-trigger ticker-icon-picker-trigger" id="tickerIconTrigger" aria-expanded="false" aria-controls="tickerIconPanel">
+                                    <span class="ticker-icon-picker-preview">
+                                        <span class="material-symbols-outlined" id="tickerIconPreview">campaign</span>
+                                    </span>
+                                    <span class="ticker-picker-trigger-label" id="tickerIconLabel"><?= e(lang('news_ticker_select_icon')) ?></span>
+                                    <span class="material-symbols-outlined ticker-picker-chevron">expand_more</span>
+                                </button>
+                                <div class="ticker-picker-panel ticker-icon-picker-panel is-hidden" id="tickerIconPanel" role="listbox">
+                                    <p class="ticker-picker-panel-title"><?= e(lang('news_ticker_icon_picker_title')) ?></p>
+                                    <div class="ticker-icon-picker-grid">
+                                        <?php foreach ($educationIcons as $iconName): ?>
+                                        <button type="button" class="ticker-icon-picker-option<?= $iconName === 'campaign' ? ' is-selected' : '' ?>"
+                                            data-icon="<?= e($iconName) ?>" title="<?= e($iconName) ?>" role="option">
+                                            <span class="material-symbols-outlined"><?= e($iconName) ?></span>
+                                        </button>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="courses-field-hint"><?= e(lang('news_ticker_icon_hint')) ?></p>
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label"><?= e(lang('tone')) ?></label>
+                            <div class="ticker-tone-picker" id="tickerTonePicker">
+                                <input type="hidden" name="tone" id="tickerToneInput" value="primary">
+                                <button type="button" class="ticker-picker-trigger ticker-tone-picker-trigger" id="tickerToneTrigger" aria-expanded="false" aria-controls="tickerTonePanel">
+                                    <span class="ticker-tone-swatch ticker-tone-swatch--trigger" id="tickerToneSwatch" style="background:<?= e($toneOptions['primary']['hex']) ?>"></span>
+                                    <span class="ticker-picker-trigger-label" id="tickerToneLabel"><?= e($toneOptions['primary']['label']) ?></span>
+                                    <span class="material-symbols-outlined ticker-picker-chevron">expand_more</span>
+                                </button>
+                                <div class="ticker-picker-panel ticker-tone-picker-panel is-hidden" id="tickerTonePanel" role="listbox">
+                                    <?php foreach ($toneOptions as $toneKey => $toneMeta): ?>
+                                    <button type="button"
+                                        class="ticker-tone-option<?= $toneKey === 'primary' ? ' is-selected' : '' ?>"
+                                        data-tone="<?= e($toneKey) ?>"
+                                        data-hex="<?= e($toneMeta['hex']) ?>"
+                                        data-label="<?= e($toneMeta['label']) ?>"
+                                        role="option"
+                                        aria-selected="<?= $toneKey === 'primary' ? 'true' : 'false' ?>">
+                                        <span class="ticker-tone-swatch" style="background:<?= e($toneMeta['hex']) ?>"></span>
+                                        <span><?= e($toneMeta['label']) ?></span>
+                                    </button>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="courses-field ticker-form-order-field">
+                            <label class="courses-label"><?= e(lang('order')) ?></label>
+                            <input type="number" name="display_order" value="0" min="0" class="courses-input">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="ticker-form-section">
+                    <h4 class="ticker-form-section-title">
+                        <span class="material-symbols-outlined">schedule</span>
+                        <?= e(lang('news_ticker_form_section_schedule')) ?>
+                    </h4>
+                    <div class="courses-form-grid">
+                        <div class="courses-field">
+                            <label class="courses-label"><?= e(lang('starts_at')) ?></label>
+                            <input type="datetime-local" name="starts_at" class="admin-date-input courses-input">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label"><?= e(lang('expires_at')) ?></label>
+                            <input type="datetime-local" name="expires_at" class="admin-date-input courses-input">
+                        </div>
+                        <div class="courses-field courses-field--checks">
+                            <label class="courses-check">
+                                <input type="checkbox" name="is_active" value="1" checked class="courses-checkbox">
+                                <?= e(lang('active')) ?>
+                            </label>
+                        </div>
+                    </div>
+                </section>
+            </form>
+        </div>
+        <div class="courses-modal-foot">
+            <button type="button" onclick="closeTickerModal()" class="courses-btn-cancel"><?= e(lang('cancel')) ?></button>
+            <button type="submit" form="tickerForm" class="courses-btn-save">
+                <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                <?= e(lang('save')) ?>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function setTickerIcon(icon) {
+    const value = icon || 'campaign';
+    const input = document.getElementById('tickerIconInput');
+    const preview = document.getElementById('tickerIconPreview');
+    if (input) input.value = value;
+    if (preview) preview.textContent = value;
+    document.querySelectorAll('.ticker-icon-picker-option').forEach(function(btn) {
+        btn.classList.toggle('is-selected', btn.getAttribute('data-icon') === value);
+    });
+}
+
+function setTickerTone(tone, hex, label) {
+    const value = tone || 'primary';
+    const input = document.getElementById('tickerToneInput');
+    const swatch = document.getElementById('tickerToneSwatch');
+    const toneLabel = document.getElementById('tickerToneLabel');
+    const match = document.querySelector('.ticker-tone-option[data-tone="' + value + '"]');
+    const resolvedHex = hex || (match ? match.getAttribute('data-hex') : '#425AAD');
+    const resolvedLabel = label || (match ? match.getAttribute('data-label') : value);
+
+    if (input) input.value = value;
+    if (swatch) swatch.style.background = resolvedHex;
+    if (toneLabel) toneLabel.textContent = resolvedLabel;
+
+    document.querySelectorAll('.ticker-tone-option').forEach(function(btn) {
+        const selected = btn.getAttribute('data-tone') === value;
+        btn.classList.toggle('is-selected', selected);
+        btn.setAttribute('aria-selected', selected ? 'true' : 'false');
+    });
+}
+
+function closeTickerPickerPanels() {
+    ['tickerIconPanel', 'tickerTonePanel'].forEach(function(id) {
+        const panel = document.getElementById(id);
+        if (panel) panel.classList.add('is-hidden');
+    });
+    ['tickerIconTrigger', 'tickerToneTrigger'].forEach(function(id) {
+        const trigger = document.getElementById(id);
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    });
+}
+
+function openTickerModal() {
+    const form = document.getElementById('tickerForm');
+    form.action = '<?= e(url('admin/news-ticker')) ?>';
+    document.getElementById('tickerModalTitle').textContent = '<?= e(lang('add_news_ticker_item')) ?>';
+    form.reset();
+    const activeCheck = form.querySelector('[name="is_active"]');
+    if (activeCheck) activeCheck.checked = true;
+    setTickerIcon('campaign');
+    setTickerTone('primary');
+    closeTickerPickerPanels();
+    document.getElementById('tickerModal').classList.remove('is-hidden');
+}
+
+function closeTickerModal() {
+    closeTickerPickerPanels();
+    document.getElementById('tickerModal').classList.add('is-hidden');
+}
+
+function toDatetimeLocalValue(value) {
+    if (!value) return '';
+    const normalized = String(value).trim().replace(' ', 'T');
+    return normalized.length >= 16 ? normalized.slice(0, 16) : normalized;
+}
+
+function editTickerItem(item) {
+    const form = document.getElementById('tickerForm');
+    form.action = '<?= e(url('admin/news-ticker')) ?>/' + item.id + '/update';
+    document.getElementById('tickerModalTitle').textContent = '<?= e(lang('edit_news_ticker_item')) ?>';
+
+    const setField = (name, value) => {
+        const el = form.querySelector('[name="' + name + '"]');
+        if (el) el.value = value ?? '';
+    };
+
+    setField('title_en', item.title_en);
+    setField('title_ar', item.title_ar);
+    setField('text_en', item.text_en);
+    setField('text_ar', item.text_ar);
+    setField('link_url', item.link_url);
+    setTickerIcon(item.icon || 'campaign');
+    setTickerTone(item.tone || 'primary');
+    setField('display_order', item.display_order);
+    setField('starts_at', toDatetimeLocalValue(item.starts_at));
+    setField('expires_at', toDatetimeLocalValue(item.expires_at));
+
+    const activeCheck = form.querySelector('[name="is_active"]');
+    if (activeCheck) activeCheck.checked = Number(item.is_active) === 1;
+
+    closeTickerPickerPanels();
+    document.getElementById('tickerModal').classList.remove('is-hidden');
+}
+
+function toggleTickerPanel(panelId, triggerId) {
+    const panel = document.getElementById(panelId);
+    const trigger = document.getElementById(triggerId);
+    const willOpen = panel && panel.classList.contains('is-hidden');
+    closeTickerPickerPanels();
+    if (willOpen && panel && trigger) {
+        panel.classList.remove('is-hidden');
+        trigger.setAttribute('aria-expanded', 'true');
+    }
+}
+
+document.getElementById('tickerIconTrigger')?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    toggleTickerPanel('tickerIconPanel', 'tickerIconTrigger');
+});
+
+document.getElementById('tickerToneTrigger')?.addEventListener('click', function(e) {
+    e.stopPropagation();
+    toggleTickerPanel('tickerTonePanel', 'tickerToneTrigger');
+});
+
+document.querySelectorAll('.ticker-icon-picker-option').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        setTickerIcon(this.getAttribute('data-icon'));
+        closeTickerPickerPanels();
+    });
+});
+
+document.querySelectorAll('.ticker-tone-option').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        setTickerTone(
+            this.getAttribute('data-tone'),
+            this.getAttribute('data-hex'),
+            this.getAttribute('data-label')
+        );
+        closeTickerPickerPanels();
+    });
+});
+
+document.addEventListener('click', function(e) {
+    const iconPicker = document.getElementById('tickerIconPicker');
+    const tonePicker = document.getElementById('tickerTonePicker');
+    if (iconPicker && !iconPicker.contains(e.target) && tonePicker && !tonePicker.contains(e.target)) {
+        closeTickerPickerPanels();
+    }
+});
+
+document.querySelectorAll('.ticker-edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        try {
+            editTickerItem(JSON.parse(this.getAttribute('data-item') || '{}'));
+        } catch (e) {
+            console.error('Failed to open ticker editor', e);
+        }
+    });
+});
+
+document.getElementById('tickerModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeTickerModal();
+});
+</script>
+</div>

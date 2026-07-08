@@ -1,0 +1,296 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class Application
+{
+    public static function findById(int $id): ?array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'SELECT ca.*, c.slug, c.title_en, c.title_ar
+             FROM course_applications ca
+             INNER JOIN courses c ON c.id = ca.course_id
+             WHERE ca.id = :id
+             LIMIT 1'
+        );
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row !== false ? $row : null;
+    }
+
+    public static function findByUserAndCourse(int $userId, int $courseId): ?array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'SELECT * FROM course_applications WHERE user_id = :user_id AND course_id = :course_id LIMIT 1'
+        );
+        $stmt->execute(['user_id' => $userId, 'course_id' => $courseId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row !== false ? $row : null;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findByUser(int $userId): array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'SELECT ca.*,
+                    c.slug, c.title_en, c.title_ar, c.start_date,
+                    cat.name_en AS category_name_en, cat.name_ar AS category_name_ar
+             FROM course_applications ca
+             INNER JOIN courses c ON c.id = ca.course_id
+             LEFT JOIN course_categories cat ON cat.id = c.category_id
+             WHERE ca.user_id = :user_id AND c.deleted_at IS NULL
+             ORDER BY ca.applied_at DESC'
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public static function existsForUserCourse(int $userId, int $courseId): bool
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'SELECT COUNT(*) FROM course_applications
+             WHERE user_id = :user_id AND course_id = :course_id
+             AND status NOT IN (\'cancelled\', \'rejected\')'
+        );
+        $stmt->execute(['user_id' => $userId, 'course_id' => $courseId]);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function create(array $data): int
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'INSERT INTO course_applications (user_id, course_id, status, motivation_en, motivation_ar)
+             VALUES (:user_id, :course_id, :status, :motivation_en, :motivation_ar)'
+        );
+        $stmt->execute([
+            'user_id' => (int) $data['user_id'],
+            'course_id' => (int) $data['course_id'],
+            'status' => (string) ($data['status'] ?? 'pending'),
+            'motivation_en' => $data['motivation_en'] ?? null,
+            'motivation_ar' => $data['motivation_ar'] ?? null,
+        ]);
+
+        $id = (int) $db->lastInsertId();
+        self::refreshCourseCounts((int) $data['course_id']);
+
+        return $id;
+    }
+
+    public static function updateStatus(int $id, string $status, ?string $cancelReason = null): bool
+    {
+        $allowed = ['approved', 'rejected', 'waitlisted', 'pending', 'cancelled'];
+        if (!in_array($status, $allowed, true)) {
+            return false;
+        }
+
+        $db = Database::getInstance();
+        $application = self::findById($id);
+        if ($application === null) {
+            return false;
+        }
+
+        $stmt = $db->prepare(
+            'UPDATE course_applications
+             SET status = :status,
+                 cancel_reason = :cancel_reason,
+                 reviewed_at = CASE WHEN :review_status IN (\'approved\', \'rejected\', \'waitlisted\', \'cancelled\') THEN NOW() ELSE reviewed_at END
+             WHERE id = :id'
+        );
+        $result = $stmt->execute([
+            'status' => $status,
+            'review_status' => $status,
+            'cancel_reason' => $cancelReason,
+            'id' => $id,
+        ]);
+
+        if ($result) {
+            self::refreshCourseCounts((int) $application['course_id']);
+        }
+
+        return $result;
+    }
+
+    public static function countByUser(int $userId): int
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare('SELECT COUNT(*) FROM course_applications WHERE user_id = :user_id');
+        $stmt->execute(['user_id' => $userId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    public static function countByUserAndStatus(int $userId, string $status): int
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'SELECT COUNT(*) FROM course_applications WHERE user_id = :user_id AND status = :status'
+        );
+        $stmt->execute(['user_id' => $userId, 'status' => $status]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    private static function refreshCourseCounts(int $courseId): void
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'UPDATE courses SET
+                application_count = (SELECT COUNT(*) FROM course_applications WHERE course_id = :count_course_id),
+                approved_count = (SELECT COUNT(*) FROM course_applications WHERE course_id = :approved_course_id AND status = \'approved\')
+             WHERE id = :update_course_id'
+        );
+        $stmt->execute([
+            'count_course_id' => $courseId,
+            'approved_course_id' => $courseId,
+            'update_course_id' => $courseId,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public static function findAll(array $filters = [], int $page = 1, int $perPage = 20): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $where = ['1=1'];
+        $params = [];
+
+        if (!empty($filters['status'])) {
+            $where[] = 'ca.status = ?';
+            $params[] = (string) $filters['status'];
+        }
+
+        if (!empty($filters['course_id'])) {
+            $where[] = 'ca.course_id = ?';
+            $params[] = (int) $filters['course_id'];
+        }
+
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(u.full_name_en LIKE ? OR u.full_name_ar LIKE ? OR u.email LIKE ? OR c.title_en LIKE ?)';
+            array_push($params, $term, $term, $term, $term);
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $db = Database::getInstance();
+
+        $countStmt = $db->prepare(
+            "SELECT COUNT(*)
+             FROM course_applications ca
+             INNER JOIN users u ON u.id = ca.user_id
+             INNER JOIN courses c ON c.id = ca.course_id
+             WHERE {$whereSql} AND c.deleted_at IS NULL"
+        );
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $offset = ($page - 1) * $perPage;
+        $stmt = $db->prepare(
+            "SELECT ca.*,
+                    u.full_name_en, u.full_name_ar, u.email, u.username, u.role AS user_role,
+                    c.title_en AS course_title_en, c.title_ar AS course_title_ar, c.slug AS course_slug
+             FROM course_applications ca
+             INNER JOIN users u ON u.id = ca.user_id
+             INNER JOIN courses c ON c.id = ca.course_id
+             WHERE {$whereSql} AND c.deleted_at IS NULL
+             ORDER BY ca.applied_at DESC
+             LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($params);
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
+        ];
+    }
+
+    /**
+     * @param array<int> $ids
+     */
+    public static function bulkUpdateStatus(array $ids, string $status, int $reviewedBy): int
+    {
+        if ($ids === []) {
+            return 0;
+        }
+
+        $allowed = ['approved', 'rejected', 'waitlisted', 'pending', 'cancelled'];
+        if (!in_array($status, $allowed, true)) {
+            return 0;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            "UPDATE course_applications
+             SET status = ?, reviewed_at = NOW(), reviewed_by = ?
+             WHERE id IN ({$placeholders})"
+        );
+        $params = array_merge([$status, $reviewedBy], $ids);
+        $stmt->execute($params);
+        $updated = $stmt->rowCount();
+
+        if ($updated > 0) {
+            $courseStmt = $db->prepare(
+                'SELECT DISTINCT course_id FROM course_applications WHERE id IN (' . $placeholders . ')'
+            );
+            $courseStmt->execute($ids);
+            foreach ($courseStmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $courseId) {
+                self::refreshCourseCounts((int) $courseId);
+            }
+        }
+
+        return $updated;
+    }
+
+    public static function countAll(): int
+    {
+        $db = Database::getInstance();
+
+        return (int) $db->query('SELECT COUNT(*) FROM course_applications')->fetchColumn();
+    }
+
+    public static function countByStatus(string $status): int
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare('SELECT COUNT(*) FROM course_applications WHERE status = ?');
+        $stmt->execute([$status]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array<int, array<string, mixed>>
+     */
+    public static function exportAll(array $filters = []): array
+    {
+        $result = self::findAll($filters, 1, 10000);
+
+        return $result['items'];
+    }
+}

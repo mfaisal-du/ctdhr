@@ -1,0 +1,267 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class Course
+{
+    /** @var array<int, string> */
+    private const PUBLIC_STATUSES = [
+        'announced',
+        'accepting_applications',
+        'scheduled',
+        'in_progress',
+        'completed',
+    ];
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public static function findActive(array $filters = [], int $page = 1, int $perPage = 12): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(48, $perPage));
+
+        $where = ['c.deleted_at IS NULL', 'c.status IN (' . self::placeholders(count(self::PUBLIC_STATUSES)) . ')'];
+        $params = self::PUBLIC_STATUSES;
+
+        if (!empty($filters['category_id'])) {
+            $where[] = 'c.category_id = ?';
+            $params[] = (int) $filters['category_id'];
+        }
+
+        if (!empty($filters['category_slug'])) {
+            $where[] = 'cat.slug = ?';
+            $params[] = (string) $filters['category_slug'];
+        }
+
+        if (!empty($filters['status']) && in_array($filters['status'], self::PUBLIC_STATUSES, true)) {
+            $where[] = 'c.status = ?';
+            $params[] = (string) $filters['status'];
+        }
+
+        if (!empty($filters['audience']) && in_array($filters['audience'], ['faculty', 'staff', 'students', 'all'], true)) {
+            $where[] = '(c.audience = ? OR c.audience = \'all\')';
+            $params[] = (string) $filters['audience'];
+        }
+
+        if (!empty($filters['language']) && in_array($filters['language'], ['en', 'ar', 'both'], true)) {
+            $where[] = '(c.language = ? OR c.language = \'both\')';
+            $params[] = (string) $filters['language'];
+        }
+
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(c.title_en LIKE ? OR c.title_ar LIKE ? OR c.short_description_en LIKE ? OR c.short_description_ar LIKE ?)';
+            array_push($params, $term, $term, $term, $term);
+        }
+
+        $whereSql = implode(' AND ', $where);
+
+        $db = Database::getInstance();
+
+        $countSql = "SELECT COUNT(*)
+                     FROM courses c
+                     INNER JOIN course_categories cat ON cat.id = c.category_id
+                     WHERE {$whereSql} AND cat.is_active = 1 AND cat.deleted_at IS NULL";
+
+        $countStmt = $db->prepare($countSql);
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $offset = ($page - 1) * $perPage;
+        $selectSql = "SELECT c.*,
+                             cat.name_en AS category_name_en,
+                             cat.name_ar AS category_name_ar,
+                             cat.slug AS category_slug,
+                             cat.color AS category_color,
+                             cat.icon AS category_icon
+                      FROM courses c
+                      INNER JOIN course_categories cat ON cat.id = c.category_id
+                      WHERE {$whereSql} AND cat.is_active = 1 AND cat.deleted_at IS NULL
+                      ORDER BY
+                          CASE c.status
+                              WHEN 'accepting_applications' THEN 1
+                              WHEN 'announced' THEN 2
+                              WHEN 'scheduled' THEN 3
+                              WHEN 'in_progress' THEN 4
+                              WHEN 'completed' THEN 5
+                              ELSE 6
+                          END,
+                          c.start_date DESC,
+                          c.created_at DESC
+                      LIMIT {$perPage} OFFSET {$offset}";
+
+        $stmt = $db->prepare($selectSql);
+        $stmt->execute($params);
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return [
+            'items' => $items,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findBySlug(string $slug): ?array
+    {
+        $db = Database::getInstance();
+
+        $statusPlaceholders = self::placeholders(count(self::PUBLIC_STATUSES));
+        $params = array_merge([$slug], self::PUBLIC_STATUSES);
+
+        $stmt = $db->prepare(
+            "SELECT c.*,
+                    cat.name_en AS category_name_en,
+                    cat.name_ar AS category_name_ar,
+                    cat.slug AS category_slug,
+                    cat.color AS category_color,
+                    cat.icon AS category_icon
+             FROM courses c
+             INNER JOIN course_categories cat ON cat.id = c.category_id
+             WHERE c.slug = ?
+               AND c.deleted_at IS NULL
+               AND c.status IN ({$statusPlaceholders})
+               AND cat.is_active = 1
+               AND cat.deleted_at IS NULL
+             LIMIT 1"
+        );
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findFeatured(int $limit = 6): array
+    {
+        $limit = max(1, min(12, $limit));
+        $db = Database::getInstance();
+
+        $statusPlaceholders = self::placeholders(count(self::PUBLIC_STATUSES));
+
+        $stmt = $db->prepare(
+            "SELECT c.*,
+                    cat.name_en AS category_name_en,
+                    cat.name_ar AS category_name_ar,
+                    cat.slug AS category_slug,
+                    cat.color AS category_color,
+                    cat.icon AS category_icon
+             FROM courses c
+             INNER JOIN course_categories cat ON cat.id = c.category_id
+             WHERE c.deleted_at IS NULL
+               AND c.is_featured = 1
+               AND c.status IN ({$statusPlaceholders})
+               AND cat.is_active = 1
+               AND cat.deleted_at IS NULL
+             ORDER BY c.start_date DESC, c.created_at DESC
+             LIMIT {$limit}"
+        );
+        $stmt->execute(self::PUBLIC_STATUSES);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findCompleted(int $limit = 6): array
+    {
+        $limit = max(1, min(12, $limit));
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            'SELECT c.*,
+                    cat.name_en AS category_name_en,
+                    cat.name_ar AS category_name_ar,
+                    cat.slug AS category_slug,
+                    cat.color AS category_color,
+                    cat.icon AS category_icon
+             FROM courses c
+             INNER JOIN course_categories cat ON cat.id = c.category_id
+             WHERE c.deleted_at IS NULL
+               AND c.status = \'completed\'
+               AND cat.is_active = 1
+               AND cat.deleted_at IS NULL
+             ORDER BY c.end_date DESC, c.updated_at DESC
+             LIMIT :limit'
+        );
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Latest public courses for homepage when none are marked featured.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findLatestPublic(int $limit = 6): array
+    {
+        $result = self::findActive([], 1, max(1, min(12, $limit)));
+
+        return $result['items'];
+    }
+
+    public static function countPublic(): int
+    {
+        $db = Database::getInstance();
+        $statusPlaceholders = self::placeholders(count(self::PUBLIC_STATUSES));
+
+        $stmt = $db->prepare(
+            "SELECT COUNT(*)
+             FROM courses c
+             WHERE c.deleted_at IS NULL AND c.status IN ({$statusPlaceholders})"
+        );
+        $stmt->execute(self::PUBLIC_STATUSES);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    public static function countCompleted(): int
+    {
+        $db = Database::getInstance();
+
+        return (int) $db->query(
+            "SELECT COUNT(*) FROM courses WHERE deleted_at IS NULL AND status = 'completed'"
+        )->fetchColumn();
+    }
+
+    public static function sumCompletionCount(): int
+    {
+        $db = Database::getInstance();
+
+        return (int) $db->query(
+            'SELECT COALESCE(SUM(completion_count), 0) FROM courses WHERE deleted_at IS NULL'
+        )->fetchColumn();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function publicStatuses(): array
+    {
+        return self::PUBLIC_STATUSES;
+    }
+
+    /**
+     * @param int $count
+     */
+    private static function placeholders(int $count): string
+    {
+        return implode(', ', array_fill(0, $count, '?'));
+    }
+}

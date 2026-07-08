@@ -1,0 +1,698 @@
+<?php
+
+declare(strict_types=1);
+
+use CTDHR\Controllers\Admin\ApplicationController as AdminApplicationController;
+use CTDHR\Controllers\Admin\AttendanceController as AdminAttendanceController;
+use CTDHR\Controllers\Admin\AuditController;
+use CTDHR\Controllers\Admin\CategoryController;
+use CTDHR\Controllers\Admin\CertificateController as AdminCertificateController;
+use CTDHR\Controllers\Admin\CourseController as AdminCourseController;
+use CTDHR\Controllers\Admin\DatabaseController;
+use CTDHR\Controllers\Admin\DashboardController as AdminDashboardController;
+use CTDHR\Controllers\Admin\EmailController as AdminEmailController;
+use CTDHR\Controllers\Admin\SettingsController;
+use CTDHR\Controllers\Admin\NewsTickerController;
+use CTDHR\Controllers\Admin\NotificationController as AdminNotificationController;
+use CTDHR\Controllers\Admin\ParticipantController as AdminParticipantController;
+use CTDHR\Controllers\Admin\UserController as AdminUserController;
+use CTDHR\Controllers\AuthController;
+use CTDHR\Controllers\CertificateDownloadController;
+use CTDHR\Controllers\CourseController;
+use CTDHR\Controllers\DashboardController;
+use CTDHR\Controllers\PageController;
+use CTDHR\Controllers\VerifyController;
+use CTDHR\Middleware\AdminMiddleware;
+use CTDHR\Middleware\AuthMiddleware;
+use CTDHR\Middleware\CsrfMiddleware;
+return [
+    [
+        'methods' => ['GET'],
+        'path' => '/',
+        'handler' => [CourseController::class, 'home'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/courses',
+        'handler' => [CourseController::class, 'index'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/courses/{slug}',
+        'handler' => [CourseController::class, 'show'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/about',
+        'handler' => [PageController::class, 'about'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/contact',
+        'handler' => [PageController::class, 'contact'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/contact',
+        'handler' => [PageController::class, 'submitContact'],
+        'middleware' => [CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/verify-certificate',
+        'handler' => [VerifyController::class, 'index'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/verify-certificate',
+        'handler' => [VerifyController::class, 'lookup'],
+        'middleware' => [CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/verify/{token}',
+        'handler' => [VerifyController::class, 'certificate'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/login',
+        'handler' => [AuthController::class, 'showLogin'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/login/du',
+        'handler' => [AuthController::class, 'showLoginDu'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/login/external',
+        'handler' => [AuthController::class, 'showLoginExternal'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/login',
+        'handler' => [AuthController::class, 'login'],
+        'middleware' => [CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/register',
+        'handler' => [AuthController::class, 'showRegister'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/register/du',
+        'handler' => [AuthController::class, 'showRegisterDu'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/register',
+        'handler' => [AuthController::class, 'register'],
+        'middleware' => [CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/register/du',
+        'handler' => [AuthController::class, 'register'],
+        'middleware' => [CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/register/external',
+        'handler' => [AuthController::class, 'showRegisterExternal'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/register/external',
+        'handler' => [AuthController::class, 'registerExternal'],
+        'middleware' => [CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/verify',
+        'handler' => [AuthController::class, 'showVerify'],
+        'middleware' => [],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/verify',
+        'handler' => [AuthController::class, 'verify'],
+        'middleware' => [CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/verify/resend',
+        'handler' => [AuthController::class, 'resendOtp'],
+        'middleware' => [CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/logout',
+        'handler' => [AuthController::class, 'logout'],
+        'middleware' => [CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/dashboard',
+        'handler' => [DashboardController::class, 'overview'],
+        'middleware' => [AuthMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/dashboard/applications',
+        'handler' => [DashboardController::class, 'applications'],
+        'middleware' => [AuthMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/dashboard/courses',
+        'handler' => [DashboardController::class, 'myCourses'],
+        'middleware' => [AuthMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/dashboard/certificates',
+        'handler' => [DashboardController::class, 'certificates'],
+        'middleware' => [AuthMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/certificates/{id}/download',
+        'handler' => [CertificateDownloadController::class, 'download'],
+        'middleware' => [AuthMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/dashboard/notifications',
+        'handler' => [DashboardController::class, 'notifications'],
+        'middleware' => [AuthMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/dashboard/profile',
+        'handler' => [DashboardController::class, 'profile'],
+        'middleware' => [AuthMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/dashboard/profile',
+        'handler' => [DashboardController::class, 'updateProfile'],
+        'middleware' => [AuthMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/courses/{slug}/apply',
+        'handler' => [CourseController::class, 'apply'],
+        'middleware' => [AuthMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/applications/{id}/cancel',
+        'handler' => [CourseController::class, 'cancelApplication'],
+        'middleware' => [AuthMiddleware::class, CsrfMiddleware::class],
+    ],
+    // Admin routes
+    [
+        'methods' => ['GET'],
+        'path' => '/admin',
+        'handler' => [AdminDashboardController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/dashboard/print',
+        'handler' => [AdminDashboardController::class, 'printReport'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/notifications',
+        'handler' => [AdminNotificationController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/notifications/poll',
+        'handler' => [AdminNotificationController::class, 'poll'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/notifications/read-all',
+        'handler' => [AdminNotificationController::class, 'markAllRead'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/notifications/{id}/read',
+        'handler' => [AdminNotificationController::class, 'markRead'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/categories',
+        'handler' => [CategoryController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/categories',
+        'handler' => [CategoryController::class, 'store'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/categories/{id}/update',
+        'handler' => [CategoryController::class, 'update'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/categories/{id}/delete',
+        'handler' => [CategoryController::class, 'destroy'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/categories/{id}/upload-card-image',
+        'handler' => [CategoryController::class, 'uploadCardImage'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/news-ticker',
+        'handler' => [NewsTickerController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/news-ticker',
+        'handler' => [NewsTickerController::class, 'store'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/news-ticker/{id}/update',
+        'handler' => [NewsTickerController::class, 'update'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/news-ticker/{id}/delete',
+        'handler' => [NewsTickerController::class, 'destroy'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/courses',
+        'handler' => [AdminCourseController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/courses/create',
+        'handler' => [AdminCourseController::class, 'create'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/courses',
+        'handler' => [AdminCourseController::class, 'store'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/courses/{id}/edit',
+        'handler' => [AdminCourseController::class, 'edit'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/courses/{id}/update',
+        'handler' => [AdminCourseController::class, 'update'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/courses/{id}/delete',
+        'handler' => [AdminCourseController::class, 'destroy'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/courses/{id}/status',
+        'handler' => [AdminCourseController::class, 'updateStatus'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/courses/{id}/upload-image',
+        'handler' => [AdminCourseController::class, 'uploadImage'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/applications',
+        'handler' => [AdminApplicationController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/applications/bulk',
+        'handler' => [AdminApplicationController::class, 'bulkAction'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/applications/{id}/status',
+        'handler' => [AdminApplicationController::class, 'updateStatus'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/applications/export',
+        'handler' => [AdminApplicationController::class, 'export'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/attendance',
+        'handler' => [AdminAttendanceController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/attendance/export',
+        'handler' => [AdminAttendanceController::class, 'export'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/attendance/completion-report',
+        'handler' => [AdminAttendanceController::class, 'completionReport'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/attendance/{courseId}',
+        'handler' => [AdminAttendanceController::class, 'show'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/attendance/{courseId}/mark',
+        'handler' => [AdminAttendanceController::class, 'mark'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/attendance/{courseId}/export',
+        'handler' => [AdminAttendanceController::class, 'exportCourse'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/attendance/{courseId}/print',
+        'handler' => [AdminAttendanceController::class, 'printSheet'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/attendance/{courseId}/import',
+        'handler' => [AdminAttendanceController::class, 'import'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/attendance/{courseId}/lock',
+        'handler' => [AdminAttendanceController::class, 'lockSession'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/attendance/{courseId}/unlock',
+        'handler' => [AdminAttendanceController::class, 'unlockSession'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/attendance/{courseId}/participant/{userId}/history',
+        'handler' => [AdminAttendanceController::class, 'participantHistory'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/participants/{userId}/timeline',
+        'handler' => [AdminParticipantController::class, 'timeline'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/certificates',
+        'handler' => [AdminCertificateController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/certificates/templates',
+        'handler' => [AdminCertificateController::class, 'templates'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/certificates/templates',
+        'handler' => [AdminCertificateController::class, 'storeTemplate'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/certificates/generate',
+        'handler' => [AdminCertificateController::class, 'generateForm'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/certificates/generate',
+        'handler' => [AdminCertificateController::class, 'generate'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/certificates/{id}/email',
+        'handler' => [AdminCertificateController::class, 'email'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/certificates/export',
+        'handler' => [AdminCertificateController::class, 'export'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/certificates/issuance-report',
+        'handler' => [AdminCertificateController::class, 'issuanceReport'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/certificates/bulk-email',
+        'handler' => [AdminCertificateController::class, 'bulkEmail'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/certificates/bulk-download',
+        'handler' => [AdminCertificateController::class, 'bulkDownload'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/certificates/{id}/preview',
+        'handler' => [AdminCertificateController::class, 'preview'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/certificates/{id}/reissue',
+        'handler' => [AdminCertificateController::class, 'reissue'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/certificates/{id}/revoke',
+        'handler' => [AdminCertificateController::class, 'revoke'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/certificates/regenerate-demo',
+        'handler' => [AdminCertificateController::class, 'regenerateDemo'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/users',
+        'handler' => [AdminUserController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/users/pending',
+        'handler' => [AdminUserController::class, 'pendingExternal'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/users/pending/export',
+        'handler' => [AdminUserController::class, 'exportPendingExternal'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/users/{id}/approve',
+        'handler' => [AdminUserController::class, 'approveExternal'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/users/{id}/reject',
+        'handler' => [AdminUserController::class, 'rejectExternal'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/users/{id}/promote',
+        'handler' => [AdminUserController::class, 'promote'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/emails',
+        'handler' => [AdminEmailController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/emails/send',
+        'handler' => [AdminEmailController::class, 'sendForm'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/emails/send',
+        'handler' => [AdminEmailController::class, 'send'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/settings',
+        'handler' => [SettingsController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/settings/general',
+        'handler' => [SettingsController::class, 'saveGeneral'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/settings/smtp',
+        'handler' => [SettingsController::class, 'saveSmtp'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/settings/smtp/test',
+        'handler' => [SettingsController::class, 'testSmtp'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/settings/ldap',
+        'handler' => [SettingsController::class, 'saveLdap'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/settings/ldap/test',
+        'handler' => [SettingsController::class, 'testLdap'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/settings/attendance',
+        'handler' => [SettingsController::class, 'saveAttendance'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/settings/language',
+        'handler' => [SettingsController::class, 'saveLanguage'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/settings/security',
+        'handler' => [SettingsController::class, 'saveSecurity'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/audit',
+        'handler' => [AuditController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/admin/database',
+        'handler' => [DatabaseController::class, 'index'],
+        'middleware' => [AdminMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/database/backup',
+        'handler' => [DatabaseController::class, 'backup'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/database/reset',
+        'handler' => [DatabaseController::class, 'reset'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['POST'],
+        'path' => '/admin/database/seed-demo',
+        'handler' => [DatabaseController::class, 'seedDemo'],
+        'middleware' => [AdminMiddleware::class, CsrfMiddleware::class],
+    ],
+    [
+        'methods' => ['GET'],
+        'path' => '/lang/{locale}',
+        'handler' => function (array $params): void {
+            $supported = config('supported_locales', ['en', 'ar']);
+            if (in_array($params['locale'], $supported, true)) {
+                $_SESSION['locale'] = $params['locale'];
+            }
+            $referer = $_SERVER['HTTP_REFERER'] ?? url('/');
+            header('Location: ' . $referer);
+            exit;
+        },
+        'middleware' => [],
+    ],
+];

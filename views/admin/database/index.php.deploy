@@ -1,0 +1,107 @@
+<?php declare(strict_types=1);
+
+/** @var array<string, array{label: string, description: string, icon: string}> $modules */
+/** @var list<string> $backups */
+$modules = $modules ?? [];
+$backups = $backups ?? [];
+$backupDir = $backupDir ?? '';
+?>
+
+<div class="admin-module-page">
+<?php
+admin_page_header([
+    'icon' => 'database',
+    'title' => lang('database_tools'),
+    'subtitle' => lang('database_tools_subtitle') ?? lang('database_tools'),
+    'accent' => 'magenta',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('database_tools')],
+    ],
+]);
+?>
+
+<div class="courses-db-card">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+            <h2>
+                <span class="material-symbols-outlined">backup</span>
+                <?= e(lang('db_backup_title')) ?>
+            </h2>
+            <p><?= e(lang('db_backup_desc')) ?></p>
+            <p class="courses-td-mono mt-2"><?= e($backupDir) ?></p>
+        </div>
+        <form method="POST" action="<?= e(url('admin/database/backup')) ?>">
+            <?= csrf_field() ?>
+            <button type="submit" class="courses-btn-save">
+                <span class="material-symbols-outlined courses-btn-icon text-[18px]">download</span>
+                <?= e(lang('db_backup_now')) ?>
+            </button>
+        </form>
+    </div>
+
+    <?php if ($backups !== []): ?>
+    <div class="mt-5 pt-4 border-t border-gray-100">
+        <h3 class="courses-label mb-2"><?= e(lang('db_recent_backups')) ?></h3>
+        <ul class="space-y-1 max-h-40 overflow-y-auto courses-td-mono courses-td-muted">
+            <?php foreach (array_slice($backups, 0, 8) as $file): ?>
+            <li class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-[16px]">description</span>
+                <?= e($file) ?>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+    <?php endif; ?>
+</div>
+
+<div class="courses-db-card">
+    <h2>
+        <span class="material-symbols-outlined">science</span>
+        <?= e(lang('db_seed_title')) ?>
+    </h2>
+    <p class="mb-4"><?= e(lang('db_seed_desc')) ?></p>
+    <div class="courses-hint mb-4"><?= e(lang('db_seed_credentials')) ?></div>
+    <form method="POST" action="<?= e(url('admin/database/seed-demo')) ?>" onsubmit="return confirm('<?= e(lang('db_seed_confirm_prompt')) ?>');">
+        <?= csrf_field() ?>
+        <input type="hidden" name="confirm_seed" value="1">
+        <button type="submit" class="courses-btn-secondary">
+            <span class="material-symbols-outlined">playlist_add</span>
+            <?= e(lang('db_seed_button')) ?>
+        </button>
+    </form>
+</div>
+
+<div class="courses-db-card" style="border-color:rgba(211,47,47,0.2)">
+    <h2 style="color:#c62828">
+        <span class="material-symbols-outlined">delete_forever</span>
+        <?= e(lang('db_reset_title')) ?>
+    </h2>
+    <p class="mb-4"><?= e(lang('db_reset_desc')) ?></p>
+
+    <form method="POST" action="<?= e(url('admin/database/reset')) ?>" onsubmit="return confirm('<?= e(lang('db_reset_confirm_prompt')) ?>');">
+        <?= csrf_field() ?>
+        <input type="hidden" name="confirm_reset" value="1">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-5">
+            <?php foreach ($modules as $key => $module): ?>
+            <label class="flex items-start gap-3 p-4 rounded-xl border border-gray-200 hover:border-red-200 hover:bg-red-50/40 cursor-pointer transition-colors">
+                <input type="checkbox" name="modules[]" value="<?= e($key) ?>" class="courses-checkbox mt-1">
+                <span class="min-w-0">
+                    <span class="flex items-center gap-2 font-medium text-sm" style="color:#284194">
+                        <span class="material-symbols-outlined text-[18px]"><?= e($module['icon']) ?></span>
+                        <?= e($module['label']) ?>
+                    </span>
+                    <span class="block courses-td-muted mt-1 leading-relaxed"><?= e($module['description']) ?></span>
+                </span>
+            </label>
+            <?php endforeach; ?>
+        </div>
+
+        <button type="submit" class="courses-action courses-action--delete" style="width:auto;height:auto;padding:0.55rem 1.1rem;font-size:0.85rem;font-weight:600">
+            <span class="material-symbols-outlined">restart_alt</span>
+            <?= e(lang('db_reset_button')) ?>
+        </button>
+    </form>
+</div>
+</div>

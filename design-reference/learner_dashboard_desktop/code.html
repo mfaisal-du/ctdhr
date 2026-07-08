@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>My Dashboard | CTDHR Portal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Sans:wght@600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-nav-border {
+            border-left: 4px solid #dce1ff;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(228, 226, 225, 0.5);
+        }
+        .rainbow-accent {
+            height: 4px;
+            background: linear-gradient(90deg, #30872F 0%, #425AAD 33%, #FFD600 66%, #D81B60 100%);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#17721c",
+                        "outline": "#757683",
+                        "on-primary-fixed-variant": "#274093",
+                        "tertiary-fixed-dim": "#ffb872",
+                        "tertiary": "#6b3c00",
+                        "surface-dim": "#dcd9d9",
+                        "accent-sky": "#00B0FF",
+                        "surface-tint": "#4159ac",
+                        "surface-container-highest": "#e4e2e1",
+                        "background": "#fbf9f8",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "status-cancelled": "#D32F2F",
+                        "status-progress": "#FFBF00",
+                        "status-completed": "#30872F",
+                        "on-surface": "#1b1c1c",
+                        "accent-magenta": "#D81B60",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#444651",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e4e2e1",
+                        "tertiary-container": "#8d5100",
+                        "surface-gray": "#F5F5F5",
+                        "status-certified": "#D4AF37",
+                        "inverse-surface": "#303030",
+                        "primary-container": "#425aad",
+                        "secondary-container": "#9af58e",
+                        "error": "#ba1a1a",
+                        "status-announced": "#425AAD",
+                        "outline-variant": "#c5c5d3",
+                        "inverse-primary": "#b6c4ff",
+                        "status-draft": "#9E9E9E",
+                        "on-primary-fixed": "#001550",
+                        "on-tertiary-fixed-variant": "#6a3c00",
+                        "on-tertiary-container": "#ffd2aa",
+                        "tertiary-fixed": "#ffdcbf",
+                        "secondary": "#106e18",
+                        "accent-yellow": "#FFD600",
+                        "on-background": "#1b1c1c",
+                        "surface-bright": "#fbf9f8",
+                        "on-secondary-fixed": "#002202",
+                        "surface-container": "#f0eded",
+                        "on-primary": "#ffffff",
+                        "surface": "#fbf9f8",
+                        "inverse-on-surface": "#f3f0f0",
+                        "on-tertiary-fixed": "#2d1600",
+                        "status-scheduled": "#008080",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f6f3f2",
+                        "accent-coral": "#FF7043",
+                        "on-primary-container": "#d1d8ff",
+                        "secondary-fixed": "#9df891",
+                        "primary-fixed": "#dce1ff",
+                        "primary": "#284194",
+                        "on-secondary-fixed-variant": "#00530b",
+                        "secondary-fixed-dim": "#82db77",
+                        "error-container": "#ffdad6",
+                        "surface-container-high": "#eae8e7"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit-xs": "4px",
+                        "margin-mobile": "16px",
+                        "container-max": "1280px",
+                        "unit-lg": "24px",
+                        "unit-xl": "48px",
+                        "unit-md": "16px",
+                        "margin-desktop": "40px",
+                        "gutter": "24px",
+                        "unit-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["IBM Plex Sans"],
+                        "headline-md": ["IBM Plex Sans"],
+                        "headline-lg": ["IBM Plex Sans"],
+                        "headline-sm": ["IBM Plex Sans"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["IBM Plex Sans"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "16px", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "fontWeight": "500"}],
+                        "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md overflow-x-hidden">
+<!-- Sidebar Navigation -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-inverse-surface flex flex-col py-unit-lg shadow-md z-40 transition-all duration-300 ease-in-out">
+<div class="px-unit-lg mb-unit-xl">
+<h1 class="font-headline-sm text-headline-sm text-surface-bright">Admin Panel</h1>
+<p class="text-surface-variant opacity-70 font-label-sm">CTDHR Management</p>
+</div>
+<nav class="flex-1 space-y-unit-xs">
+<a class="flex items-center px-unit-lg py-3 text-primary-fixed-dim bg-primary-container/20 border-l-4 border-primary-fixed transition-all duration-300" href="#">
+<span class="material-symbols-outlined mr-unit-md" data-icon="school">school</span>
+<span class="font-label-md text-label-md">Courses</span>
+</a>
+<a class="flex items-center px-unit-lg py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 transition-all duration-300" href="#">
+<span class="material-symbols-outlined mr-unit-md" data-icon="category">category</span>
+<span class="font-label-md text-label-md">Categories</span>
+</a>
+<a class="flex items-center px-unit-lg py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 transition-all duration-300" href="#">
+<span class="material-symbols-outlined mr-unit-md" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Applicants</span>
+</a>
+<a class="flex items-center px-unit-lg py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 transition-all duration-300" href="#">
+<span class="material-symbols-outlined mr-unit-md" data-icon="assignment_turned_in">assignment_turned_in</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="flex items-center px-unit-lg py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 transition-all duration-300" href="#">
+<span class="material-symbols-outlined mr-unit-md" data-icon="analytics">analytics</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<a class="flex items-center px-unit-lg py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 transition-all duration-300" href="#">
+<span class="material-symbols-outlined mr-unit-md" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+<div class="px-unit-lg mt-auto border-t border-surface-variant/20 pt-unit-lg space-y-unit-xs">
+<a class="flex items-center py-2 text-surface-variant opacity-70 hover:text-primary-fixed-dim transition-colors" href="#">
+<span class="material-symbols-outlined mr-unit-md" data-icon="help">help</span>
+<span class="font-label-md text-label-md">Help</span>
+</a>
+<a class="flex items-center py-2 text-surface-variant opacity-70 hover:text-error transition-colors" href="#">
+<span class="material-symbols-outlined mr-unit-md" data-icon="logout">logout</span>
+<span class="font-label-md text-label-md">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-[260px] min-h-screen p-unit-lg md:p-unit-xl">
+<!-- Header / Welcome Section -->
+<header class="flex justify-between items-center mb-unit-xl">
+<div>
+<h2 class="font-headline-xl text-headline-xl text-primary tracking-tight">Welcome back, Learner!</h2>
+<p class="text-on-surface-variant font-body-lg">Here's a quick look at your academic progress for today.</p>
+</div>
+<div class="flex items-center gap-unit-md">
+<button class="flex items-center gap-2 px-unit-md py-2 border border-outline-variant rounded-lg text-primary hover:bg-primary-container/10 transition-colors font-label-md">
+<span class="material-symbols-outlined" data-icon="download">download</span>
+                    Transcript
+                </button>
+<div class="w-12 h-12 rounded-full border-2 border-primary overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional studio portrait of a confident university student in their early twenties, wearing business casual attire. The lighting is soft and directional, typical of an academic profile picture. The background is a clean, neutral gray to match a high-end corporate dashboard aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDgudm01gkCqhfrl84a7lCPywvwNY-Z7x5eIYOjb954JnHUufNFmVXD9qJ9ejkpvdtbgMjerWCIZPLGDAT_NNODEIaaP-7-wngSQrzGzawiCoMk6yijHLe0zQr5BCPXeCMo7KlQN14XjOaZrUBZMW6QJ6I0n-vD26d8Bmf4rfYjqxIGEM-KCYY1z8UgXRKw7PKUWOyIzv0c9CuZhf2Ka8r--So9aWjZLnK35sriGgSjNJWwjciXwDICPsAgKjYNfTodrecWFHFpD3Re"/>
+</div>
+</div>
+</header>
+<!-- Bento Grid Statistics -->
+<section class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-unit-xl">
+<!-- Current Applications -->
+<div class="glass-card rounded-xl p-unit-lg shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+<div class="rainbow-accent absolute top-0 left-0 w-full opacity-60"></div>
+<div class="flex justify-between items-start mb-unit-sm">
+<span class="material-symbols-outlined text-primary p-2 bg-primary-container/20 rounded-lg" data-icon="pending_actions">pending_actions</span>
+<span class="text-status-progress font-label-sm px-2 py-1 bg-status-progress/10 rounded-full">1 Pending</span>
+</div>
+<h3 class="font-label-md text-on-surface-variant uppercase tracking-wider mb-unit-xs">Applications</h3>
+<p class="font-headline-lg text-headline-lg text-on-surface">1 Active</p>
+<p class="text-body-sm text-outline mt-unit-sm">MSc Project Management</p>
+</div>
+<!-- Upcoming Sessions -->
+<div class="glass-card rounded-xl p-unit-lg shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+<div class="rainbow-accent absolute top-0 left-0 w-full opacity-60"></div>
+<div class="flex justify-between items-start mb-unit-sm">
+<span class="material-symbols-outlined text-secondary p-2 bg-secondary-container/20 rounded-lg" data-icon="calendar_today">calendar_today</span>
+<span class="text-secondary font-label-sm">Tomorrow</span>
+</div>
+<h3 class="font-label-md text-on-surface-variant uppercase tracking-wider mb-unit-xs">Upcoming</h3>
+<p class="font-headline-lg text-headline-lg text-on-surface">09:00 AM</p>
+<p class="text-body-sm text-outline mt-unit-sm">Advanced Data Analytics</p>
+</div>
+<!-- Attendance Progress -->
+<div class="glass-card rounded-xl p-unit-lg shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+<div class="rainbow-accent absolute top-0 left-0 w-full opacity-60"></div>
+<div class="flex justify-between items-start mb-unit-sm">
+<span class="material-symbols-outlined text-accent-sky p-2 bg-accent-sky/10 rounded-lg" data-icon="query_stats">query_stats</span>
+<span class="text-status-completed font-label-sm">+2% vs last week</span>
+</div>
+<h3 class="font-label-md text-on-surface-variant uppercase tracking-wider mb-unit-xs">Attendance</h3>
+<p class="font-headline-lg text-headline-lg text-on-surface">85%</p>
+<div class="w-full bg-surface-container-highest h-2 rounded-full mt-unit-sm overflow-hidden">
+<div class="bg-secondary h-full" style="width: 85%"></div>
+</div>
+</div>
+<!-- My Certificates -->
+<div class="glass-card rounded-xl p-unit-lg shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+<div class="rainbow-accent absolute top-0 left-0 w-full opacity-60"></div>
+<div class="flex justify-between items-start mb-unit-sm">
+<span class="material-symbols-outlined text-status-certified p-2 bg-status-certified/10 rounded-lg" data-icon="verified">verified</span>
+<span class="text-status-certified font-label-sm">Top 10%</span>
+</div>
+<h3 class="font-label-md text-on-surface-variant uppercase tracking-wider mb-unit-xs">Certificates</h3>
+<p class="font-headline-lg text-headline-lg text-on-surface">5 Earned</p>
+<p class="text-body-sm text-outline mt-unit-sm">Latest: UX Leadership</p>
+</div>
+</section>
+<!-- Secondary Content Split -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<!-- Recent Activity List -->
+<div class="lg:col-span-2 space-y-gutter">
+<div class="bg-white rounded-xl p-unit-lg shadow-sm border border-outline-variant">
+<div class="flex justify-between items-center mb-unit-lg">
+<h3 class="font-headline-sm text-headline-sm text-primary">Recent Activity</h3>
+<a class="text-secondary font-label-md hover:underline" href="#">View All</a>
+</div>
+<div class="space-y-4">
+<!-- Activity Item 1 -->
+<div class="flex items-center p-3 hover:bg-surface-container-low rounded-lg transition-colors border-l-4 border-status-completed">
+<div class="bg-status-completed/10 p-2 rounded-full mr-unit-md text-status-completed">
+<span class="material-symbols-outlined text-[20px]" data-icon="check_circle">check_circle</span>
+</div>
+<div class="flex-1">
+<p class="font-body-md text-on-surface">Completed Module: <span class="font-bold">Stakeholder Management</span></p>
+<p class="text-body-sm text-outline">2 hours ago • Project Management Certification</p>
+</div>
+<span class="text-label-sm text-outline bg-surface-variant/30 px-2 py-1 rounded">Score: 94%</span>
+</div>
+<!-- Activity Item 2 -->
+<div class="flex items-center p-3 hover:bg-surface-container-low rounded-lg transition-colors border-l-4 border-status-announced">
+<div class="bg-status-announced/10 p-2 rounded-full mr-unit-md text-status-announced">
+<span class="material-symbols-outlined text-[20px]" data-icon="assignment">assignment</span>
+</div>
+<div class="flex-1">
+<p class="font-body-md text-on-surface">New Assignment Posted: <span class="font-bold">Strategic Branding Final Task</span></p>
+<p class="text-body-sm text-outline">Yesterday • Digital Marketing Diploma</p>
+</div>
+<button class="text-primary font-label-sm border border-primary px-3 py-1 rounded-full hover:bg-primary hover:text-white transition-all">View</button>
+</div>
+<!-- Activity Item 3 -->
+<div class="flex items-center p-3 hover:bg-surface-container-low rounded-lg transition-colors border-l-4 border-status-progress">
+<div class="bg-status-progress/10 p-2 rounded-full mr-unit-md text-status-progress">
+<span class="material-symbols-outlined text-[20px]" data-icon="forum">forum</span>
+</div>
+<div class="flex-1">
+<p class="font-body-md text-on-surface">New Discussion Reply in <span class="font-bold">Ethical Hacking Lab</span></p>
+<p class="text-body-sm text-outline">2 days ago • Cyber Security Advanced</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Recommended Courses Column -->
+<div class="space-y-gutter">
+<div class="bg-white rounded-xl p-unit-lg shadow-sm border border-outline-variant">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-unit-lg">Recommended for You</h3>
+<div class="space-y-gutter">
+<!-- Course Recommendation Card 1 -->
+<div class="group cursor-pointer">
+<div class="relative rounded-lg overflow-hidden h-32 mb-unit-sm">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A wide-angle landscape shot of a modern, high-tech computer laboratory at Dhofar University. The scene is bathed in a cool blue and white professional glow, showing rows of sleek workstations with monitors displaying complex data visualizations. The overall mood is futuristic, academic, and highly professional." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB4Mn0vUVm0w8_WI0DJ7mMdvVU9SpQkrc8otXA6oUwMrJXlF8VngUcjnkP4rW4_v_gu3ClsmMIGbPNTfQzYmJnnmgfP0hFkbe6VcYYzbYACOqKaE1B7pyzUMIkzUl6clVXGswKu6tBT-9ztRjsUf5Gco6gjeWPdK_XFC7KX5sWKekz9ouOR5ba3RVX-1dH6eNtoYrgTNa5vgxspo2Boj-nzUMUaUTPkS3RFSO6e-MtU4ewqn8oC3mEZ0cOx488uuerOk8LVedjcAbM2"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+<span class="absolute bottom-2 left-2 text-white font-label-sm bg-primary/80 px-2 py-0.5 rounded">Popular</span>
+</div>
+<h4 class="font-label-md text-on-surface group-hover:text-primary transition-colors">Advanced Cyber Security Lab</h4>
+<div class="flex items-center gap-2 mt-unit-xs">
+<span class="text-label-sm text-outline">12 Weeks</span>
+<span class="w-1 h-1 bg-outline rounded-full"></span>
+<span class="text-label-sm text-secondary font-bold">Certification</span>
+</div>
+</div>
+<!-- Course Recommendation Card 2 -->
+<div class="group cursor-pointer">
+<div class="relative rounded-lg overflow-hidden h-32 mb-unit-sm">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="A macro photograph of professional architectural blueprints and a 3D building model on a white oak desk. Bright, warm natural sunlight streams through a nearby window, creating a high-end, inspiring workspace atmosphere. The design is minimalist and structured, representing prestige in professional training." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB6dn4NtEHGiIXfsFqe4xOAUu1Sla9t1IcyogF0TrzgmbSmvakYHh3H76kk3PC_7ZGNKLj2M17Dr6k5Jijvs5ea8oG9juDFjOID3t7k-YDUCDUbVzJkgb4ut9iafapzfg78TuU08wjjAqFPmFmd8K-b5IKbh2iehzLzbC2AxLAQG3ugPKGngERHYBN6gPk9Nke1pem42027C_cQoHvHBr_JJBCXTvhDvkLvblfl3muYHhLJQnwd6V7MHT3wja5Paq_48b2h7NoXF5P4"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+<span class="absolute bottom-2 left-2 text-white font-label-sm bg-status-certified/80 px-2 py-0.5 rounded">Expert Led</span>
+</div>
+<h4 class="font-label-md text-on-surface group-hover:text-primary transition-colors">Sustainable Urban Planning</h4>
+<div class="flex items-center gap-2 mt-unit-xs">
+<span class="text-label-sm text-outline">8 Weeks</span>
+<span class="w-1 h-1 bg-outline rounded-full"></span>
+<span class="text-label-sm text-secondary font-bold">Diploma</span>
+</div>
+</div>
+<button class="w-full py-3 bg-surface-container text-primary font-label-md rounded-lg hover:bg-primary-container/10 transition-colors">
+                            Explore All Courses
+                        </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer (Simplified for Dashboard) -->
+<footer class="mt-unit-xl border-t border-outline-variant pt-unit-lg flex flex-col md:flex-row justify-between items-center text-outline font-body-sm">
+<p>© 2024 Dhofar University CTDHR Training Portal</p>
+<div class="flex gap-unit-lg mt-unit-md md:mt-0">
+<a class="hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="hover:text-primary transition-colors" href="#">Terms of Service</a>
+<a class="hover:text-primary transition-colors" href="#">Support Center</a>
+</div>
+</footer>
+</main>
+<script>
+        // Micro-interactions and effects
+        document.addEventListener('DOMContentLoaded', () => {
+            const cards = document.querySelectorAll('.glass-card');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', () => {
+                    card.style.transform = 'translateY(-4px)';
+                });
+                card.addEventListener('mouseleave', () => {
+                    card.style.transform = 'translateY(0)';
+                });
+            });
+        });
+    </script>
+</body></html>

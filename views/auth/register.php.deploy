@@ -1,0 +1,14 @@
+<?php declare(strict_types=1);
+
+ob_start();
+
+$chooserMode = 'register';
+$chooserTitle = lang('register');
+$chooserSubtitle = lang('register_chooser_subtitle');
+$chooserIcon = 'person_add';
+require view_path('auth/components/path-chooser.php');
+
+$content = ob_get_clean();
+$pageTitle = lang('register');
+$authCardWidth = 'xl';
+require view_path('layouts/auth.php');

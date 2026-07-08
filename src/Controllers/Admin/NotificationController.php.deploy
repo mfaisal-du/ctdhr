@@ -1,0 +1,112 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Models\Notification;
+
+final class NotificationController
+{
+    public function index(): void
+    {
+        $userId = $this->userId();
+
+        if (isset($_GET['mark_read'])) {
+            $notifId = (int) $_GET['mark_read'];
+            if ($notifId > 0) {
+                Notification::markRead($notifId, $userId);
+            }
+            redirect('admin/notifications');
+        }
+
+        if (isset($_GET['mark_all'])) {
+            Notification::markAllRead($userId);
+            flash('success', lang('notifications_marked_read'));
+            redirect('admin/notifications');
+        }
+
+        admin_view('admin.notifications.index', [
+            'pageTitle' => lang('notifications'),
+            'notifications' => Notification::findByUser($userId, 100),
+            'unreadCount' => Notification::unreadCount($userId),
+        ]);
+    }
+
+    public function poll(): void
+    {
+        $userId = $this->userId();
+        $this->json([
+            'unread_count' => Notification::unreadCount($userId),
+            'notifications' => $this->formatNotifications(Notification::findByUser($userId, 20)),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function markRead(array $params): void
+    {
+        $userId = $this->userId();
+        $id = (int) ($params['id'] ?? 0);
+
+        if ($id > 0) {
+            Notification::markRead($id, $userId);
+        }
+
+        $this->json([
+            'ok' => true,
+            'unread_count' => Notification::unreadCount($userId),
+        ]);
+    }
+
+    public function markAllRead(): void
+    {
+        $userId = $this->userId();
+        Notification::markAllRead($userId);
+
+        $this->json([
+            'ok' => true,
+            'unread_count' => 0,
+        ]);
+    }
+
+    private function userId(): int
+    {
+        return (int) ($_SESSION['user_id'] ?? 0);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function formatNotifications(array $rows): array
+    {
+        $formatted = [];
+
+        foreach ($rows as $row) {
+            $formatted[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'type' => (string) ($row['type'] ?? ''),
+                'title' => localized($row, 'title'),
+                'message' => localized($row, 'message'),
+                'link' => (string) ($row['link'] ?? ''),
+                'is_read' => !empty($row['is_read']),
+                'created_at' => (string) ($row['created_at'] ?? ''),
+                'time_label' => format_date((string) ($row['created_at'] ?? '')),
+            ];
+        }
+
+        return $formatted;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function json(array $payload): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($payload, JSON_THROW_ON_ERROR);
+        exit;
+    }
+}

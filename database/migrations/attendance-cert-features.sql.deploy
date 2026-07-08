@@ -1,0 +1,59 @@
+-- Attendance & certificate feature enhancements
+USE ctdhr_portal;
+
+-- Session keys may be topic lines, not only dates
+ALTER TABLE attendance
+    MODIFY session_date VARCHAR(500) NOT NULL;
+
+ALTER TABLE attendance
+    ADD COLUMN attendance_status ENUM('present', 'absent', 'excused') NOT NULL DEFAULT 'absent' AFTER is_present;
+
+UPDATE attendance
+SET attendance_status = IF(is_present = 1, 'present', 'absent')
+WHERE attendance_status = 'absent' AND is_present = 1;
+
+CREATE TABLE IF NOT EXISTS attendance_session_locks (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    course_id       BIGINT UNSIGNED NOT NULL,
+    session_date    VARCHAR(500)    NOT NULL,
+    locked_by       BIGINT UNSIGNED NOT NULL,
+    locked_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_attendance_session_lock (course_id, session_date),
+    CONSTRAINT fk_att_lock_course FOREIGN KEY (course_id) REFERENCES courses (id) ON DELETE CASCADE,
+    CONSTRAINT fk_att_lock_user FOREIGN KEY (locked_by) REFERENCES users (id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+ALTER TABLE certificates
+    ADD COLUMN valid_until DATE DEFAULT NULL AFTER completion_date,
+    ADD COLUMN revoked_at DATETIME DEFAULT NULL AFTER valid_until,
+    ADD COLUMN revoke_reason VARCHAR(500) DEFAULT NULL AFTER revoked_at,
+    ADD COLUMN reissued_from_id BIGINT UNSIGNED DEFAULT NULL AFTER revoke_reason,
+    ADD COLUMN last_email_log_id BIGINT UNSIGNED DEFAULT NULL AFTER emailed_at;
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description)
+SELECT 'certificate_auto_generate', 'false', 'boolean', 'Auto-generate certificates when a course is marked completed'
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE setting_key = 'certificate_auto_generate');
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description)
+SELECT 'certificate_validity_months', '0', 'integer', 'Certificate validity in months (0 = no expiry)'
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE setting_key = 'certificate_validity_months');
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description)
+SELECT 'bulk_email_delay_seconds', '3', 'integer', 'Delay between bulk certificate emails (seconds)'
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE setting_key = 'bulk_email_delay_seconds');
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description)
+SELECT 'cert_email_subject_en', 'Your Training Certificate - CTDHR', 'string', 'Certificate email subject (English)'
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE setting_key = 'cert_email_subject_en');
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description)
+SELECT 'cert_email_subject_ar', 'شهادتك التدريبية - CTDHR', 'string', 'Certificate email subject (Arabic)'
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE setting_key = 'cert_email_subject_ar');
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description)
+SELECT 'cert_email_body_en', '<p>Hello :name,</p><p>Your training certificate <strong>:cert_number</strong> for <em>:course_title</em> is ready.</p><p><a href=":download_url">Download Certificate</a></p>', 'text', 'Certificate email body (English)'
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE setting_key = 'cert_email_body_en');
+
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description)
+SELECT 'cert_email_body_ar', '<p>مرحباً :name،</p><p>شهادتك التدريبية رقم <strong>:cert_number</strong> لدورة <em>:course_title</em> جاهزة.</p><p><a href=":download_url">تحميل الشهادة</a></p>', 'text', 'Certificate email body (Arabic)'
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE setting_key = 'cert_email_body_ar');

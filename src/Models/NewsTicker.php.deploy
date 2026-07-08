@@ -1,0 +1,247 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class NewsTicker
+{
+    private const TONES = ['primary', 'gold', 'secondary', 'sky', 'magenta'];
+
+    public static function hasCorruptedArabic(string $text): bool
+    {
+        return is_arabic_text_corrupted($text);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     */
+    public static function countCorruptedArabicRows(array $rows): int
+    {
+        $count = 0;
+        foreach ($rows as $row) {
+            if (self::hasCorruptedArabic((string) ($row['title_ar'] ?? ''))
+                || self::hasCorruptedArabic((string) ($row['text_ar'] ?? ''))) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    public static function tableExists(): bool
+    {
+        try {
+            $db = Database::getInstance();
+            $stmt = $db->query("SHOW TABLES LIKE 'news_ticker_items'");
+
+            return $stmt !== false && $stmt->fetchColumn() !== false;
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findAllAdmin(): array
+    {
+        if (!self::tableExists()) {
+            return [];
+        }
+
+        $db = Database::getInstance();
+        $stmt = $db->query(
+            'SELECT * FROM news_ticker_items ORDER BY display_order ASC, id ASC'
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * Active items for the public homepage ticker.
+     *
+     * @return array<int, array{href: string, icon: string, title: string, text: string, tone: string}>
+     */
+    public static function findActiveForPublic(): array
+    {
+        if (!self::tableExists()) {
+            return self::defaultPublicItems();
+        }
+
+        $db = Database::getInstance();
+        $stmt = $db->query(
+            "SELECT title_en, title_ar, text_en, text_ar, link_url, icon, tone
+             FROM news_ticker_items
+             WHERE is_active = 1
+               AND (starts_at IS NULL OR starts_at <= NOW())
+               AND (expires_at IS NULL OR expires_at >= NOW())
+             ORDER BY display_order ASC, id ASC"
+        );
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        if ($rows === []) {
+            return [];
+        }
+
+        return array_map(static function (array $row): array {
+            return [
+                'href' => news_ticker_resolve_href((string) ($row['link_url'] ?? '/')),
+                'icon' => self::sanitizeIcon((string) ($row['icon'] ?? 'campaign')),
+                'title' => localized($row, 'title'),
+                'text' => localized($row, 'text'),
+                'tone' => self::sanitizeTone((string) ($row['tone'] ?? 'primary')),
+            ];
+        }, $rows);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findById(int $id): ?array
+    {
+        if ($id <= 0 || !self::tableExists()) {
+            return null;
+        }
+
+        $db = Database::getInstance();
+        $stmt = $db->prepare('SELECT * FROM news_ticker_items WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row !== false ? $row : null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function create(array $data): int
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'INSERT INTO news_ticker_items
+                (title_en, title_ar, text_en, text_ar, link_url, icon, tone, display_order, is_active, starts_at, expires_at)
+             VALUES
+                (:title_en, :title_ar, :text_en, :text_ar, :link_url, :icon, :tone, :display_order, :is_active, :starts_at, :expires_at)'
+        );
+        $stmt->execute(self::bindParams($data));
+        $id = (int) $db->lastInsertId();
+        self::bumpCacheVersion();
+
+        return $id;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function update(int $id, array $data): void
+    {
+        $db = Database::getInstance();
+        $params = self::bindParams($data);
+        $params['id'] = $id;
+        $stmt = $db->prepare(
+            'UPDATE news_ticker_items SET
+                title_en = :title_en,
+                title_ar = :title_ar,
+                text_en = :text_en,
+                text_ar = :text_ar,
+                link_url = :link_url,
+                icon = :icon,
+                tone = :tone,
+                display_order = :display_order,
+                is_active = :is_active,
+                starts_at = :starts_at,
+                expires_at = :expires_at
+             WHERE id = :id'
+        );
+        $stmt->execute($params);
+        self::bumpCacheVersion();
+    }
+
+    public static function delete(int $id): void
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare('DELETE FROM news_ticker_items WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+        self::bumpCacheVersion();
+    }
+
+    public static function sanitizeTone(string $tone): string
+    {
+        $tone = strtolower(trim($tone));
+
+        return in_array($tone, self::TONES, true) ? $tone : 'primary';
+    }
+
+    public static function sanitizeIcon(string $icon): string
+    {
+        $icon = trim($icon);
+        if ($icon === '') {
+            return 'campaign';
+        }
+        if (preg_match('/^[a-z0-9_]+$/', $icon) === 1) {
+            return $icon;
+        }
+
+        return 'campaign';
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private static function bindParams(array $data): array
+    {
+        $startsAt = trim((string) ($data['starts_at'] ?? ''));
+        $expiresAt = trim((string) ($data['expires_at'] ?? ''));
+
+        return [
+            'title_en' => trim((string) ($data['title_en'] ?? '')),
+            'title_ar' => trim((string) ($data['title_ar'] ?? '')),
+            'text_en' => trim((string) ($data['text_en'] ?? '')),
+            'text_ar' => trim((string) ($data['text_ar'] ?? '')),
+            'link_url' => self::normalizeLinkInput((string) ($data['link_url'] ?? '/')),
+            'icon' => self::sanitizeIcon((string) ($data['icon'] ?? 'campaign')),
+            'tone' => self::sanitizeTone((string) ($data['tone'] ?? 'primary')),
+            'display_order' => (int) ($data['display_order'] ?? 0),
+            'is_active' => !empty($data['is_active']) ? 1 : 0,
+            'starts_at' => $startsAt !== '' ? $startsAt : null,
+            'expires_at' => $expiresAt !== '' ? $expiresAt : null,
+        ];
+    }
+
+    public static function normalizeLinkInput(string $link): string
+    {
+        $link = trim($link);
+        if ($link === '') {
+            return '/';
+        }
+        if (preg_match('#^https?://#i', $link) === 1) {
+            return $link;
+        }
+
+        return ltrim($link, '/');
+    }
+
+    private static function bumpCacheVersion(): void
+    {
+        // Reserved for future fragment caching.
+    }
+
+    /**
+     * @return array<int, array{href: string, icon: string, title: string, text: string, tone: string}>
+     */
+    public static function defaultPublicItems(): array
+    {
+        return [
+            ['href' => url('courses'), 'icon' => 'menu_book', 'title' => lang('browse_courses'), 'text' => lang('featured_courses_subtitle'), 'tone' => 'primary'],
+            ['href' => url('verify-certificate'), 'icon' => 'verified', 'title' => lang('verify_certificate'), 'text' => lang('verify_certificate_subtitle'), 'tone' => 'gold'],
+            ['href' => url('register'), 'icon' => 'person_add', 'title' => lang('register'), 'text' => lang('register_subtitle'), 'tone' => 'secondary'],
+            ['href' => url('about'), 'icon' => 'school', 'title' => lang('about'), 'text' => lang('about_paragraph_2'), 'tone' => 'sky'],
+            ['href' => url('contact'), 'icon' => 'mail', 'title' => lang('contact'), 'text' => lang('contact_us_cta'), 'tone' => 'magenta'],
+        ];
+    }
+}

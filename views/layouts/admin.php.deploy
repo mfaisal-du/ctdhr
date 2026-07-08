@@ -1,0 +1,262 @@
+<?php declare(strict_types=1);
+
+$locale = $_SESSION['locale'] ?? config('locale', 'en');
+$dir = $locale === 'ar' ? 'rtl' : 'ltr';
+$pageTitle = $pageTitle ?? lang('admin_dashboard');
+$section = admin_section();
+$flashSuccess = flash('success');
+$flashError = flash('error');
+$flashInfo = flash('info');
+$userName = (string) ($_SESSION['user_name'] ?? '');
+$userInitial = $userName !== '' ? mb_strtoupper(mb_substr($userName, 0, 1)) : 'A';
+
+$navItems = [
+    'dashboard' => ['url' => 'admin', 'icon' => 'dashboard', 'label' => lang('admin_dashboard')],
+    'courses' => ['url' => 'admin/courses', 'icon' => 'school', 'label' => lang('courses')],
+    'categories' => ['url' => 'admin/categories', 'icon' => 'category', 'label' => lang('categories')],
+    'news-ticker' => ['url' => 'admin/news-ticker', 'icon' => 'campaign', 'label' => lang('news_ticker')],
+    'applications' => ['url' => 'admin/applications', 'icon' => 'group', 'label' => lang('applications')],
+    'attendance' => ['url' => 'admin/attendance', 'icon' => 'assignment_turned_in', 'label' => lang('attendance')],
+    'certificates' => ['url' => 'admin/certificates', 'icon' => 'verified', 'label' => lang('certificates')],
+    'users' => ['url' => 'admin/users', 'icon' => 'manage_accounts', 'label' => lang('users')],
+    'users-pending' => ['url' => 'admin/users/pending', 'icon' => 'person_add', 'label' => lang('pending_external_nav')],
+    'emails' => ['url' => 'admin/emails', 'icon' => 'mail', 'label' => lang('emails')],
+];
+
+$bottomNavItems = [
+    'settings' => ['url' => 'admin/settings', 'icon' => 'settings', 'label' => lang('settings')],
+    'database' => ['url' => 'admin/database', 'icon' => 'database', 'label' => lang('database_tools')],
+    'audit' => ['url' => 'admin/audit', 'icon' => 'history', 'label' => lang('audit_log')],
+];
+
+$sectionLabels = [];
+foreach (array_merge($navItems, $bottomNavItems) as $key => $item) {
+    $sectionLabels[$key] = $item['label'];
+}
+$currentSectionLabel = $sectionLabels[$section] ?? lang('admin_dashboard');
+
+$adminUserId = (int) ($_SESSION['user_id'] ?? 0);
+$adminUnreadNotifications = 0;
+$adminPendingExternalCount = 0;
+$adminNotificationsInitial = [];
+if ($adminUserId > 0) {
+    $adminUnreadNotifications = \CTDHR\Models\Notification::unreadCount($adminUserId);
+    $adminNotificationsInitial = \CTDHR\Models\Notification::findByUser($adminUserId, 15);
+}
+$adminPendingExternalCount = (new \CTDHR\Models\User())->countPendingExternal();
+
+$adminNotificationsInitialFormatted = [];
+foreach ($adminNotificationsInitial as $notificationRow) {
+    $adminNotificationsInitialFormatted[] = [
+        'id' => (int) ($notificationRow['id'] ?? 0),
+        'type' => (string) ($notificationRow['type'] ?? ''),
+        'title' => localized($notificationRow, 'title'),
+        'message' => localized($notificationRow, 'message'),
+        'link' => (string) ($notificationRow['link'] ?? ''),
+        'is_read' => !empty($notificationRow['is_read']),
+        'created_at' => (string) ($notificationRow['created_at'] ?? ''),
+        'time_label' => format_date((string) ($notificationRow['created_at'] ?? '')),
+    ];
+}
+
+$csrfTokenName = config('csrf_token_name', '_token');
+$adminNotificationsConfig = [
+    'pollUrl' => url('admin/notifications/poll'),
+    'readUrl' => url('admin/notifications'),
+    'readAllUrl' => url('admin/notifications/read-all'),
+    'applicationsUrl' => url('admin/notifications'),
+    'csrfName' => $csrfTokenName,
+    'csrfToken' => csrf_token(),
+    'initialCount' => $adminUnreadNotifications,
+    'initialItems' => $adminNotificationsInitialFormatted,
+    'labels' => [
+        'notifications' => lang('notifications'),
+        'no_notifications' => lang('no_notifications'),
+        'mark_all_read' => lang('mark_all_read'),
+        'view_applications' => lang('view_applications'),
+        'view_all_notifications' => lang('view_all_notifications'),
+        'admin_notifications_hint' => lang('admin_notifications_hint'),
+        'admin_notifications_empty_hint' => lang('admin_notifications_empty_hint'),
+    ],
+];
+?>
+<!DOCTYPE html>
+<html lang="<?= e($locale) ?>" dir="<?= e($dir) ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+    <title><?= e($pageTitle) ?> | <?= e(lang('admin_panel')) ?></title>
+    <link rel="stylesheet" href="<?= e(asset('css/fonts.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/output.css')) ?>">
+    <script src="<?= e(asset('vendor/htmx.min.js')) ?>" defer></script>
+    <script src="<?= e(asset('js/admin-module.js')) ?>" defer></script>
+    <script defer src="<?= e(asset('vendor/alpine.min.js')) ?>"></script>
+    <script src="<?= e(asset('vendor/sweetalert2.all.min.js')) ?>"></script>
+    <style>[x-cloak]{display:none!important}</style>
+    <script>
+    window.__ADMIN_NOTIFICATIONS__ = <?= json_encode($adminNotificationsConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+    </script>
+</head>
+<body class="admin-shell<?= $locale === 'ar' ? ' admin-shell--ar font-arabic' : '' ?> text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container" x-data="adminLayout()" x-init="initNotifications()" @keydown.escape.window="sidebarOpen = false; closeNotifications()">
+
+<div
+    x-show="sidebarOpen"
+    x-transition:enter="transition ease-out duration-200"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    x-transition:leave="transition ease-in duration-150"
+    x-transition:leave-start="opacity-100"
+    x-transition:leave-end="opacity-0"
+    @click="sidebarOpen = false"
+    class="admin-sidebar-backdrop lg:hidden"
+    x-cloak
+    aria-hidden="true"
+></div>
+
+<aside
+    id="admin-sidebar"
+    class="admin-sidebar fixed top-0 h-full w-[272px] z-50 flex flex-col transition-transform duration-300 ease-out <?= is_rtl() ? 'right-0 translate-x-full lg:translate-x-0' : 'left-0 -translate-x-full lg:translate-x-0' ?>"
+    :class="{ 'translate-x-0': sidebarOpen }"
+    :aria-hidden="!sidebarOpen"
+    @click.outside="if (window.innerWidth < 1024) sidebarOpen = false"
+>
+    <div class="admin-sidebar-rainbow" aria-hidden="true"></div>
+    <div class="admin-sidebar-veil" aria-hidden="true"></div>
+
+    <div class="relative z-10 px-5 pt-5 pb-4">
+        <a href="<?= e(url('admin')) ?>" class="admin-sidebar-brand group">
+            <div class="admin-sidebar-brand-icon" aria-hidden="true">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+            </div>
+            <div class="min-w-0">
+                <h1 class="font-headline-sm text-headline-sm text-white leading-tight truncate"><?= e(lang('admin_panel')) ?></h1>
+                <p class="text-white/55 font-label-sm truncate">CTDHR Management</p>
+            </div>
+        </a>
+    </div>
+
+    <nav class="relative z-10 flex-1 flex flex-col px-3 gap-0.5 overflow-y-auto custom-scrollbar" aria-label="<?= e(lang('admin_panel')) ?>">
+        <p class="admin-nav-section-label px-3 pt-1 pb-2"><?= e(lang('admin_dashboard')) ?></p>
+        <?php foreach ($navItems as $key => $item): ?>
+        <a href="<?= e(url($item['url'])) ?>" class="<?= $section === $key ? 'admin-nav-link admin-nav-link-active' : 'admin-nav-link' ?>">
+            <span class="admin-nav-link-icon material-symbols-outlined" style="<?= $section === $key ? "font-variation-settings: 'FILL' 1, 'wght' 500;" : '' ?>"><?= e($item['icon']) ?></span>
+            <span class="truncate"><?= e($item['label']) ?></span>
+            <?php if ($key === 'users-pending' && $adminPendingExternalCount > 0): ?>
+            <span class="admin-nav-badge" aria-label="<?= e(lang('pending_external_accounts')) ?>"><?= e((string) ($adminPendingExternalCount > 99 ? '99+' : $adminPendingExternalCount)) ?></span>
+            <?php endif; ?>
+            <?php if ($section === $key): ?>
+            <span class="admin-nav-link-indicator" aria-hidden="true"></span>
+            <?php endif; ?>
+        </a>
+        <?php endforeach; ?>
+    </nav>
+
+    <div class="relative z-10 mt-auto px-3 pt-3 pb-4 border-t border-white/10 flex flex-col gap-0.5">
+        <p class="admin-nav-section-label px-3 pt-2 pb-1"><?= e(lang('notifications')) ?></p>
+        <a href="<?= e(url('admin/notifications')) ?>" class="<?= $section === 'notifications' ? 'admin-nav-link admin-nav-link-active' : 'admin-nav-link' ?>">
+            <span class="admin-nav-link-icon material-symbols-outlined" style="<?= $section === 'notifications' ? "font-variation-settings: 'FILL' 1, 'wght' 500;" : '' ?>">notifications</span>
+            <span class="truncate"><?= e(lang('notifications')) ?></span>
+            <?php if ($adminUnreadNotifications > 0): ?>
+            <span class="admin-nav-badge" aria-label="<?= e(lang('unread_notifications')) ?>"><?= e((string) ($adminUnreadNotifications > 99 ? '99+' : $adminUnreadNotifications)) ?></span>
+            <?php endif; ?>
+            <?php if ($section === 'notifications'): ?>
+            <span class="admin-nav-link-indicator" aria-hidden="true"></span>
+            <?php endif; ?>
+        </a>
+
+        <p class="admin-nav-section-label px-3 pt-3 pb-1"><?= e(lang('settings')) ?></p>
+        <?php foreach ($bottomNavItems as $key => $item): ?>
+        <a href="<?= e(url($item['url'])) ?>" class="<?= $section === $key ? 'admin-nav-link admin-nav-link-active' : 'admin-nav-link' ?>">
+            <span class="admin-nav-link-icon material-symbols-outlined" style="<?= $section === $key ? "font-variation-settings: 'FILL' 1, 'wght' 500;" : '' ?>"><?= e($item['icon']) ?></span>
+            <span class="truncate"><?= e($item['label']) ?></span>
+            <?php if ($section === $key): ?>
+            <span class="admin-nav-link-indicator" aria-hidden="true"></span>
+            <?php endif; ?>
+        </a>
+        <?php endforeach; ?>
+        <form method="POST" action="<?= e(url('logout')) ?>" class="m-0 mt-3">
+            <?= csrf_field() ?>
+            <button type="submit" class="admin-logout-btn">
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">logout</span>
+                <span><?= e(lang('logout')) ?></span>
+            </button>
+        </form>
+    </div>
+</aside>
+
+<div class="admin-content-wrap min-h-screen flex flex-col">
+    <header class="admin-topbar hidden lg:flex items-center justify-between gap-4 sticky top-0 z-30">
+        <div class="min-w-0">
+            <p class="admin-topbar-eyebrow"><?= e(lang('admin_panel')) ?></p>
+            <h2 class="admin-topbar-title truncate"><?= e($currentSectionLabel) ?></h2>
+        </div>
+        <div class="admin-topbar-actions flex items-center gap-2 shrink-0">
+            <a href="<?= e(url('/')) ?>" class="admin-topbar-chip" title="<?= e(lang('home')) ?>">
+                <span class="material-symbols-outlined text-[18px]">public</span>
+                <span class="hidden xl:inline"><?= e(lang('home')) ?></span>
+            </a>
+            <a href="<?= e(url($locale === 'ar' ? 'lang/en' : 'lang/ar')) ?>" class="admin-topbar-chip">
+                <span class="material-symbols-outlined text-[18px]">translate</span>
+                <span><?= $locale === 'ar' ? 'EN' : 'عربي' ?></span>
+            </a>
+            <?php
+            $compact = false;
+            $desktopOnly = true;
+            $mobileOnly = false;
+            require view_path('layouts/components/admin-notifications-dropdown.php');
+            ?>
+            <div class="admin-user-chip">
+                <span class="admin-user-avatar" aria-hidden="true"><?= e($userInitial) ?></span>
+                <span class="admin-user-name truncate max-w-[10rem]"><?= e($userName) ?></span>
+            </div>
+        </div>
+    </header>
+
+    <header class="admin-mobile-bar lg:hidden flex items-center justify-between gap-3 sticky top-0 z-30">
+        <button type="button" @click="sidebarOpen = !sidebarOpen" class="admin-mobile-menu-btn" :aria-expanded="sidebarOpen" aria-controls="admin-sidebar">
+            <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div class="min-w-0 flex-1 text-center">
+            <p class="font-label-sm text-on-surface-variant"><?= e(lang('admin_panel')) ?></p>
+            <p class="font-label-md text-primary truncate"><?= e($currentSectionLabel) ?></p>
+        </div>
+        <div class="admin-topbar-actions flex items-center gap-2 shrink-0">
+            <?php
+            $compact = true;
+            $desktopOnly = false;
+            $mobileOnly = true;
+            require view_path('layouts/components/admin-notifications-dropdown.php');
+            ?>
+            <a href="<?= e(url($locale === 'ar' ? 'lang/en' : 'lang/ar')) ?>" class="admin-topbar-chip px-2.5 py-2">
+                <?= $locale === 'ar' ? 'EN' : 'ع' ?>
+            </a>
+        </div>
+    </header>
+
+    <main class="admin-main flex-1">
+        <?php if ($flashSuccess): ?>
+        <div class="admin-flash admin-flash-success" role="status">
+            <span class="material-symbols-outlined admin-flash-icon">check_circle</span>
+            <span><?= e($flashSuccess) ?></span>
+        </div>
+        <?php endif; ?>
+        <?php if ($flashError): ?>
+        <div class="admin-flash admin-flash-error" role="alert">
+            <span class="material-symbols-outlined admin-flash-icon">error</span>
+            <span><?= e($flashError) ?></span>
+        </div>
+        <?php endif; ?>
+        <?php if ($flashInfo): ?>
+        <div class="admin-flash admin-flash-info" role="status">
+            <span class="material-symbols-outlined admin-flash-icon">info</span>
+            <span><?= e($flashInfo) ?></span>
+        </div>
+        <?php endif; ?>
+
+        <?php if (isset($content)) { echo $content; } ?>
+    </main>
+</div>
+<script src="<?= e(asset('vendor/chart.umd.min.js')) ?>"></script>
+</body>
+</html>

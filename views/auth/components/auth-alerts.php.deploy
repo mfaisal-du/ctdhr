@@ -1,0 +1,46 @@
+<?php declare(strict_types=1);
+
+$alertSuccess = $flashSuccess ?? flash('success');
+$alertError = $flashError ?? flash('error');
+
+if ($alertSuccess === null && $alertError === null) {
+    return;
+}
+?>
+<div class="auth-alerts" x-data="{ dismissed: false }">
+    <?php if ($alertSuccess): ?>
+    <div x-show="!dismissed"
+         x-transition:enter="auth-alert-enter-active"
+         x-transition:enter-start="auth-alert-enter-from"
+         x-transition:enter-end="auth-alert-enter-to"
+         x-transition:leave="auth-alert-leave-active"
+         x-transition:leave-start="auth-alert-leave-from"
+         x-transition:leave-end="auth-alert-leave-to"
+         class="auth-alert auth-alert--success"
+         role="status">
+        <span class="auth-alert-accent auth-alert-accent--success" aria-hidden="true"></span>
+        <span class="auth-alert-icon-wrap auth-alert-icon-wrap--success" aria-hidden="true">
+            <span class="material-symbols-outlined auth-alert-icon">check_circle</span>
+        </span>
+        <p class="auth-alert-text"><?= e($alertSuccess) ?></p>
+        <button type="button" class="auth-alert-dismiss" @click="dismissed = true" aria-label="<?= e(lang('dismiss')) ?>">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($alertError): ?>
+    <div x-transition:enter="auth-alert-enter-active"
+         x-transition:enter-start="auth-alert-enter-from"
+         x-transition:enter-end="auth-alert-enter-to"
+         class="auth-alert auth-alert--error"
+         role="alert"
+         aria-live="assertive">
+        <span class="auth-alert-accent auth-alert-accent--error" aria-hidden="true"></span>
+        <span class="auth-alert-icon-wrap auth-alert-icon-wrap--error" aria-hidden="true">
+            <span class="material-symbols-outlined auth-alert-icon">error</span>
+        </span>
+        <p class="auth-alert-text"><?= e($alertError) ?></p>
+    </div>
+    <?php endif; ?>
+</div>

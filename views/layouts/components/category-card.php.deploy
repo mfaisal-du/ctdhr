@@ -1,0 +1,93 @@
+<?php declare(strict_types=1);
+
+/** @var array<string, mixed> $category */
+$category = $category ?? [];
+$courseCount = (int) ($category['public_course_count'] ?? 0);
+$hasCourses = $courseCount > 0;
+$categoryColor = (string) ($category['color'] ?? '#425AAD');
+$categorySlug = (string) ($category['slug'] ?? '');
+$categoryName = localized($category, 'name');
+$categoryDesc = localized($category, 'description');
+$coursesUrl = url('courses?category=' . urlencode($categorySlug));
+$cardImageUrl = category_card_image_url($category);
+$tag = $hasCourses ? 'a' : 'div';
+$hrefAttr = $hasCourses ? ' href="' . e($coursesUrl) . '"' : '';
+?>
+<<?= $tag ?><?= $hrefAttr ?>
+    class="category-card <?= $hasCourses ? 'category-card-active' : 'category-card-empty' ?> <?= $cardImageUrl ? 'category-card-has-image' : '' ?>"
+    style="--cat-color: <?= e($categoryColor) ?>"
+    data-category-card
+    <?= $hasCourses ? '' : 'aria-label="' . e($categoryName) . '"' ?>>
+    <canvas class="category-card-aurora" aria-hidden="true"></canvas>
+    <span class="category-card-inner-shine" aria-hidden="true"></span>
+
+    <div class="category-card-media" aria-hidden="true">
+        <?php if ($cardImageUrl): ?>
+        <div class="category-card-skeleton" aria-hidden="true"></div>
+        <img
+            src="<?= e($cardImageUrl) ?>"
+            alt=""
+            class="category-card-media-img"
+            loading="lazy"
+            decoding="async">
+        <?php endif; ?>
+        <div class="category-card-media-fallback"></div>
+        <div class="category-card-colorwash"></div>
+        <div class="category-card-scrim"></div>
+    </div>
+
+    <div class="category-card-inner">
+        <div class="category-card-chrome">
+            <span class="category-card-badge category-card-badge-icon">
+                <?php if (!empty($category['icon'])): ?>
+                <?= category_icon_element((string) $category['icon'], 'text-[20px]') ?>
+                <?php else: ?>
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">category</span>
+                <?php endif; ?>
+            </span>
+
+            <?php if ($hasCourses): ?>
+            <span
+                class="category-card-badge category-card-badge-count"
+                aria-label="<?= e($courseCount . ' ' . category_course_count_label($courseCount)) ?>">
+                <span class="category-card-badge-count-value"><?= e((string) $courseCount) ?></span>
+                <span class="category-card-badge-count-label"><?= e(category_course_count_label($courseCount)) ?></span>
+            </span>
+            <?php else: ?>
+            <span
+                class="category-card-badge category-card-badge-unavailable"
+                aria-label="<?= e(lang('category_no_courses')) ?>">
+                <span class="material-symbols-outlined text-[13px]" aria-hidden="true">block</span>
+                <?= e(lang('category_no_courses_short')) ?>
+            </span>
+            <?php endif; ?>
+        </div>
+
+        <div class="category-card-body">
+            <div class="category-card-content">
+                <h3 class="category-card-title"><?= e($categoryName) ?></h3>
+                <?php if ($hasCourses && $categoryDesc !== ''): ?>
+                <p class="category-card-desc"><?= e($categoryDesc) ?></p>
+                <?php endif; ?>
+            </div>
+
+            <?php if ($hasCourses): ?>
+            <div class="category-card-cta">
+                <span class="category-card-cta-label"><?= e(lang('browse_courses')) ?></span>
+                <span class="category-card-cta-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined text-[18px]"><?= is_rtl() ? 'arrow_back' : 'arrow_forward' ?></span>
+                </span>
+            </div>
+            <?php else: ?>
+            <div class="category-card-empty-state">
+                <a href="<?= e(url('contact')) ?>" class="category-card-cta category-card-cta-muted" onclick="event.stopPropagation();">
+                    <span class="category-card-cta-label"><?= e(lang('contact')) ?></span>
+                    <span class="category-card-cta-icon" aria-hidden="true">
+                        <span class="material-symbols-outlined text-[18px]"><?= is_rtl() ? 'arrow_back' : 'arrow_forward' ?></span>
+                    </span>
+                </a>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</<?= $tag ?>>

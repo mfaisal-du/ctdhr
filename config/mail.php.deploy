@@ -1,0 +1,29 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Mail configuration with .env fallback.
+ * Runtime SMTP settings from system_settings (via EmailService) take priority:
+ *   smtp_host, smtp_port, smtp_username, smtp_password, smtp_encryption,
+ *   email_from, email_from_name
+ */
+return [
+    'host' => env('MAIL_HOST', 'smtp.example.com'),
+    'port' => (int) env('MAIL_PORT', 587),
+    'username' => env('MAIL_USERNAME', ''),
+    'password' => env('MAIL_PASSWORD', ''),
+    'encryption' => env('MAIL_ENCRYPTION', 'tls'),
+    'from' => [
+        'address' => env('MAIL_FROM_ADDRESS', 'noreply@du.edu.om'),
+        'name' => env('MAIL_FROM_NAME', 'CTDHR Portal'),
+    ],
+    'reply_to' => [
+        'address' => env('MAIL_REPLY_TO_ADDRESS', 'ctdhr@du.edu.om'),
+        'name' => env('MAIL_REPLY_TO_NAME', 'CTDHR Support'),
+    ],
+    'otp' => [
+        'subject_en' => 'Verification Code - CTDHR Portal',
+        'subject_ar' => 'رمز التحقق - بوابة CTDHR',
+    ],
+];

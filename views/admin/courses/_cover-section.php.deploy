@@ -1,0 +1,72 @@
+<?php declare(strict_types=1);
+
+$course = $course ?? [];
+$coverSpec = course_cover_spec();
+$coverSpecText = str_replace(
+    [':width', ':height'],
+    [(string) $coverSpec['width'], (string) $coverSpec['height']],
+    lang('cover_image_dimensions')
+);
+$canUpload = !empty($course['id']);
+$coverUrl = $canUpload ? course_cover($course) : '';
+$isCustomCover = $canUpload && course_has_custom_cover($course);
+?>
+
+<section class="courses-form-section courses-form-section--cover" id="section-cover">
+    <header class="courses-form-section-head">
+        <span class="courses-form-section-icon material-symbols-outlined">image</span>
+        <div>
+            <h2><?= e(lang('upload_cover')) ?></h2>
+            <p><?= e($coverSpec['width'] . ' × ' . $coverSpec['height'] . ' px · ' . $coverSpec['ratio']) ?></p>
+        </div>
+    </header>
+    <div class="courses-form-section-body">
+        <div class="courses-cover-panel">
+            <div class="courses-cover-panel__preview">
+                <p class="courses-cover-preview-label"><?= e(lang('cover_image_preview_label')) ?></p>
+                <div class="courses-cover-preview-frame">
+                    <?php if ($canUpload && $coverUrl !== ''): ?>
+                    <img src="<?= e($coverUrl) ?>" alt="<?= e(localized($course, 'title')) ?>" class="courses-cover-preview-img" id="coverPreviewImg">
+                    <?php else: ?>
+                    <div class="courses-cover-preview-empty courses-empty-state courses-empty-state--cover">
+                        <span class="material-symbols-outlined">image</span>
+                        <span><?= e(lang('no_cover_image')) ?></span>
+                    </div>
+                    <?php endif; ?>
+                    <div class="courses-cover-preview-badge"><?= e($coverSpec['width'] . ' × ' . $coverSpec['height']) ?></div>
+                    <?php if ($canUpload): ?>
+                    <div class="courses-cover-preview-source<?= $isCustomCover ? ' courses-cover-preview-source--custom' : ' courses-cover-preview-source--default' ?>" data-preview-label="<?= e(lang('cover_image_preview_pending')) ?>">
+                        <?= e($isCustomCover ? lang('cover_image_uploaded') : lang('cover_image_default_gallery')) ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <div class="courses-cover-panel__actions">
+                <?php if ($canUpload): ?>
+                <p class="courses-cover-panel-desc"><?= e($coverSpecText) ?></p>
+                <form method="POST" action="<?= e(url('admin/courses/' . $course['id'] . '/upload-image')) ?>" enctype="multipart/form-data" class="courses-cover-form" id="coverUploadForm">
+                    <?= csrf_field() ?>
+                    <div class="courses-field">
+                        <label class="courses-cover-file-label" for="cover_image_input">
+                            <span class="material-symbols-outlined">add_photo_alternate</span>
+                            <span class="courses-cover-file-text"><?= e(lang('choose_file')) ?></span>
+                            <input type="file" id="cover_image_input" name="cover_image" accept="image/jpeg,image/png,image/webp" required class="courses-cover-file-input">
+                        </label>
+                    </div>
+                    <button type="submit" class="courses-btn-cover-upload" id="coverUploadBtn">
+                        <span class="material-symbols-outlined courses-btn-icon">upload</span>
+                        <span class="courses-btn-label"><?= e(lang('upload')) ?></span>
+                        <span class="courses-btn-spinner" aria-hidden="true"></span>
+                    </button>
+                </form>
+                <?php else: ?>
+                <div class="courses-empty-state courses-empty-state--info">
+                    <span class="material-symbols-outlined">info</span>
+                    <h3><?= e(lang('upload_cover')) ?></h3>
+                    <p><?= e(lang('cover_image_after_save')) ?></p>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</section>

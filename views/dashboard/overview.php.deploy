@@ -1,0 +1,148 @@
+<?php declare(strict_types=1);
+
+/** @var array<string, int> $stats */
+/** @var array<int, array<string, mixed>> $notifications */
+$stats = $stats ?? [];
+$notifications = $notifications ?? [];
+$userName = $userName ?? ($_SESSION['user_name'] ?? '');
+
+ob_start();
+?>
+
+<div class="admin-module-page admin-dashboard">
+<?php
+dashboard_page_header([
+    'icon' => 'dashboard',
+    'title' => lang('dashboard'),
+    'subtitle' => lang('welcome_back', ['name' => $userName]),
+    'accent' => 'primary',
+    'actions' => '<a href="' . e(url('courses')) . '" class="courses-btn-create">'
+        . '<span class="material-symbols-outlined">explore</span>'
+        . e(lang('browse_courses'))
+        . '</a>',
+]);
+?>
+
+<section class="admin-dashboard-kpi" aria-label="<?= e(lang('dashboard')) ?>">
+    <div class="admin-stat-grid">
+        <?php foreach ([
+            ['blue', 'admin-stat-card-icon-primary', 'pending_actions', lang('my_applications'), (int) ($stats['pending_applications'] ?? 0), (int) ($stats['pending_applications'] ?? 0) > 0 ? lang('pending') . ': ' . (int) ($stats['pending_applications'] ?? 0) : null],
+            ['green', 'admin-stat-card-icon-secondary', 'menu_book', lang('my_courses'), (int) ($stats['approved_courses'] ?? 0), null],
+            ['sky', 'admin-stat-card-icon-sky', 'notifications', lang('notifications'), (int) ($stats['unread_notifications'] ?? 0), (int) ($stats['unread_notifications'] ?? 0) > 0 ? lang('new') . ': ' . (int) ($stats['unread_notifications'] ?? 0) : null],
+            ['gold', 'admin-stat-card-icon-gold', 'verified', lang('my_certificates'), (int) ($stats['certificates'] ?? 0), null],
+        ] as [$theme, $iconClass, $icon, $label, $value, $meta]): ?>
+        <article class="admin-stat-card admin-stat-card--<?= e($theme) ?>">
+            <div class="admin-stat-card-head">
+                <div class="admin-stat-card-icon <?= e($iconClass) ?>" aria-hidden="true">
+                    <span class="material-symbols-outlined"><?= e($icon) ?></span>
+                </div>
+                <span class="admin-stat-card-dot" aria-hidden="true"></span>
+            </div>
+            <div class="admin-stat-card-body">
+                <p class="admin-stat-label"><?= e($label) ?></p>
+                <p class="admin-stat-value" data-count="<?= $value ?>">0</p>
+            </div>
+            <div class="admin-stat-card-foot">
+                <?php if ($meta): ?>
+                <span class="admin-stat-meta">
+                    <span class="material-symbols-outlined">info</span>
+                    <?= e($meta) ?>
+                </span>
+                <?php else: ?>
+                <span class="admin-stat-meta admin-stat-meta--placeholder" aria-hidden="true">—</span>
+                <?php endif; ?>
+            </div>
+        </article>
+        <?php endforeach; ?>
+    </div>
+</section>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="courses-card p-4">
+        <h2 class="font-label-md text-on-surface mb-4"><?= e(lang('quick_actions')) ?></h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <a href="<?= e(url('courses')) ?>" class="courses-btn-create justify-center">
+                <span class="material-symbols-outlined">explore</span>
+                <?= e(lang('browse_courses')) ?>
+            </a>
+            <a href="<?= e(url('dashboard/applications')) ?>" class="courses-btn-secondary justify-center">
+                <span class="material-symbols-outlined">pending_actions</span>
+                <?= e(lang('my_applications')) ?>
+            </a>
+            <a href="<?= e(url('dashboard/courses')) ?>" class="courses-btn-secondary justify-center">
+                <span class="material-symbols-outlined">menu_book</span>
+                <?= e(lang('my_courses')) ?>
+            </a>
+            <a href="<?= e(url('dashboard/certificates')) ?>" class="courses-btn-secondary justify-center">
+                <span class="material-symbols-outlined">verified</span>
+                <?= e(lang('my_certificates')) ?>
+            </a>
+        </div>
+    </div>
+
+    <div class="courses-card p-4">
+        <div class="flex items-center justify-between gap-3 mb-4">
+            <h2 class="font-label-md text-on-surface"><?= e(lang('recent_notifications')) ?></h2>
+            <a href="<?= e(url('dashboard/notifications')) ?>" class="courses-btn-secondary courses-btn-secondary--sm">
+                <?= e(lang('view_all')) ?>
+            </a>
+        </div>
+        <?php if (empty($notifications)): ?>
+        <div class="admin-notif-page-empty">
+            <div class="admin-notif-empty-icon-wrap" aria-hidden="true">
+                <span class="material-symbols-outlined admin-notif-empty-icon">notifications</span>
+            </div>
+            <p class="admin-notif-empty-title"><?= e(lang('no_notifications')) ?></p>
+        </div>
+        <?php else: ?>
+        <ul class="admin-notif-page-list">
+            <?php foreach (array_slice($notifications, 0, 5) as $notification): ?>
+            <li class="admin-notif-page-item<?= empty($notification['is_read']) ? ' admin-notif-page-item--unread' : '' ?>">
+                <div class="admin-notif-item-icon-wrap" aria-hidden="true">
+                    <span class="material-symbols-outlined admin-notif-item-icon">notifications</span>
+                </div>
+                <div class="admin-notif-page-item-body">
+                    <p class="admin-notif-item-title"><?= e($notification['title'] ?? '') ?></p>
+                    <p class="admin-notif-item-time">
+                        <span class="material-symbols-outlined text-[13px]">schedule</span>
+                        <span><?= e(format_date($notification['created_at'] ?? null)) ?></span>
+                    </p>
+                </div>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+        <?php endif; ?>
+    </div>
+</div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+    function animateCounters() {
+        var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        document.querySelectorAll('[data-count]').forEach(function (el) {
+            var target = parseInt(el.getAttribute('data-count') || '0', 10);
+            if (prefersReducedMotion || target === 0) {
+                el.textContent = String(target);
+                return;
+            }
+            var duration = 700;
+            var start = performance.now();
+            function tick(now) {
+                var progress = Math.min((now - start) / duration, 1);
+                var eased = 1 - Math.pow(1 - progress, 3);
+                el.textContent = String(Math.round(target * eased));
+                if (progress < 1) requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+        });
+    }
+    document.addEventListener('DOMContentLoaded', animateCounters);
+})();
+</script>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('dashboard');
+require view_path('layouts/dashboard.php');

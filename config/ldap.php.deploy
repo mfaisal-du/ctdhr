@@ -1,0 +1,24 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'host' => env('LDAP_HOST', 'ldap://du.edu.om'),
+    'port' => (int) env('LDAP_PORT', 389),
+    'base_dn' => env('LDAP_BASE_DN', 'DC=du,DC=edu,DC=om'),
+    'bind_dn' => env('LDAP_BIND_DN', ''),
+    'bind_password' => env('LDAP_BIND_PASSWORD', ''),
+    'user_filter' => '(sAMAccountName={username})',
+    'use_tls' => filter_var(env('LDAP_USE_TLS', false), FILTER_VALIDATE_BOOLEAN),
+    'attributes' => [
+        'sAMAccountName',
+        'mail',
+        'displayName',
+        'givenName',
+        'sn',
+        'department',
+        'title',
+        'employeeID',
+        'telephoneNumber',
+    ],
+];

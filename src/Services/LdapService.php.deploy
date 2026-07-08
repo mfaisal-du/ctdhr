@@ -1,0 +1,169 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Models\Setting;
+use Symfony\Component\Ldap\Adapter\ExtLdap\Adapter;
+use Symfony\Component\Ldap\Entry;
+use Symfony\Component\Ldap\Exception\LdapException;
+use Symfony\Component\Ldap\Ldap;
+
+final class LdapService
+{
+    private Setting $settings;
+
+    /** @var array<string, mixed> */
+    private array $config;
+
+    public function __construct()
+    {
+        $this->settings = new Setting();
+        $this->config = require CTDHR_ROOT . '/config/ldap.php.deploy';
+    }
+
+    public function isEnabled(): bool
+    {
+        return $this->settings->getBool('ldap_enabled', false);
+    }
+
+    /**
+     * @return array<string, mixed>|false
+     */
+    public function authenticate(string $username, string $password)
+    {
+        if (!$this->isEnabled()) {
+            return false;
+        }
+
+        if ($username === '' || $password === '') {
+            return false;
+        }
+
+        try {
+            $ldap = $this->connect();
+            if ($ldap === null) {
+                return false;
+            }
+
+            $filter = str_replace('{username}', $this->escapeFilter($username), $this->config['user_filter']);
+            $baseDn = (string) $this->config['base_dn'];
+
+            $ldap->bind($this->getBindDn(), $this->getBindPassword());
+
+            $query = $ldap->query($baseDn, $filter);
+            $entries = $query->execute()->toArray();
+
+            if ($entries === []) {
+                return false;
+            }
+
+            /** @var Entry $entry */
+            $entry = $entries[0];
+            $userDn = $entry->getDn();
+
+            $ldap->bind($userDn, $password);
+
+            return $this->mapEntry($entry, $username);
+        } catch (LdapException $e) {
+            if (config('debug')) {
+                error_log('LDAP auth failed: ' . $e->getMessage());
+            }
+
+            return false;
+        } catch (\Throwable $e) {
+            if (config('debug')) {
+                error_log('LDAP error: ' . $e->getMessage());
+            }
+
+            return false;
+        }
+    }
+
+    public function testConnection(): bool
+    {
+        if (!$this->isEnabled()) {
+            return false;
+        }
+
+        try {
+            $ldap = $this->connect();
+            if ($ldap === null) {
+                return false;
+            }
+
+            $ldap->bind($this->getBindDn(), $this->getBindPassword());
+
+            return true;
+        } catch (\Throwable $e) {
+            if (config('debug')) {
+                error_log('LDAP connection test failed: ' . $e->getMessage());
+            }
+
+            return false;
+        }
+    }
+
+    private function connect(): ?Ldap
+    {
+        if (!extension_loaded('ldap')) {
+            return null;
+        }
+
+        $host = (string) ($this->config['host'] ?? 'ldap://du.edu.om');
+        $host = (string) preg_replace('#^ldaps?://#i', '', $host);
+        $port = (int) ($this->config['port'] ?? 389);
+
+        $adapter = new Adapter([
+            'host' => $host,
+            'port' => $port,
+            'encryption' => filter_var($this->config['use_tls'] ?? false, FILTER_VALIDATE_BOOLEAN) ? 'tls' : 'none',
+        ]);
+
+        return new Ldap($adapter);
+    }
+
+    private function getBindDn(): string
+    {
+        return (string) ($this->config['bind_dn'] ?? '');
+    }
+
+    private function getBindPassword(): string
+    {
+        return (string) ($this->config['bind_password'] ?? '');
+    }
+
+    private function escapeFilter(string $value): string
+    {
+        return ldap_escape($value, '', LDAP_ESCAPE_FILTER);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function mapEntry(Entry $entry, string $username): array
+    {
+        $attributes = $entry->getAttributes();
+        $getAttr = static function (string $key) use ($attributes): ?string {
+            if (!isset($attributes[$key])) {
+                return null;
+            }
+            $val = $attributes[$key];
+            if (is_array($val)) {
+                return (string) ($val[0] ?? '');
+            }
+
+            return (string) $val;
+        };
+
+        return [
+            'username' => strtolower($username),
+            'email' => strtolower($getAttr('mail') ?? $username . '@du.edu.om'),
+            'full_name_en' => $getAttr('displayName') ?? $getAttr('givenName') ?? $username,
+            'department_en' => $getAttr('department'),
+            'employee_id' => $getAttr('employeeID'),
+            'phone' => $getAttr('telephoneNumber'),
+        ];
+    }
+}

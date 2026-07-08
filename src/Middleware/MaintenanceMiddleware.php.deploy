@@ -1,0 +1,79 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Middleware;
+
+use CTDHR\Models\Setting;
+
+final class MaintenanceMiddleware
+{
+    public function handle(callable $next): void
+    {
+        $settings = new Setting();
+
+        if (!$settings->getBool('maintenance_mode', false)) {
+            $next();
+
+            return;
+        }
+
+        if ($this->isExemptRoute()) {
+            $next();
+
+            return;
+        }
+
+        if ($this->isAdminUser()) {
+            $next();
+
+            return;
+        }
+
+        http_response_code(503);
+        header('Retry-After: 3600');
+
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+        $message = $locale === 'ar'
+            ? ($settings->get('maintenance_message_ar') ?: lang('maintenance_default_message'))
+            : ($settings->get('maintenance_message_en') ?: lang('maintenance_default_message'));
+
+        view('errors.maintenance', [
+            'title' => lang('maintenance_title'),
+            'message' => $message,
+        ]);
+        exit;
+    }
+
+    private function isExemptRoute(): bool
+    {
+        $uri = $this->currentRelativePath();
+
+        $exemptPrefixes = [
+            '/login',
+            '/logout',
+            '/register',
+            '/verify',
+            '/lang/',
+            '/admin',
+        ];
+
+        foreach ($exemptPrefixes as $prefix) {
+            if ($uri === rtrim($prefix, '/') || str_starts_with($uri, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isAdminUser(): bool
+    {
+        return !empty($_SESSION['user_id']) && ($_SESSION['user_role'] ?? '') === 'admin';
+    }
+
+    private function currentRelativePath(): string
+    {
+        return request_relative_path();
+    }
+}

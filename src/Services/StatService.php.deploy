@@ -1,0 +1,597 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Config\Database;
+use CTDHR\Models\Application;
+use CTDHR\Models\AuditLog;
+use CTDHR\Models\Certificate;
+use CTDHR\Models\CourseAdmin;
+use CTDHR\Models\User;
+use DateTimeImmutable;
+
+final class StatService
+{
+    /**
+     * @return array<string, int>
+     */
+    public function getDashboardMetrics(): array
+    {
+        $userModel = new User();
+        $totalApplications = Application::countAll();
+        $approvedApplications = Application::countByStatus('approved');
+
+        return [
+            'total_courses' => CourseAdmin::countAll(),
+            'total_users' => $userModel->countAll(),
+            'total_applications' => $totalApplications,
+            'pending_applications' => Application::countByStatus('pending'),
+            'total_certificates' => Certificate::countAll(),
+            'approved_applications' => $approvedApplications,
+            'approval_rate' => $totalApplications > 0
+                ? (int) round(($approvedApplications / $totalApplications) * 100)
+                : 0,
+        ];
+    }
+
+    /**
+     * @return array{labels: array<int, string>, data: array<int, int>}
+     */
+    public function getApplicationsChart(int $months = 6): array
+    {
+        $months = max(1, min(12, $months));
+        $db = Database::getInstance();
+        $stmt = $db->query(
+            "SELECT DATE_FORMAT(applied_at, '%Y-%m') AS month_key,
+                    COUNT(*) AS count
+             FROM course_applications
+             WHERE applied_at >= DATE_SUB(CURDATE(), INTERVAL {$months} MONTH)
+             GROUP BY month_key
+             ORDER BY month_key ASC"
+        );
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        return $this->buildMonthSeries($months, $rows);
+    }
+
+    /**
+     * @return array{labels: array<int, string>, data: array<int, int>}
+     */
+    public function getCoursesByStatusChart(): array
+    {
+        $rows = CourseAdmin::countByStatus();
+        $countsByStatus = [];
+
+        foreach ($rows as $row) {
+            $countsByStatus[(string) $row['status']] = (int) $row['count'];
+        }
+
+        $labels = [];
+        $data = [];
+
+        foreach ($this->courseStatusOrder() as $status) {
+            $count = $countsByStatus[$status] ?? 0;
+            if ($count <= 0) {
+                continue;
+            }
+            $labels[] = course_status_label($status);
+            $data[] = $count;
+        }
+
+        foreach ($countsByStatus as $status => $count) {
+            if ($count <= 0 || in_array($status, $this->courseStatusOrder(), true)) {
+                continue;
+            }
+            $labels[] = course_status_label($status);
+            $data[] = $count;
+        }
+
+        return ['labels' => $labels, 'data' => $data];
+    }
+
+    /**
+     * @return array{labels: array<int, string>, data: array<int, int>}
+     */
+    public function getApplicationsByStatusChart(): array
+    {
+        $statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled'];
+        $labels = [];
+        $data = [];
+
+        foreach ($statuses as $status) {
+            $count = Application::countByStatus($status);
+            if ($count <= 0) {
+                continue;
+            }
+            $labels[] = lang('status_' . $status);
+            $data[] = $count;
+        }
+
+        return ['labels' => $labels, 'data' => $data];
+    }
+
+    /**
+     * @return array{labels: array<int, string>, data: array<int, int>}
+     */
+    public function getCertificatesChart(int $months = 6): array
+    {
+        $months = max(1, min(12, $months));
+        $db = Database::getInstance();
+        $stmt = $db->query(
+            "SELECT DATE_FORMAT(generated_at, '%Y-%m') AS month_key,
+                    COUNT(*) AS count
+             FROM certificates
+             WHERE generated_at >= DATE_SUB(CURDATE(), INTERVAL {$months} MONTH)
+             GROUP BY month_key
+             ORDER BY month_key ASC"
+        );
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        return $this->buildMonthSeries($months, $rows);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getDashboardAnalytics(): array
+    {
+        return [
+            'pendingAging' => $this->getPendingApplicationsAging(),
+            'topCourses' => $this->getTopCoursesByApplications(),
+            'funnel' => $this->getApplicationFunnel(),
+            'capacity' => $this->getCourseCapacityUtilization(),
+            'upcomingDeadlines' => $this->getUpcomingCourseDeadlines(),
+            'attendance' => $this->getAttendanceRateSummary(),
+            'certificatesThisMonth' => $this->countCertificatesThisMonth(),
+            'userGrowth' => $this->getUserGrowthChart(),
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getDashboardInsights(): array
+    {
+        $metrics = $this->getDashboardMetrics();
+        $pendingAging = $this->getPendingApplicationsAging();
+        $urgentPending = 0;
+
+        foreach ($pendingAging['buckets'] as $bucket) {
+            if (in_array((string) ($bucket['severity'] ?? ''), ['warning', 'critical'], true)) {
+                $urgentPending += (int) ($bucket['count'] ?? 0);
+            }
+        }
+
+        $openCourses = $this->countCoursesAcceptingApplications();
+        $certsThisMonth = $this->countCertificatesThisMonth();
+        $attendance = $this->getAttendanceRateSummary();
+
+        return [
+            [
+                'icon' => 'pending_actions',
+                'theme' => 'amber',
+                'title' => lang('insight_pending_applications'),
+                'value' => (int) $metrics['pending_applications'],
+                'suffix' => '',
+                'meta' => (int) $metrics['pending_applications'] === 0
+                    ? lang('insight_pending_clear_meta')
+                    : ($urgentPending > 0
+                        ? str_replace(':count', (string) $urgentPending, lang('insight_pending_urgent_meta'))
+                        : lang('insight_pending_recent_meta')),
+                'url' => url('admin/applications?status=pending'),
+            ],
+            [
+                'icon' => 'how_to_reg',
+                'theme' => 'green',
+                'title' => lang('insight_open_courses'),
+                'value' => $openCourses,
+                'suffix' => '',
+                'meta' => lang('insight_open_courses_meta'),
+                'url' => url('admin/courses?status=accepting_applications'),
+            ],
+            [
+                'icon' => 'percent',
+                'theme' => 'blue',
+                'title' => lang('insight_approval_rate'),
+                'value' => (int) $metrics['approval_rate'],
+                'suffix' => '%',
+                'meta' => str_replace(
+                    ':count',
+                    (string) (int) $metrics['approved_applications'],
+                    lang('insight_approval_rate_meta')
+                ),
+                'url' => url('admin/applications'),
+            ],
+            [
+                'icon' => 'verified',
+                'theme' => 'sky',
+                'title' => lang('insight_certificates_month'),
+                'value' => $certsThisMonth,
+                'suffix' => '',
+                'meta' => str_replace(
+                    ':count',
+                    (string) (int) $metrics['total_certificates'],
+                    lang('insight_certificates_month_meta')
+                ),
+                'url' => url('admin/certificates'),
+            ],
+            [
+                'icon' => 'fact_check',
+                'theme' => 'violet',
+                'title' => lang('insight_attendance_rate'),
+                'value' => (int) $attendance['rate'],
+                'suffix' => '%',
+                'meta' => str_replace(
+                    [':present', ':total'],
+                    [(string) (int) $attendance['present'], (string) (int) $attendance['total']],
+                    lang('insight_attendance_rate_meta')
+                ),
+                'url' => url('admin/attendance'),
+            ],
+        ];
+    }
+
+    /**
+     * @return array{total: int, buckets: array<int, array<string, mixed>>, labels: array<int, string>, data: array<int, int>}
+     */
+    public function getPendingApplicationsAging(): array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->query(
+            "SELECT
+                SUM(CASE WHEN applied_at >= DATE_SUB(NOW(), INTERVAL 1 DAY) THEN 1 ELSE 0 END) AS under_24h,
+                SUM(CASE WHEN applied_at < DATE_SUB(NOW(), INTERVAL 1 DAY)
+                          AND applied_at >= DATE_SUB(NOW(), INTERVAL 3 DAY) THEN 1 ELSE 0 END) AS days_1_3,
+                SUM(CASE WHEN applied_at < DATE_SUB(NOW(), INTERVAL 3 DAY)
+                          AND applied_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS days_3_7,
+                SUM(CASE WHEN applied_at < DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS over_7d
+             FROM course_applications
+             WHERE status = 'pending'"
+        );
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+        $buckets = [
+            [
+                'key' => 'under_24h',
+                'label' => lang('aging_under_24h'),
+                'count' => (int) ($row['under_24h'] ?? 0),
+                'severity' => 'ok',
+            ],
+            [
+                'key' => 'days_1_3',
+                'label' => lang('aging_1_3_days'),
+                'count' => (int) ($row['days_1_3'] ?? 0),
+                'severity' => 'ok',
+            ],
+            [
+                'key' => 'days_3_7',
+                'label' => lang('aging_3_7_days'),
+                'count' => (int) ($row['days_3_7'] ?? 0),
+                'severity' => 'warning',
+            ],
+            [
+                'key' => 'over_7d',
+                'label' => lang('aging_over_7_days'),
+                'count' => (int) ($row['over_7d'] ?? 0),
+                'severity' => 'critical',
+            ],
+        ];
+
+        $labels = array_column($buckets, 'label');
+        $data = array_column($buckets, 'count');
+
+        return [
+            'total' => array_sum($data),
+            'buckets' => $buckets,
+            'labels' => $labels,
+            'data' => $data,
+        ];
+    }
+
+    /**
+     * @return array{courses: array<int, array<string, mixed>>, labels: array<int, string>, data: array<int, int>}
+     */
+    public function getTopCoursesByApplications(int $limit = 5): array
+    {
+        $limit = max(1, min(10, $limit));
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            "SELECT c.id, c.title_en, c.title_ar, c.slug, c.status,
+                    COUNT(ca.id) AS application_count
+             FROM courses c
+             LEFT JOIN course_applications ca ON ca.course_id = c.id
+             WHERE c.deleted_at IS NULL
+             GROUP BY c.id, c.title_en, c.title_ar, c.slug, c.status
+             ORDER BY application_count DESC, c.title_en ASC
+             LIMIT {$limit}"
+        );
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $courses = [];
+        $labels = [];
+        $data = [];
+
+        foreach ($rows as $row) {
+            $count = (int) ($row['application_count'] ?? 0);
+            $title = localized($row, 'title');
+            $courses[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'title' => $title,
+                'count' => $count,
+                'status' => (string) ($row['status'] ?? ''),
+                'url' => url('admin/courses/' . (int) ($row['id'] ?? 0) . '/edit'),
+            ];
+            if ($count > 0) {
+                $labels[] = $title;
+                $data[] = $count;
+            }
+        }
+
+        return [
+            'courses' => $courses,
+            'labels' => $labels,
+            'data' => $data,
+        ];
+    }
+
+    /**
+     * @return array{stages: array<int, array<string, mixed>>, labels: array<int, string>, data: array<int, int>}
+     */
+    public function getApplicationFunnel(): array
+    {
+        $db = Database::getInstance();
+        $totalApplications = Application::countAll();
+        $approved = Application::countByStatus('approved');
+        $certified = (int) $db->query('SELECT COUNT(*) FROM certificates WHERE revoked_at IS NULL')->fetchColumn();
+        $completedCourses = (int) $db->query(
+            "SELECT COUNT(DISTINCT ca.id)
+             FROM course_applications ca
+             INNER JOIN courses c ON c.id = ca.course_id AND c.deleted_at IS NULL
+             WHERE ca.status = 'approved' AND c.status = 'completed'"
+        )->fetchColumn();
+
+        $stages = [
+            ['key' => 'applied', 'label' => lang('funnel_applied'), 'count' => $totalApplications, 'color' => '#284194'],
+            ['key' => 'approved', 'label' => lang('funnel_approved'), 'count' => $approved, 'color' => '#30872F'],
+            ['key' => 'completed', 'label' => lang('funnel_completed'), 'count' => $completedCourses, 'color' => '#00B0FF'],
+            ['key' => 'certified', 'label' => lang('funnel_certified'), 'count' => $certified, 'color' => '#FFD600'],
+        ];
+
+        return [
+            'stages' => $stages,
+            'labels' => array_column($stages, 'label'),
+            'data' => array_column($stages, 'count'),
+        ];
+    }
+
+    /**
+     * @return array{courses: array<int, array<string, mixed>>, labels: array<int, string>, data: array<int, int>}
+     */
+    public function getCourseCapacityUtilization(int $limit = 6): array
+    {
+        $limit = max(1, min(12, $limit));
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            "SELECT id, title_en, title_ar, approved_count, max_participants, status
+             FROM courses
+             WHERE deleted_at IS NULL
+               AND max_participants IS NOT NULL
+               AND max_participants > 0
+             ORDER BY (approved_count / max_participants) DESC, approved_count DESC
+             LIMIT {$limit}"
+        );
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        $courses = [];
+        $labels = [];
+        $data = [];
+
+        foreach ($rows as $row) {
+            $approved = (int) ($row['approved_count'] ?? 0);
+            $max = (int) ($row['max_participants'] ?? 0);
+            $percent = $max > 0 ? (int) round(($approved / $max) * 100) : 0;
+            $title = localized($row, 'title');
+
+            $courses[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'title' => $title,
+                'approved' => $approved,
+                'max' => $max,
+                'percent' => min(100, $percent),
+                'status' => (string) ($row['status'] ?? ''),
+                'url' => url('admin/courses/' . (int) ($row['id'] ?? 0) . '/edit'),
+            ];
+            $labels[] = $title;
+            $data[] = min(100, $percent);
+        }
+
+        return [
+            'courses' => $courses,
+            'labels' => $labels,
+            'data' => $data,
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getUpcomingCourseDeadlines(int $days = 21): array
+    {
+        $days = max(7, min(60, $days));
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            "SELECT id, title_en, title_ar, status, application_deadline, start_date
+             FROM courses
+             WHERE deleted_at IS NULL
+               AND status NOT IN ('completed', 'cancelled', 'draft')
+               AND (
+                    (application_deadline IS NOT NULL
+                     AND application_deadline >= CURDATE()
+                     AND application_deadline <= DATE_ADD(CURDATE(), INTERVAL {$days} DAY))
+                    OR (start_date IS NOT NULL
+                        AND start_date >= CURDATE()
+                        AND start_date <= DATE_ADD(CURDATE(), INTERVAL {$days} DAY))
+               )
+             ORDER BY COALESCE(application_deadline, start_date) ASC
+             LIMIT 8"
+        );
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+        $items = [];
+        $today = new DateTimeImmutable('today');
+
+        foreach ($rows as $row) {
+            $deadline = (string) ($row['application_deadline'] ?? '');
+            $startDate = (string) ($row['start_date'] ?? '');
+            $useDeadline = $deadline !== '' && $deadline >= $today->format('Y-m-d');
+            $eventDate = $useDeadline ? $deadline : $startDate;
+            if ($eventDate === '') {
+                continue;
+            }
+
+            $eventDt = DateTimeImmutable::createFromFormat('Y-m-d', $eventDate) ?: $today;
+            $daysLeft = (int) $today->diff($eventDt)->format('%r%a');
+
+            $items[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'title' => localized($row, 'title'),
+                'status' => (string) ($row['status'] ?? ''),
+                'date' => $eventDate,
+                'date_label' => format_date($eventDate),
+                'type' => $useDeadline ? 'deadline' : 'start',
+                'type_label' => $useDeadline ? lang('deadline_application') : lang('deadline_start'),
+                'days_left' => max(0, $daysLeft),
+                'urgency' => $daysLeft <= 3 ? 'critical' : ($daysLeft <= 7 ? 'warning' : 'normal'),
+                'url' => url('admin/courses/' . (int) ($row['id'] ?? 0) . '/edit'),
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return array{total: int, present: int, absent: int, excused: int, rate: int, labels: array<int, string>, data: array<int, int>}
+     */
+    public function getAttendanceRateSummary(): array
+    {
+        $db = Database::getInstance();
+        $row = $db->query(
+            "SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN attendance_status = 'present' OR is_present = 1 THEN 1 ELSE 0 END) AS present,
+                SUM(CASE WHEN attendance_status = 'absent' THEN 1 ELSE 0 END) AS absent,
+                SUM(CASE WHEN attendance_status = 'excused' THEN 1 ELSE 0 END) AS excused
+             FROM attendance"
+        )->fetch(\PDO::FETCH_ASSOC) ?: [];
+
+        $total = (int) ($row['total'] ?? 0);
+        $present = (int) ($row['present'] ?? 0);
+        $absent = (int) ($row['absent'] ?? 0);
+        $excused = (int) ($row['excused'] ?? 0);
+        $rate = $total > 0 ? (int) round(($present / $total) * 100) : 0;
+
+        return [
+            'total' => $total,
+            'present' => $present,
+            'absent' => $absent,
+            'excused' => $excused,
+            'rate' => $rate,
+            'labels' => [lang('attendance_present'), lang('attendance_absent'), lang('attendance_excused')],
+            'data' => [$present, $absent, $excused],
+        ];
+    }
+
+    public function countCertificatesThisMonth(): int
+    {
+        $db = Database::getInstance();
+
+        return (int) $db->query(
+            "SELECT COUNT(*) FROM certificates
+             WHERE generated_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')"
+        )->fetchColumn();
+    }
+
+    /**
+     * @return array{labels: array<int, string>, data: array<int, int>}
+     */
+    public function getUserGrowthChart(int $months = 6): array
+    {
+        $months = max(1, min(12, $months));
+        $db = Database::getInstance();
+        $stmt = $db->query(
+            "SELECT DATE_FORMAT(created_at, '%Y-%m') AS month_key,
+                    COUNT(*) AS count
+             FROM users
+             WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL {$months} MONTH)
+             GROUP BY month_key
+             ORDER BY month_key ASC"
+        );
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+
+        return $this->buildMonthSeries($months, $rows);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function getRecentActivity(int $limit = 8): array
+    {
+        return AuditLog::recent($limit);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function courseStatusOrder(): array
+    {
+        return [
+            'draft',
+            'announced',
+            'accepting_applications',
+            'scheduled',
+            'in_progress',
+            'completed',
+            'cancelled',
+        ];
+    }
+
+    private function countCoursesAcceptingApplications(): int
+    {
+        $db = Database::getInstance();
+
+        return (int) $db->query(
+            "SELECT COUNT(*) FROM courses
+             WHERE deleted_at IS NULL
+             AND status IN ('announced', 'accepting_applications')"
+        )->fetchColumn();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array{labels: array<int, string>, data: array<int, int>}
+     */
+    private function buildMonthSeries(int $months, array $rows): array
+    {
+        $byKey = [];
+        foreach ($rows as $row) {
+            $byKey[(string) ($row['month_key'] ?? '')] = (int) ($row['count'] ?? 0);
+        }
+
+        $labels = [];
+        $data = [];
+        $cursor = new DateTimeImmutable('first day of this month');
+
+        for ($i = $months - 1; $i >= 0; $i--) {
+            $month = $cursor->modify('-' . $i . ' months');
+            $key = $month->format('Y-m');
+            $labels[] = $month->format('M Y');
+            $data[] = $byKey[$key] ?? 0;
+        }
+
+        return ['labels' => $labels, 'data' => $data];
+    }
+}

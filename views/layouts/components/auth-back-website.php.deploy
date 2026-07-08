@@ -1,0 +1,5 @@
+<?php declare(strict_types=1); ?>
+<a href="<?= e(url('/')) ?>" class="auth-back-website-link">
+    <span class="material-symbols-outlined text-[15px]"><?= is_rtl() ? 'arrow_forward' : 'arrow_back' ?></span>
+    <span><?= e(lang('go_back_to_website')) ?></span>
+</a>

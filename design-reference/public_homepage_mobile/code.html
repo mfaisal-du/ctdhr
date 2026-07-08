@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CTDHR Portal | Dhofar University</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Sans:wght@600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .rainbow-accent {
+            background: linear-gradient(90deg, #30872F 0%, #425AAD 33%, #D81B60 66%, #FFD600 100%);
+            height: 4px;
+            width: 100%;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#17721c",
+                        "outline": "#757683",
+                        "on-primary-fixed-variant": "#274093",
+                        "tertiary-fixed-dim": "#ffb872",
+                        "tertiary": "#6b3c00",
+                        "surface-dim": "#dcd9d9",
+                        "accent-sky": "#00B0FF",
+                        "surface-tint": "#4159ac",
+                        "surface-container-highest": "#e4e2e1",
+                        "background": "#fbf9f8",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "status-cancelled": "#D32F2F",
+                        "status-progress": "#FFBF00",
+                        "status-completed": "#30872F",
+                        "on-surface": "#1b1c1c",
+                        "accent-magenta": "#D81B60",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#444651",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e4e2e1",
+                        "tertiary-container": "#8d5100",
+                        "surface-gray": "#F5F5F5",
+                        "status-certified": "#D4AF37",
+                        "inverse-surface": "#303030",
+                        "primary-container": "#425aad",
+                        "secondary-container": "#9af58e",
+                        "error": "#ba1a1a",
+                        "status-announced": "#425AAD",
+                        "outline-variant": "#c5c5d3",
+                        "inverse-primary": "#b6c4ff",
+                        "status-draft": "#9E9E9E",
+                        "on-primary-fixed": "#001550",
+                        "on-tertiary-fixed-variant": "#6a3c00",
+                        "on-tertiary-container": "#ffd2aa",
+                        "tertiary-fixed": "#ffdcbf",
+                        "secondary": "#106e18",
+                        "accent-yellow": "#FFD600",
+                        "on-background": "#1b1c1c",
+                        "surface-bright": "#fbf9f8",
+                        "on-secondary-fixed": "#002202",
+                        "surface-container": "#f0eded",
+                        "on-primary": "#ffffff",
+                        "surface": "#fbf9f8",
+                        "inverse-on-surface": "#f3f0f0",
+                        "on-tertiary-fixed": "#2d1600",
+                        "status-scheduled": "#008080",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f6f3f2",
+                        "accent-coral": "#FF7043",
+                        "on-primary-container": "#d1d8ff",
+                        "secondary-fixed": "#9df891",
+                        "primary-fixed": "#dce1ff",
+                        "primary": "#284194",
+                        "on-secondary-fixed-variant": "#00530b",
+                        "secondary-fixed-dim": "#82db77",
+                        "error-container": "#ffdad6",
+                        "surface-container-high": "#eae8e7"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit-xs": "4px",
+                        "margin-mobile": "16px",
+                        "container-max": "1280px",
+                        "unit-lg": "24px",
+                        "unit-xl": "48px",
+                        "unit-md": "16px",
+                        "margin-desktop": "40px",
+                        "gutter": "24px",
+                        "unit-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["IBM Plex Sans"],
+                        "headline-md": ["IBM Plex Sans"],
+                        "headline-lg": ["IBM Plex Sans"],
+                        "headline-sm": ["IBM Plex Sans"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["IBM Plex Sans"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "16px", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "fontWeight": "500"}],
+                        "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container">
+<!-- Top Navigation Bar (Mobile Variant) -->
+<header class="w-full sticky top-0 z-50 bg-surface dark:bg-on-surface shadow-sm">
+<div class="max-w-1280px mx-auto px-margin-mobile flex justify-between items-center h-16">
+<div class="flex items-center gap-unit-sm">
+<div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">school</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-primary dark:text-primary-fixed leading-none">DU</span>
+<span class="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">CTDHR Portal</span>
+</div>
+</div>
+<div class="flex items-center gap-unit-md">
+<button class="p-unit-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">language</span>
+</button>
+<button class="p-unit-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">search</span>
+</button>
+</div>
+</div>
+</header>
+<main class="pb-24">
+<!-- Hero Section -->
+<section class="relative px-margin-mobile pt-unit-lg pb-unit-xl overflow-hidden">
+<div class="relative z-10">
+<span class="inline-block px-3 py-1 rounded-full bg-secondary-container text-on-secondary-container font-label-sm text-label-sm mb-unit-md">
+                    Center for Training & HR Development
+                </span>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-unit-sm leading-tight">
+                    Elevate Your Professional <br/>
+<span class="text-primary">Academic Journey</span>
+</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mb-unit-lg max-w-[90%]">
+                    Access premium certification programs and workshops designed by Dhofar University experts.
+                </p>
+<div class="flex gap-unit-md">
+<button class="bg-secondary text-white px-unit-lg py-3 rounded-lg font-label-md text-label-md transition-transform active:scale-95">
+                        Browse Courses
+                    </button>
+<button class="border border-outline text-primary px-unit-lg py-3 rounded-lg font-label-md text-label-md transition-transform active:scale-95">
+                        About Us
+                    </button>
+</div>
+</div>
+<!-- Atmospheric background element -->
+<div class="absolute -right-20 top-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -z-10"></div>
+</section>
+<!-- Categories (Scrollable) -->
+<section class="mb-unit-xl">
+<div class="px-margin-mobile flex justify-between items-end mb-unit-md">
+<h2 class="font-headline-sm text-headline-sm">Categories</h2>
+<button class="text-primary font-label-sm text-label-sm">View All</button>
+</div>
+<div class="flex overflow-x-auto gap-unit-md px-margin-mobile no-scrollbar">
+<div class="flex-shrink-0 flex flex-col items-center gap-unit-sm">
+<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-primary border border-outline-variant">
+<span class="material-symbols-outlined text-[32px]">laptop_mac</span>
+</div>
+<span class="font-label-sm text-label-sm">IT & Tech</span>
+</div>
+<div class="flex-shrink-0 flex flex-col items-center gap-unit-sm">
+<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-secondary border border-outline-variant">
+<span class="material-symbols-outlined text-[32px]">payments</span>
+</div>
+<span class="font-label-sm text-label-sm">Finance</span>
+</div>
+<div class="flex-shrink-0 flex flex-col items-center gap-unit-sm">
+<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-accent-magenta border border-outline-variant">
+<span class="material-symbols-outlined text-[32px]">gavel</span>
+</div>
+<span class="font-label-sm text-label-sm">Legal</span>
+</div>
+<div class="flex-shrink-0 flex flex-col items-center gap-unit-sm">
+<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-accent-coral border border-outline-variant">
+<span class="material-symbols-outlined text-[32px]">groups</span>
+</div>
+<span class="font-label-sm text-label-sm">HR Mgt</span>
+</div>
+<div class="flex-shrink-0 flex flex-col items-center gap-unit-sm">
+<div class="w-16 h-16 rounded-2xl bg-surface-container flex items-center justify-center text-status-scheduled border border-outline-variant">
+<span class="material-symbols-outlined text-[32px]">language</span>
+</div>
+<span class="font-label-sm text-label-sm">Languages</span>
+</div>
+</div>
+</section>
+<!-- Featured Courses (Horizontal Scroll) -->
+<section class="mb-unit-xl">
+<div class="px-margin-mobile flex justify-between items-end mb-unit-md">
+<h2 class="font-headline-sm text-headline-sm">Featured Programs</h2>
+<button class="text-primary font-label-sm text-label-sm">View All</button>
+</div>
+<div class="flex overflow-x-auto gap-unit-lg px-margin-mobile no-scrollbar">
+<!-- Course Card 1 -->
+<div class="flex-shrink-0 w-72 bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden flex flex-col">
+<div class="rainbow-accent"></div>
+<div class="h-40 w-full relative">
+<img class="w-full h-full object-cover" data-alt="A professional photography of a modern lecture hall at Dhofar University with sunlight streaming through large windows. Students are engaged in a high-tech seminar with clean white desks and ergonomic chairs. The aesthetic is bright, academic, and professional, using a palette of white and primary blue." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBydMWlRmLwKn-mvKbhENdIK0pYQX8TXsFEk8q3oJmMmg7OTuJzwqvzZ7sh5uPQTVFFWq4fR-ebUEmZvs1PCOnnTPvXdxK5XnDMDoYIzd-_yF8HixgcB_Gz-HCKTemewWaX3x6n9oZhrxPm-m1HNV_5DqudQCPwjp-4JW9it79Kl972s29Y_UgipjNbBajOym-aR8vNIsabGp3GGAfAl2e4FuYns0I_sTzd_wzzWDKdzoeYQ3-IyjYFILaTpjz82a72OmJCirsLoxA6"/>
+<div class="absolute top-2 right-2 bg-white/90 backdrop-blur-md px-2 py-1 rounded text-[10px] font-bold text-primary shadow-sm">NEW</div>
+</div>
+<div class="p-unit-md flex flex-col flex-grow">
+<span class="text-secondary font-label-sm text-label-sm mb-1 uppercase tracking-tight">Management</span>
+<h3 class="font-label-md text-label-md text-on-surface mb-unit-sm line-clamp-2">Strategic HR Management in Higher Education</h3>
+<div class="mt-auto flex items-center justify-between">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span class="font-body-sm text-body-sm">4 Weeks</span>
+</div>
+<span class="font-label-md text-label-md text-primary">OMR 120</span>
+</div>
+</div>
+</div>
+<!-- Course Card 2 -->
+<div class="flex-shrink-0 w-72 bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden flex flex-col">
+<div class="rainbow-accent" style="background: linear-gradient(90deg, #425AAD 0%, #00B0FF 100%);"></div>
+<div class="h-40 w-full relative">
+<img class="w-full h-full object-cover" data-alt="A close-up of a digital tablet displaying complex data visualizations and financial charts. A professional hand is using a stylus to navigate the interface. The background is a blurred corporate office with cool blue lighting and clean lines, emphasizing a modern data-driven training environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3fnKXdhaW9-p0fotfHCJgKot0GzkZbTvkFczUURNVVeZPATXoTVQH1T542sx4RrCr3R5ETkn18gmt_orZaED5Pm5Z-9nHcc9BsqLPKrr-gq0xUeR3jTde1uyx4ROqULyUfCuWFDGxhBOkMseL3Zd46X89FJgLgcwAb4ZexzXy34DkTdG1ELnlgfQCHxCFXjFSupoXt5Rh_2tviw7e0kf1en1_VpyKuL9kFh33nbhHrHKfdley9w4wgee018ZqSc_vJHatK3VtbbwQ"/>
+</div>
+<div class="p-unit-md flex flex-col flex-grow">
+<span class="text-status-scheduled font-label-sm text-label-sm mb-1 uppercase tracking-tight">Technology</span>
+<h3 class="font-label-md text-label-md text-on-surface mb-unit-sm line-clamp-2">Advanced Data Analytics for Administrative Excellence</h3>
+<div class="mt-auto flex items-center justify-between">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span class="font-body-sm text-body-sm">6 Weeks</span>
+</div>
+<span class="font-label-md text-label-md text-primary">OMR 150</span>
+</div>
+</div>
+</div>
+<!-- Course Card 3 -->
+<div class="flex-shrink-0 w-72 bg-white rounded-xl shadow-sm border border-outline-variant overflow-hidden flex flex-col">
+<div class="rainbow-accent" style="background: linear-gradient(90deg, #D81B60 0%, #FF7043 100%);"></div>
+<div class="h-40 w-full relative">
+<img class="w-full h-full object-cover" data-alt="A diverse group of professionals sitting around a circular table in a bright, modern meeting room. They are engaged in an active workshop, with sticky notes on the glass walls and open laptops. The scene is illuminated by soft natural light, highlighting a collaborative and energetic academic atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB6Rcz2kbypk0vaST4H6D64sRmDOlgjlQazCnxoCFwIX_9VfE_JCpGif8ojjqbqmWfND3oPgK19ql7ygm3It1sdtkSgfOgbgvb7pQiQGYBVjS3rQ-v8sa8u0m2wpPoxpwSBuze0H1xYrJtomjiiGXz5ZRovzdi6h8HlXlUz-5A8oIotUJrhBR5gOK3zOLxkdUnabxocKkpzak3G3hORwDHbgEJAfTcCpHzcnuAtde4Ce84bVjYj2RjGm-XfP7UiLi2n5dNNcYg1dBIO"/>
+</div>
+<div class="p-unit-md flex flex-col flex-grow">
+<span class="text-accent-magenta font-label-sm text-label-sm mb-1 uppercase tracking-tight">Soft Skills</span>
+<h3 class="font-label-md text-label-md text-on-surface mb-unit-sm line-clamp-2">Effective Communication & Leadership Workshop</h3>
+<div class="mt-auto flex items-center justify-between">
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-sm">schedule</span>
+<span class="font-body-sm text-body-sm">2 Days</span>
+</div>
+<span class="font-label-md text-label-md text-primary">OMR 45</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Stats Section (Academic Pride) -->
+<section class="mx-margin-mobile bg-primary p-unit-lg rounded-2xl text-white mb-unit-xl relative overflow-hidden">
+<div class="relative z-10 grid grid-cols-2 gap-unit-lg">
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md">2.5k+</span>
+<span class="font-label-sm text-label-sm opacity-80 uppercase">Certified Alumni</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md">120+</span>
+<span class="font-label-sm text-label-sm opacity-80 uppercase">Active Courses</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md">98%</span>
+<span class="font-label-sm text-label-sm opacity-80 uppercase">Satisfaction Rate</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md">45+</span>
+<span class="font-label-sm text-label-sm opacity-80 uppercase">DU Professors</span>
+</div>
+</div>
+<!-- Decorative circle -->
+<div class="absolute -bottom-10 -right-10 w-32 h-32 bg-white/10 rounded-full border border-white/20"></div>
+</section>
+<!-- Announcements -->
+<section class="mb-unit-xl">
+<div class="px-margin-mobile flex justify-between items-end mb-unit-md">
+<h2 class="font-headline-sm text-headline-sm">Announcements</h2>
+</div>
+<div class="px-margin-mobile space-y-unit-md">
+<div class="p-unit-md bg-surface-container-low rounded-xl border-l-4 border-secondary flex gap-unit-md items-start">
+<span class="material-symbols-outlined text-secondary mt-1">campaign</span>
+<div>
+<h4 class="font-label-md text-label-md text-on-surface mb-1">Registration Open: Winter Intake</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Early bird discounts are now available for all certification programs until December 15th.</p>
+</div>
+</div>
+<div class="p-unit-md bg-surface-container-low rounded-xl border-l-4 border-primary flex gap-unit-md items-start">
+<span class="material-symbols-outlined text-primary mt-1">verified</span>
+<div>
+<h4 class="font-label-md text-label-md text-on-surface mb-1">New Certification Standards</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Our HR programs are now officially accredited by international development bodies.</p>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-xl bg-surface dark:bg-surface-container-high shadow-lg border-t border-outline-variant">
+<div class="flex justify-around items-center h-16 px-unit-md pb-safe">
+<!-- Home Active -->
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1 active:scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-sm text-label-sm mt-0.5">Home</span>
+</a>
+<!-- Courses Inactive -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-highest transition-colors" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-label-sm text-label-sm mt-0.5">Courses</span>
+</a>
+<!-- Certificates Inactive -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-highest transition-colors" href="#">
+<span class="material-symbols-outlined">verified</span>
+<span class="font-label-sm text-label-sm mt-0.5">Certificates</span>
+</a>
+<!-- Profile Inactive -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant active:bg-surface-container-highest transition-colors" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-sm text-label-sm mt-0.5">Profile</span>
+</a>
+</div>
+</nav>
+<!-- Floating Language Switcher Toggle (Prominent) -->
+<button class="fixed bottom-20 right-4 z-40 bg-primary text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-transform active:scale-90 overflow-hidden" id="langSwitcher">
+<span class="font-bold text-sm">عربي</span>
+</button>
+<script>
+        // Micro-interaction for language switcher
+        document.getElementById('langSwitcher').addEventListener('click', function() {
+            const currentText = this.querySelector('span').innerText;
+            this.querySelector('span').innerText = currentText === 'عربي' ? 'EN' : 'عربي';
+            // In a real app, this would trigger i18n logic
+        });
+
+        // Add subtle hover/touch interaction logic if needed
+        document.querySelectorAll('a, button').forEach(el => {
+            el.addEventListener('touchstart', () => {
+                el.classList.add('opacity-80');
+            });
+            el.addEventListener('touchend', () => {
+                el.classList.remove('opacity-80');
+            });
+        });
+    </script>
+</body></html>

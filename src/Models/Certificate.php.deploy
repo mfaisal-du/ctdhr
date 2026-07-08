@@ -1,0 +1,449 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class Certificate
+{
+    private static ?bool $hasExtendedColumns = null;
+    private static ?bool $hasEmailLogColumn = null;
+
+    public static function supportsExtendedColumns(): bool
+    {
+        if (self::$hasExtendedColumns !== null) {
+            return self::$hasExtendedColumns;
+        }
+        try {
+            $db = Database::getInstance();
+            $stmt = $db->query("SHOW COLUMNS FROM certificates LIKE 'revoked_at'");
+            self::$hasExtendedColumns = (bool) $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (\Throwable) {
+            self::$hasExtendedColumns = false;
+        }
+
+        return self::$hasExtendedColumns;
+    }
+
+    public static function supportsEmailLogColumn(): bool
+    {
+        if (self::$hasEmailLogColumn !== null) {
+            return self::$hasEmailLogColumn;
+        }
+        try {
+            $db = Database::getInstance();
+            $stmt = $db->query("SHOW COLUMNS FROM certificates LIKE 'last_email_log_id'");
+            self::$hasEmailLogColumn = (bool) $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (\Throwable) {
+            self::$hasEmailLogColumn = false;
+        }
+
+        return self::$hasEmailLogColumn;
+    }
+
+    public static function isActive(array $cert): bool
+    {
+        if (!self::supportsExtendedColumns()) {
+            return true;
+        }
+
+        return empty($cert['revoked_at']);
+    }
+    /**
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public static function findAll(int $page = 1, int $perPage = 20): array
+    {
+        return self::findAllFiltered([], $page, $perPage);
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public static function findAllFiltered(array $filters = [], int $page = 1, int $perPage = 20): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $db = Database::getInstance();
+
+        $where = ['1 = 1'];
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(cert.cert_number LIKE ? OR cert.participant_name_en LIKE ? OR cert.participant_name_ar LIKE ? OR u.email LIKE ?)';
+            array_push($params, $term, $term, $term, $term);
+        }
+
+        if (!empty($filters['course_id'])) {
+            $where[] = 'cert.course_id = ?';
+            $params[] = (int) $filters['course_id'];
+        }
+
+        if (($filters['email_status'] ?? '') === 'sent') {
+            $where[] = 'cert.is_emailed = 1';
+        } elseif (($filters['email_status'] ?? '') === 'pending') {
+            $where[] = 'cert.is_emailed = 0';
+        }
+
+        if (!empty($filters['date_from'])) {
+            $where[] = 'cert.completion_date >= ?';
+            $params[] = (string) $filters['date_from'];
+        }
+
+        if (!empty($filters['date_to'])) {
+            $where[] = 'cert.completion_date <= ?';
+            $params[] = (string) $filters['date_to'];
+        }
+
+        $whereSql = implode(' AND ', $where);
+
+        $countStmt = $db->prepare(
+            "SELECT COUNT(*)
+             FROM certificates cert
+             INNER JOIN users u ON u.id = cert.user_id
+             INNER JOIN courses c ON c.id = cert.course_id
+             WHERE {$whereSql}"
+        );
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+        $offset = ($page - 1) * $perPage;
+
+        $emailJoin = self::supportsEmailLogColumn()
+            ? 'LEFT JOIN email_logs el ON el.id = cert.last_email_log_id'
+            : '';
+        $emailCols = self::supportsEmailLogColumn()
+            ? ', el.status AS last_email_status, el.error_message AS last_email_error, el.sent_at AS last_email_sent_at'
+            : '';
+
+        $stmt = $db->prepare(
+            "SELECT cert.*,
+                    u.email AS user_email,
+                    c.title_en AS course_title_en, c.title_ar AS course_title_ar,
+                    c.slug AS course_slug
+                    {$emailCols}
+             FROM certificates cert
+             INNER JOIN users u ON u.id = cert.user_id
+             INNER JOIN courses c ON c.id = cert.course_id
+             {$emailJoin}
+             WHERE {$whereSql}
+             ORDER BY cert.generated_at DESC
+             LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($params);
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{total: int, emailed: int, pending: int}
+     */
+    public static function getStats(array $filters = []): array
+    {
+        $db = Database::getInstance();
+        $where = ['1 = 1'];
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(cert.cert_number LIKE ? OR cert.participant_name_en LIKE ? OR cert.participant_name_ar LIKE ? OR u.email LIKE ?)';
+            array_push($params, $term, $term, $term, $term);
+        }
+
+        if (!empty($filters['course_id'])) {
+            $where[] = 'cert.course_id = ?';
+            $params[] = (int) $filters['course_id'];
+        }
+
+        if (!empty($filters['date_from'])) {
+            $where[] = 'cert.completion_date >= ?';
+            $params[] = (string) $filters['date_from'];
+        }
+
+        if (!empty($filters['date_to'])) {
+            $where[] = 'cert.completion_date <= ?';
+            $params[] = (string) $filters['date_to'];
+        }
+
+        if (($filters['email_status'] ?? '') === 'sent') {
+            $where[] = 'cert.is_emailed = 1';
+        } elseif (($filters['email_status'] ?? '') === 'pending') {
+            $where[] = 'cert.is_emailed = 0';
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $stmt = $db->prepare(
+            "SELECT COUNT(*) AS total,
+                    SUM(CASE WHEN cert.is_emailed = 1 THEN 1 ELSE 0 END) AS emailed
+             FROM certificates cert
+             INNER JOIN users u ON u.id = cert.user_id
+             WHERE {$whereSql}"
+        );
+        $stmt->execute($params);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+        $total = (int) ($row['total'] ?? 0);
+        $emailed = (int) ($row['emailed'] ?? 0);
+
+        return [
+            'total' => $total,
+            'emailed' => $emailed,
+            'pending' => max(0, $total - $emailed),
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function coursesWithCertificates(): array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->query(
+            "SELECT c.id, c.title_en, c.title_ar, COUNT(cert.id) AS cert_count
+             FROM certificates cert
+             INNER JOIN courses c ON c.id = cert.course_id
+             GROUP BY c.id, c.title_en, c.title_ar
+             ORDER BY c.title_en ASC"
+        );
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findById(int $id): ?array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare('SELECT * FROM certificates WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function create(array $data): int
+    {
+        $db = Database::getInstance();
+        if (self::supportsExtendedColumns()) {
+            $stmt = $db->prepare(
+                'INSERT INTO certificates (
+                    user_id, course_id, template_id, cert_number, pdf_path, qr_code_path,
+                    verification_token, participant_name_en, participant_name_ar,
+                    course_title_en, course_title_ar, completion_date, duration_hours,
+                    valid_until, reissued_from_id, generated_by
+                ) VALUES (
+                    :user_id, :course_id, :template_id, :cert_number, :pdf_path, :qr_code_path,
+                    :verification_token, :participant_name_en, :participant_name_ar,
+                    :course_title_en, :course_title_ar, :completion_date, :duration_hours,
+                    :valid_until, :reissued_from_id, :generated_by
+                )'
+            );
+            $stmt->execute([
+                'user_id' => $data['user_id'],
+                'course_id' => $data['course_id'],
+                'template_id' => $data['template_id'],
+                'cert_number' => $data['cert_number'],
+                'pdf_path' => $data['pdf_path'],
+                'qr_code_path' => $data['qr_code_path'] ?? null,
+                'verification_token' => $data['verification_token'],
+                'participant_name_en' => $data['participant_name_en'],
+                'participant_name_ar' => $data['participant_name_ar'] ?? null,
+                'course_title_en' => $data['course_title_en'],
+                'course_title_ar' => $data['course_title_ar'] ?? null,
+                'completion_date' => $data['completion_date'],
+                'duration_hours' => $data['duration_hours'] ?? null,
+                'valid_until' => $data['valid_until'] ?? null,
+                'reissued_from_id' => $data['reissued_from_id'] ?? null,
+                'generated_by' => $data['generated_by'],
+            ]);
+        } else {
+            $stmt = $db->prepare(
+                'INSERT INTO certificates (
+                    user_id, course_id, template_id, cert_number, pdf_path, qr_code_path,
+                    verification_token, participant_name_en, participant_name_ar,
+                    course_title_en, course_title_ar, completion_date, duration_hours,
+                    generated_by
+                ) VALUES (
+                    :user_id, :course_id, :template_id, :cert_number, :pdf_path, :qr_code_path,
+                    :verification_token, :participant_name_en, :participant_name_ar,
+                    :course_title_en, :course_title_ar, :completion_date, :duration_hours,
+                    :generated_by
+                )'
+            );
+            $stmt->execute([
+                'user_id' => $data['user_id'],
+                'course_id' => $data['course_id'],
+                'template_id' => $data['template_id'],
+                'cert_number' => $data['cert_number'],
+                'pdf_path' => $data['pdf_path'],
+                'qr_code_path' => $data['qr_code_path'] ?? null,
+                'verification_token' => $data['verification_token'],
+                'participant_name_en' => $data['participant_name_en'],
+                'participant_name_ar' => $data['participant_name_ar'] ?? null,
+                'course_title_en' => $data['course_title_en'],
+                'course_title_ar' => $data['course_title_ar'] ?? null,
+                'completion_date' => $data['completion_date'],
+                'duration_hours' => $data['duration_hours'] ?? null,
+                'generated_by' => $data['generated_by'],
+            ]);
+        }
+
+        return (int) $db->lastInsertId();
+    }
+
+    public static function updateGeneratedAssets(int $id, string $pdfPath, string $qrPath): bool
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'UPDATE certificates SET pdf_path = :pdf_path, qr_code_path = :qr_code_path WHERE id = :id'
+        );
+
+        return $stmt->execute([
+            'id' => $id,
+            'pdf_path' => $pdfPath,
+            'qr_code_path' => $qrPath,
+        ]);
+    }
+
+    public static function markEmailed(int $id): bool
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'UPDATE certificates SET is_emailed = 1, emailed_at = NOW() WHERE id = :id'
+        );
+
+        return $stmt->execute(['id' => $id]);
+    }
+
+    public static function existsForUserCourse(int $userId, int $courseId): bool
+    {
+        $db = Database::getInstance();
+        $revokedSql = self::supportsExtendedColumns() ? ' AND revoked_at IS NULL' : '';
+        $stmt = $db->prepare(
+            "SELECT COUNT(*) FROM certificates WHERE user_id = :user_id AND course_id = :course_id{$revokedSql}"
+        );
+        $stmt->execute(['user_id' => $userId, 'course_id' => $courseId]);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public static function findActiveForUserCourse(int $userId, int $courseId): ?array
+    {
+        $db = Database::getInstance();
+        $revokedSql = self::supportsExtendedColumns() ? ' AND revoked_at IS NULL' : '';
+        $stmt = $db->prepare(
+            "SELECT * FROM certificates WHERE user_id = :user_id AND course_id = :course_id{$revokedSql} ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute(['user_id' => $userId, 'course_id' => $courseId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ?: null;
+    }
+
+    public static function revoke(int $id, string $reason): bool
+    {
+        if (!self::supportsExtendedColumns()) {
+            return false;
+        }
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'UPDATE certificates SET revoked_at = NOW(), revoke_reason = :reason WHERE id = :id AND revoked_at IS NULL'
+        );
+
+        return $stmt->execute(['id' => $id, 'reason' => $reason]);
+    }
+
+    public static function linkEmailLog(int $certificateId, int $emailLogId): void
+    {
+        if (!self::supportsEmailLogColumn()) {
+            return;
+        }
+        $db = Database::getInstance();
+        $stmt = $db->prepare('UPDATE certificates SET last_email_log_id = :log_id WHERE id = :id');
+        $stmt->execute(['id' => $certificateId, 'log_id' => $emailLogId]);
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return list<array<string, mixed>>
+     */
+    public static function exportRows(array $filters = []): array
+    {
+        $result = self::findAllFiltered($filters, 1, 10000);
+
+        return $result['items'];
+    }
+
+    /**
+     * @return list<int>
+     */
+    public static function pendingEmailIds(?int $courseId = null): array
+    {
+        $db = Database::getInstance();
+        $params = [];
+        $courseSql = '';
+        if ($courseId !== null && $courseId > 0) {
+            $courseSql = ' AND course_id = :course_id';
+            $params['course_id'] = $courseId;
+        }
+        $revokedSql = self::supportsExtendedColumns() ? ' AND revoked_at IS NULL' : '';
+        $stmt = $db->prepare(
+            "SELECT id FROM certificates WHERE is_emailed = 0{$revokedSql}{$courseSql} ORDER BY id ASC"
+        );
+        $stmt->execute($params);
+
+        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN) ?: []);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findByUser(int $userId): array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'SELECT * FROM certificates WHERE user_id = :user_id ORDER BY generated_at DESC'
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public static function countByUser(int $userId): int
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare('SELECT COUNT(*) FROM certificates WHERE user_id = :user_id');
+        $stmt->execute(['user_id' => $userId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    public static function countAll(): int
+    {
+        $db = Database::getInstance();
+
+        return (int) $db->query('SELECT COUNT(*) FROM certificates')->fetchColumn();
+    }
+
+    public static function generateCertNumber(string $prefix = 'CTDHR'): string
+    {
+        return strtoupper($prefix) . '-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(4)));
+    }
+}

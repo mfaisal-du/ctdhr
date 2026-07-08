@@ -1,0 +1,5 @@
+-- Category card background image for homepage carousel
+USE ctdhr_portal;
+
+ALTER TABLE course_categories
+    ADD COLUMN card_image_path VARCHAR(500) DEFAULT NULL AFTER color;

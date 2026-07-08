@@ -1,0 +1,108 @@
+<?php declare(strict_types=1);
+
+$locale = $_SESSION['locale'] ?? config('locale', 'en');
+$dir = $locale === 'ar' ? 'rtl' : 'ltr';
+$pageTitle = $pageTitle ?? lang('app_name');
+$currentPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?? '';
+$basePath = parse_url(config('url', ''), PHP_URL_PATH) ?? '';
+$relativePath = $basePath !== '' ? trim(str_replace($basePath, '', $currentPath), '/') : trim($currentPath, '/');
+
+$isActive = static function (string $segment) use ($relativePath): bool {
+    if ($segment === 'home') {
+        return $relativePath === '' || $relativePath === 'index.php.deploy';
+    }
+
+    return str_starts_with($relativePath, $segment);
+};
+?>
+<!DOCTYPE html>
+<html lang="<?= e($locale) ?>" dir="<?= e($dir) ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="<?= e(lang('app_full_name')) ?>">
+    <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
+    <title><?= e($pageTitle) ?> | <?= e(lang('app_name')) ?></title>
+    <link rel="stylesheet" href="<?= e(asset('css/fonts.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/output.css')) ?>">
+    <script src="<?= e(asset('vendor/htmx.min.js')) ?>" defer></script>
+    <script defer src="<?= e(asset('vendor/alpine.min.js')) ?>"></script>
+    <script src="<?= e(asset('vendor/sweetalert2.all.min.js')) ?>" defer></script>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen flex flex-col selection:bg-primary-container selection:text-on-primary-container" x-data="{ mobileOpen: false }">
+
+<?php require view_path('layouts/components/site-header.php'); ?>
+
+<?php
+$layoutSuccess = $flashSuccess ?? flash('success');
+$layoutError = $flashError ?? flash('error');
+$layoutToast = $showToast ?? flash('toast');
+?>
+<?php if ($layoutSuccess && !$layoutToast): ?>
+    <div class="shrink-0 max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop mt-unit-md w-full">
+        <div class="rounded-lg bg-secondary-container/30 border-s-4 border-secondary text-on-secondary-container px-unit-md py-unit-sm text-body-sm"><?= e($layoutSuccess) ?></div>
+    </div>
+<?php endif; ?>
+<?php if ($layoutError): ?>
+    <div class="shrink-0 max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop mt-unit-md w-full">
+        <div class="rounded-lg bg-error-container border-s-4 border-error text-on-error-container px-unit-md py-unit-sm text-body-sm"><?= e($layoutError) ?></div>
+    </div>
+<?php endif; ?>
+
+<main class="flex-1 w-full pb-24 md:pb-0">
+    <?php if (isset($content)) { echo $content; } ?>
+</main>
+
+<?php require view_path('layouts/components/site-footer.php'); ?>
+
+<button type="button"
+        id="footer-back-to-top"
+        class="back-to-top-fab"
+        aria-label="<?= e(lang('back_to_top')) ?>">
+    <span class="material-symbols-outlined text-[22px]" aria-hidden="true">keyboard_arrow_up</span>
+</button>
+
+<!-- Mobile Bottom Nav -->
+<nav class="md:hidden fixed bottom-0 inset-x-0 z-50 rounded-t-2xl bg-surface/95 backdrop-blur-xl border-t border-outline-variant/60 shadow-overlay" aria-label="<?= e(lang('menu')) ?>">
+    <div class="flex justify-around items-center h-16 px-unit-md pb-safe">
+        <a href="<?= e(url('/')) ?>" class="mobile-tab <?= $isActive('home') ? 'mobile-tab-active' : '' ?>">
+            <span class="material-symbols-outlined" style="<?= $isActive('home') ? "font-variation-settings: 'FILL' 1;" : '' ?>">home</span>
+            <span><?= e(lang('home')) ?></span>
+        </a>
+        <a href="<?= e(url('courses')) ?>" class="mobile-tab <?= $isActive('courses') ? 'mobile-tab-active' : '' ?>">
+            <span class="material-symbols-outlined" style="<?= $isActive('courses') ? "font-variation-settings: 'FILL' 1;" : '' ?>">menu_book</span>
+            <span><?= e(lang('courses')) ?></span>
+        </a>
+        <a href="<?= e(url('verify-certificate')) ?>" class="mobile-tab <?= $isActive('verify-certificate') ? 'mobile-tab-active' : '' ?>">
+            <span class="material-symbols-outlined" style="<?= $isActive('verify-certificate') ? "font-variation-settings: 'FILL' 1;" : '' ?>">verified</span>
+            <span><?= e(lang('certificates')) ?></span>
+        </a>
+        <a href="<?= e(!empty($_SESSION['user_id']) ? url('dashboard/profile') : url('login')) ?>" class="mobile-tab <?= str_starts_with($relativePath, 'dashboard') || str_starts_with($relativePath, 'login') ? 'mobile-tab-active' : '' ?>">
+            <span class="material-symbols-outlined" style="<?= (str_starts_with($relativePath, 'dashboard') || str_starts_with($relativePath, 'login')) ? "font-variation-settings: 'FILL' 1;" : '' ?>">person</span>
+            <span><?= e(lang('profile')) ?></span>
+        </a>
+    </div>
+</nav>
+
+<script src="<?= e(asset('js/motion.js')) ?>" defer></script>
+<script src="<?= e(asset('js/category-card-fx.js')) ?>" defer></script>
+<script src="<?= e(asset('js/app.js')) ?>" defer></script>
+<?php if (!empty($layoutToast) && !empty($layoutSuccess)): ?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: <?= json_encode($layoutSuccess, JSON_UNESCAPED_UNICODE) ?>,
+            showConfirmButton: false,
+            timer: 4000,
+            timerProgressBar: true,
+        });
+    }
+});
+</script>
+<?php endif; ?>
+</body>
+</html>

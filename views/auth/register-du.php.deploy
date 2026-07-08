@@ -1,0 +1,176 @@
+<?php declare(strict_types=1);
+
+$ldapEnabled = (new \CTDHR\Models\Setting())->get('auth_method', 'email') === 'ldap';
+
+ob_start();
+?>
+<div class="auth-register-page p-unit-lg md:p-unit-xl" x-data="registerDuForm()">
+    <div class="auth-form-hero">
+        <div class="auth-form-hero-icon auth-form-hero-icon--du">
+            <span class="material-symbols-outlined">person_add</span>
+        </div>
+        <h1 class="auth-form-hero-title"><?= e(lang('register_du_member')) ?></h1>
+        <p class="auth-form-hero-subtitle"><?= e(lang('register_du_subtitle')) ?></p>
+    </div>
+
+    <?php if ($ldapEnabled): ?>
+    <div class="auth-info-callout auth-info-callout--ldap" role="note">
+        <div class="auth-info-callout-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">badge</span>
+        </div>
+        <div class="auth-info-callout-content">
+            <p class="auth-info-callout-text"><?= e(lang('register_du_ldap_notice')) ?></p>
+            <a href="<?= e(url('login/du')) ?>" class="auth-info-callout-link">
+                <?= e(lang('register_du_use_login_instead')) ?>
+                <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span>
+            </a>
+        </div>
+    </div>
+    <?php else: ?>
+    <div class="auth-info-callout" role="note">
+        <div class="auth-info-callout-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">info</span>
+        </div>
+        <p class="auth-info-callout-text"><?= e(lang('du_email_notice')) ?></p>
+    </div>
+    <?php endif; ?>
+
+    <form method="POST"
+          action="<?= e(url('register/du')) ?>"
+          class="auth-form-fields space-y-unit-md"
+          @submit="if (!canSubmit()) { $event.preventDefault(); }">
+        <?= csrf_field() ?>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-unit-md">
+            <div class="md:col-span-2">
+                <label for="full_name" class="auth-field-label"><?= e(lang('full_name')) ?></label>
+                <input type="text" id="full_name" name="full_name" value="<?= e(old('full_name')) ?>" required autocomplete="name" class="stitch-input">
+            </div>
+
+            <div class="auth-field-group" :class="emailInvalid && 'auth-field-group--invalid'">
+                <label for="email" class="auth-field-label"><?= e(lang('email')) ?></label>
+                <div class="relative auth-field-input" x-ref="emailWrap">
+                    <span class="material-symbols-outlined absolute top-1/2 -translate-y-1/2 <?= is_rtl() ? 'right-3' : 'left-3' ?> text-outline text-sm">mail</span>
+                    <input type="email"
+                           id="email"
+                           name="email"
+                           x-model="email"
+                           @input="touched.email = true"
+                           @blur="touched.email = true; if (emailInvalid) shakeField($refs.emailWrap)"
+                           required
+                           autocomplete="email"
+                           placeholder="name@du.edu.om"
+                           :class="emailInvalid ? 'stitch-input stitch-input--error <?= is_rtl() ? 'pr-10' : 'pl-10' ?>' : 'stitch-input <?= is_rtl() ? 'pr-10' : 'pl-10' ?>'"
+                           :aria-invalid="emailInvalid">
+                </div>
+                <?php
+                $show = 'emailInvalid';
+                $message = lang('du_email_inline_error');
+                require view_path('auth/components/auth-field-error.php');
+                ?>
+            </div>
+
+            <div>
+                <label for="department" class="auth-field-label">
+                    <?= e(lang('department')) ?> <span class="auth-field-optional">(<?= e(lang('optional')) ?>)</span>
+                </label>
+                <input type="text" id="department" name="department" value="<?= e(old('department')) ?>" autocomplete="organization" class="stitch-input">
+            </div>
+
+            <div>
+                <label for="password" class="auth-field-label"><?= e(lang('password')) ?></label>
+                <input type="password"
+                       id="password"
+                       name="password"
+                       x-model="password"
+                       @input="touched.password = true"
+                       required
+                       minlength="8"
+                       autocomplete="new-password"
+                       class="stitch-input">
+                <p class="auth-field-hint"><?= e(lang('password_hint')) ?></p>
+            </div>
+
+            <div class="auth-field-group" :class="passwordMismatch && 'auth-field-group--invalid'">
+                <label for="confirm_password" class="auth-field-label"><?= e(lang('confirm_password')) ?></label>
+                <div class="auth-field-input" x-ref="confirmWrap">
+                    <input type="password"
+                           id="confirm_password"
+                           name="confirm_password"
+                           x-model="confirmPassword"
+                           @input="touched.confirmPassword = true"
+                           @blur="touched.confirmPassword = true; if (passwordMismatch) shakeField($refs.confirmWrap)"
+                           required
+                           minlength="8"
+                           autocomplete="new-password"
+                           :class="passwordMismatch ? 'stitch-input stitch-input--error' : 'stitch-input'"
+                           :aria-invalid="passwordMismatch">
+                </div>
+                <?php
+                $show = 'passwordMismatch';
+                $message = lang('password_mismatch_inline');
+                require view_path('auth/components/auth-field-error.php');
+                ?>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary w-full py-3 mt-unit-sm" :disabled="!canSubmit()"><?= e(lang('sign_up')) ?></button>
+    </form>
+
+    <?php
+    $footLinks = [[
+        'icon' => 'login',
+        'prompt' => lang('have_account'),
+        'label' => lang('sign_in'),
+        'href' => url('login/du'),
+        'variant' => 'du',
+    ]];
+    $footBack = [
+        'label' => lang('back_to_register_chooser'),
+        'href' => url('register'),
+    ];
+    require view_path('auth/components/auth-foot-nav.php');
+    ?>
+</div>
+
+<script>
+function registerDuForm() {
+    const duEmailPattern = /^[a-zA-Z0-9._%+\-]+@du\.edu\.om$/i;
+
+    return {
+        email: <?= json_encode(old('email', ''), JSON_UNESCAPED_UNICODE) ?>,
+        password: '',
+        confirmPassword: '',
+        touched: {
+            email: <?= json_encode(old('email', '') !== '') ?>,
+            password: false,
+            confirmPassword: false
+        },
+        get emailInvalid() {
+            if (!this.touched.email || !this.email) return false;
+            return !duEmailPattern.test(this.email.trim());
+        },
+        get passwordMismatch() {
+            if (!this.touched.confirmPassword || !this.confirmPassword) return false;
+            return this.password !== this.confirmPassword;
+        },
+        canSubmit() {
+            if (!this.email.trim() || !duEmailPattern.test(this.email.trim())) return false;
+            if (this.password.length < 8) return false;
+            if (this.password !== this.confirmPassword) return false;
+            return true;
+        },
+        shakeField(el) {
+            if (!el) return;
+            el.classList.remove('auth-field-input--shake');
+            void el.offsetWidth;
+            el.classList.add('auth-field-input--shake');
+        }
+    };
+}
+</script>
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('register_du_member');
+$authCardWidth = 'lg';
+require view_path('layouts/auth.php');

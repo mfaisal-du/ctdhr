@@ -1,0 +1,28 @@
+-- Phase 1: DU vs external participant types, account approval workflow
+USE ctdhr_portal;
+
+-- users: participant type and account approval status
+ALTER TABLE users
+    ADD COLUMN participant_type ENUM('du', 'external') NOT NULL DEFAULT 'du' AFTER role,
+    ADD COLUMN account_status ENUM('active', 'pending_admin', 'rejected') NOT NULL DEFAULT 'active' AFTER participant_type,
+    ADD COLUMN organization_en VARCHAR(255) DEFAULT NULL AFTER department_ar,
+    ADD COLUMN rejection_reason TEXT DEFAULT NULL AFTER organization_en,
+    ADD COLUMN approved_at DATETIME DEFAULT NULL AFTER rejection_reason,
+    ADD COLUMN approved_by BIGINT UNSIGNED DEFAULT NULL AFTER approved_at;
+
+ALTER TABLE users
+    ADD INDEX idx_users_participant_type (participant_type),
+    ADD INDEX idx_users_account_status (account_status);
+
+-- pending_registrations: track DU vs external during OTP flow
+ALTER TABLE pending_registrations
+    ADD COLUMN participant_type ENUM('du', 'external') NOT NULL DEFAULT 'du' AFTER full_name_ar,
+    ADD COLUMN organization_en VARCHAR(255) DEFAULT NULL AFTER participant_type,
+    ADD COLUMN phone VARCHAR(20) DEFAULT NULL AFTER organization_en;
+
+-- courses: who may apply (enforced in Phase 2)
+ALTER TABLE courses
+    ADD COLUMN participant_scope ENUM('du_internal', 'external_only', 'both') NOT NULL DEFAULT 'du_internal' AFTER audience;
+
+-- Existing users are DU members with active accounts
+UPDATE users SET participant_type = 'du', account_status = 'active' WHERE participant_type = 'du';

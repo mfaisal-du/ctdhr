@@ -1,0 +1,42 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Middleware;
+
+use CTDHR\Models\Setting;
+
+final class AdminMiddleware
+{
+    public function handle(callable $next): void
+    {
+        if (empty($_SESSION['user_id'])) {
+            flash('error', lang('auth_required'));
+            redirect('login');
+        }
+
+        if (($_SESSION['user_role'] ?? '') !== 'admin') {
+            error_page(403, [
+                'title' => lang('error_403_title'),
+                'message' => lang('admin_required'),
+                'icon' => 'lock',
+            ]);
+        }
+
+        $settings = new Setting();
+        $whitelist = trim((string) $settings->get('admin_ip_whitelist', ''));
+        if ($whitelist !== '') {
+            $allowedIps = array_filter(array_map('trim', explode(',', $whitelist)));
+            $clientIp = $_SERVER['REMOTE_ADDR'] ?? '';
+            if ($clientIp !== '' && !in_array($clientIp, $allowedIps, true)) {
+                error_page(403, [
+                    'title' => lang('error_403_title'),
+                    'message' => lang('admin_ip_blocked'),
+                    'icon' => 'shield',
+                ]);
+            }
+        }
+
+        $next();
+    }
+}

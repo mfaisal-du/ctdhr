@@ -1,0 +1,41 @@
+<?php declare(strict_types=1);
+
+/** @var int $statusCode */
+/** @var string $title */
+/** @var string $message */
+/** @var string $icon */
+/** @var string|null $actionLabel */
+/** @var string|null $actionHref */
+
+$statusCode = $statusCode ?? 404;
+$title = $title ?? lang('error_generic_title');
+$message = $message ?? lang('error_generic_message');
+$icon = $icon ?? 'error';
+$actionLabel = $actionLabel ?? lang('back_to_home');
+$actionHref = $actionHref ?? url('/');
+
+ob_start();
+?>
+
+<section class="min-h-[60vh] flex items-center justify-center px-margin-mobile md:px-margin-desktop py-unit-2xl">
+    <div class="max-w-lg w-full text-center">
+        <div class="stitch-card p-unit-2xl relative overflow-hidden">
+            <div class="rainbow-accent absolute top-0 left-0 w-full"></div>
+            <div class="w-20 h-20 rounded-full bg-primary-container/30 flex items-center justify-center mx-auto mb-unit-lg mt-unit-md">
+                <span class="material-symbols-outlined text-primary text-4xl"><?= e($icon) ?></span>
+            </div>
+            <p class="font-headline-lg text-headline-lg text-outline mb-unit-xs"><?= e((string) $statusCode) ?></p>
+            <h1 class="font-headline-md text-headline-md text-primary mb-unit-sm"><?= e($title) ?></h1>
+            <p class="text-body-md text-on-surface-variant mb-unit-xl"><?= e($message) ?></p>
+            <div class="flex flex-col sm:flex-row gap-unit-md justify-center">
+                <a href="<?= e($actionHref) ?>" class="btn-primary"><?= e($actionLabel) ?></a>
+                <a href="<?= e(url('contact')) ?>" class="btn-outline"><?= e(lang('contact')) ?></a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = (string) $statusCode . ' — ' . $title;
+require view_path('layouts/main.php');

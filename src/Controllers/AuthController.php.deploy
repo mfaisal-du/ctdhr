@@ -1,0 +1,318 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers;
+
+use CTDHR\Services\AuthService;
+use CTDHR\Services\RecaptchaService;
+
+final class AuthController
+{
+    private AuthService $auth;
+
+    public function __construct()
+    {
+        $this->auth = new AuthService();
+    }
+
+    public function showLogin(): void
+    {
+        if ($this->auth->isAuthenticated()) {
+            redirect('/');
+        }
+
+        view('auth.login', [
+            'pageTitle' => lang('login'),
+        ]);
+    }
+
+    public function showLoginDu(): void
+    {
+        if ($this->auth->isAuthenticated()) {
+            redirect('/');
+        }
+
+        view('auth.login-du', [
+            'pageTitle' => lang('login_du_title'),
+        ]);
+    }
+
+    public function showLoginExternal(): void
+    {
+        if ($this->auth->isAuthenticated()) {
+            redirect('/');
+        }
+
+        view('auth.login-external', [
+            'pageTitle' => lang('login_external_title'),
+        ]);
+    }
+
+    public function login(): void
+    {
+        if ($this->auth->isAuthenticated()) {
+            redirect('/');
+        }
+
+        $email = trim($_POST['email'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $remember = isset($_POST['remember']);
+
+        $this->storeOldInput(['email' => $email]);
+
+        $loginPath = $this->loginRedirectPath($email);
+
+        if ($email === '' || $password === '') {
+            flash('error', lang('login_fields_required'));
+            redirect($loginPath);
+        }
+
+        $recaptcha = new RecaptchaService();
+        if ($recaptcha->isEnabled() && !$recaptcha->verify($_POST['g-recaptcha-response'] ?? null, 'login')) {
+            flash('error', lang('recaptcha_failed'));
+            redirect($loginPath);
+        }
+
+        $result = $this->auth->login($email, $password, $remember);
+
+        if (!$result['success']) {
+            $messageKey = $result['message_key'] ?? 'login_failed';
+
+            if ($messageKey === 'login_locked' && isset($result['remaining'])) {
+                $minutes = (int) ceil(((int) $result['remaining']) / 60);
+                flash('error', lang('login_locked', ['minutes' => (string) max(1, $minutes)]));
+            } else {
+                flash('error', lang($messageKey));
+            }
+
+            redirect($loginPath);
+        }
+
+        $this->clearOldInput();
+        flash('success', lang('login_success'));
+
+        $redirectTo = $_SESSION['intended_url'] ?? '/';
+        unset($_SESSION['intended_url']);
+        redirect(ltrim($redirectTo, '/'));
+    }
+
+    public function showRegister(): void
+    {
+        if ($this->auth->isAuthenticated()) {
+            redirect('/');
+        }
+
+        view('auth.register', [
+            'pageTitle' => lang('register'),
+        ]);
+    }
+
+    public function showRegisterDu(): void
+    {
+        if ($this->auth->isAuthenticated()) {
+            redirect('/');
+        }
+
+        view('auth.register-du', [
+            'pageTitle' => lang('register_du_member'),
+        ]);
+    }
+
+    public function register(): void
+    {
+        if ($this->auth->isAuthenticated()) {
+            redirect('/');
+        }
+
+        $data = [
+            'full_name' => trim($_POST['full_name'] ?? ''),
+            'email' => trim($_POST['email'] ?? ''),
+            'password' => $_POST['password'] ?? '',
+            'confirm_password' => $_POST['confirm_password'] ?? '',
+            'department' => trim($_POST['department'] ?? ''),
+        ];
+
+        $this->storeOldInput([
+            'full_name' => $data['full_name'],
+            'email' => $data['email'],
+            'department' => $data['department'],
+        ]);
+
+        $result = $this->auth->register($data);
+
+        if (!$result['success']) {
+            $messageKey = $result['message_key'] ?? 'operation_failed';
+            flash('error', lang($messageKey));
+            redirect('register/du');
+        }
+
+        $this->clearOldInput();
+        $_SESSION['pending_verify_email'] = $result['email'] ?? $data['email'];
+        $_SESSION['pending_participant_type'] = 'du';
+        flash('success', lang('otp_sent'));
+
+        redirect('verify');
+    }
+
+    public function showRegisterExternal(): void
+    {
+        if ($this->auth->isAuthenticated()) {
+            redirect('/');
+        }
+
+        view('auth.register-external', [
+            'pageTitle' => lang('register_external'),
+        ]);
+    }
+
+    public function registerExternal(): void
+    {
+        if ($this->auth->isAuthenticated()) {
+            redirect('/');
+        }
+
+        $data = [
+            'full_name' => trim($_POST['full_name'] ?? ''),
+            'organization' => trim($_POST['organization'] ?? ''),
+            'email' => trim($_POST['email'] ?? ''),
+            'phone' => trim($_POST['phone'] ?? ''),
+            'password' => $_POST['password'] ?? '',
+            'confirm_password' => $_POST['confirm_password'] ?? '',
+        ];
+
+        $this->storeOldInput([
+            'full_name' => $data['full_name'],
+            'organization' => $data['organization'],
+            'email' => $data['email'],
+            'phone' => $data['phone'],
+        ]);
+
+        $result = $this->auth->registerExternal($data);
+
+        if (!$result['success']) {
+            $messageKey = $result['message_key'] ?? 'operation_failed';
+            flash('error', lang($messageKey));
+            redirect('register/external');
+        }
+
+        $this->clearOldInput();
+        $_SESSION['pending_verify_email'] = $result['email'] ?? $data['email'];
+        $_SESSION['pending_participant_type'] = 'external';
+        flash('success', lang('external_otp_sent'));
+
+        redirect('verify');
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function showVerify(array $params = []): void
+    {
+        $token = $_GET['token'] ?? '';
+
+        if ($token !== '') {
+            $result = $this->auth->verifyToken($token);
+
+            if ($result['success']) {
+                $this->handleVerificationSuccess($result);
+            }
+
+            flash('error', lang($result['message_key'] ?? 'verification_link_invalid'));
+        }
+
+        $email = $_SESSION['pending_verify_email'] ?? '';
+        $participantType = $_SESSION['pending_participant_type'] ?? 'du';
+
+        view('auth.verify', [
+            'pageTitle' => lang('verify_email'),
+            'email' => $email,
+            'participantType' => $participantType,
+        ]);
+    }
+
+    public function verify(): void
+    {
+        $email = trim($_POST['email'] ?? $_SESSION['pending_verify_email'] ?? '');
+        $otpCode = trim($_POST['otp_code'] ?? '');
+
+        if ($email === '' || $otpCode === '') {
+            flash('error', lang('otp_fields_required'));
+            redirect('verify');
+        }
+
+        $result = $this->auth->verifyOtp($email, $otpCode);
+
+        if (!$result['success']) {
+            flash('error', lang($result['message_key'] ?? 'otp_invalid'));
+            $_SESSION['pending_verify_email'] = $email;
+            redirect('verify');
+        }
+
+        unset($_SESSION['dev_otp_hint']);
+        $this->handleVerificationSuccess($result);
+    }
+
+    public function resendOtp(): void
+    {
+        $email = trim($_POST['email'] ?? $_SESSION['pending_verify_email'] ?? '');
+
+        if ($email === '') {
+            flash('error', lang('verification_not_found'));
+            redirect('verify');
+        }
+
+        $result = $this->auth->resendOtp($email);
+
+        if (!$result['success']) {
+            flash('error', lang($result['message_key'] ?? 'otp_send_failed'));
+            redirect('verify');
+        }
+
+        $_SESSION['pending_verify_email'] = $email;
+        flash('success', lang('otp_resent'));
+        redirect('verify');
+    }
+
+    public function logout(): void
+    {
+        $this->auth->logout();
+        flash('success', lang('logout_success'));
+        redirect('/');
+    }
+
+    /**
+     * @param array<string, string> $input
+     */
+    private function storeOldInput(array $input): void
+    {
+        $_SESSION['_old'] = $input;
+    }
+
+    private function clearOldInput(): void
+    {
+        unset($_SESSION['_old']);
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     */
+    private function handleVerificationSuccess(array $result): void
+    {
+        $messageKey = (string) ($result['message_key'] ?? 'registration_complete');
+        flash('success', lang($messageKey));
+
+        if (($result['participant_type'] ?? 'du') === 'external') {
+            unset($_SESSION['pending_verify_email'], $_SESSION['pending_participant_type']);
+            redirect('login/external');
+        }
+
+        unset($_SESSION['pending_verify_email'], $_SESSION['pending_participant_type']);
+        redirect('/');
+    }
+
+    private function loginRedirectPath(string $email): string
+    {
+        return $this->auth->isDuEmail($email) ? 'login/du' : 'login/external';
+    }
+}

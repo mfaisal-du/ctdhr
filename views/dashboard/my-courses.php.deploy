@@ -1,0 +1,101 @@
+<?php declare(strict_types=1);
+
+/** @var array<int, array<string, mixed>> $courses */
+$courses = $courses ?? [];
+
+ob_start();
+?>
+
+<div class="admin-module-page">
+<?php
+dashboard_page_header([
+    'icon' => 'menu_book',
+    'title' => lang('my_courses'),
+    'subtitle' => lang('my_courses_subtitle'),
+    'accent' => 'green',
+    'actions' => '<a href="' . e(url('courses')) . '" class="courses-btn-secondary">'
+        . '<span class="material-symbols-outlined">explore</span>'
+        . e(lang('browse_courses'))
+        . '</a>',
+]);
+?>
+
+<?php if ($courses === []): ?>
+<div class="courses-card">
+    <div class="courses-empty">
+        <span class="material-symbols-outlined">menu_book</span>
+        <p><?= e(lang('no_approved_courses')) ?></p>
+        <a href="<?= e(url('courses')) ?>" class="courses-btn-create courses-empty-cta">
+            <span class="material-symbols-outlined">explore</span>
+            <?= e(lang('browse_courses')) ?>
+        </a>
+    </div>
+</div>
+<?php else: ?>
+<div class="dashboard-course-grid">
+    <?php foreach ($courses as $course): ?>
+    <?php
+        $percentage = (int) ($course['attendance_percentage'] ?? 0);
+        $present = (int) ($course['present_count'] ?? 0);
+        $total = (int) ($course['total_sessions'] ?? 0);
+        $accent = (string) ($course['category_color'] ?? '#1E5AA8');
+        $progressClass = $percentage >= 75 ? 'bg-status-certified' : ($percentage >= 50 ? 'bg-status-announced' : 'bg-primary');
+    ?>
+    <article class="dashboard-course-card">
+        <div class="dashboard-course-card-cover">
+            <?php
+            $coverRelative = course_cover_relative($course);
+            if ($coverRelative !== null) {
+                echo portal_img([
+                    'path' => $coverRelative,
+                    'alt' => localized($course, 'title'),
+                    'sizes' => '(min-width: 1024px) 50vw, 100vw',
+                ]);
+            }
+            ?>
+            <div class="dashboard-course-card-cover-overlay"></div>
+            <div class="dashboard-course-card-cover-content">
+                <span class="courses-badge courses-badge--published mb-2" style="background:<?= e($accent) ?>;border-color:transparent;color:#fff;">
+                    <?= e(localized($course, 'category_name')) ?>
+                </span>
+                <h3 class="font-label-md text-white line-clamp-2"><?= e(localized($course, 'title')) ?></h3>
+            </div>
+        </div>
+        <div class="dashboard-course-card-body">
+            <div class="flex items-center justify-between text-label-sm text-on-surface-variant">
+                <span class="courses-badge courses-badge--<?= e(str_replace('_', '-', (string) ($course['course_status'] ?? 'scheduled'))) ?>">
+                    <?= e(course_status_label((string) ($course['course_status'] ?? ''))) ?>
+                </span>
+                <?php if (!empty($course['start_date'])): ?>
+                <span><?= e(format_date((string) $course['start_date'])) ?></span>
+                <?php endif; ?>
+            </div>
+
+            <div>
+                <div class="flex items-center justify-between text-label-sm mb-2">
+                    <span class="font-label-md text-on-surface"><?= e(lang('attendance_progress')) ?></span>
+                    <span class="text-on-surface-variant">
+                        <?= e((string) $present) ?> / <?= e((string) $total) ?> <?= e(lang('sessions')) ?>
+                        (<?= e((string) $percentage) ?>%)
+                    </span>
+                </div>
+                <div class="dashboard-progress-track">
+                    <div class="dashboard-progress-fill <?= e($progressClass) ?>" style="width: <?= e((string) max(0, min(100, $percentage))) ?>%"></div>
+                </div>
+            </div>
+
+            <a href="<?= e(url('courses/' . ($course['slug'] ?? ''))) ?>" class="courses-btn-secondary w-full justify-center">
+                <span class="material-symbols-outlined">open_in_new</span>
+                <?= e(lang('view_course')) ?>
+            </a>
+        </div>
+    </article>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+</div>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('my_courses');
+require view_path('layouts/dashboard.php');

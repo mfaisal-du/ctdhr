@@ -1,0 +1,50 @@
+-- CTDHR Portal - Seed Data
+
+USE ctdhr_portal;
+
+-- Default course categories
+INSERT INTO course_categories (name_en, name_ar, slug, icon, color, display_order) VALUES
+('Information Technology', 'تكنولوجيا المعلومات', 'information-technology', 'mdi:laptop', '#1E5AA8', 1),
+('Languages', 'اللغات', 'languages', 'mdi:translate', '#FF69B4', 2),
+('Professional Development', 'التطوير المهني', 'professional-development', 'mdi:briefcase-outline', '#32CD32', 3),
+('Research & Academic Skills', 'مهارات البحث والأكاديمية', 'research-academic-skills', 'mdi:school-outline', '#4169E1', 4),
+('Leadership & Management', 'القيادة والإدارة', 'leadership-management', 'mdi:account-tie', '#FFD700', 5),
+('Health & Safety', 'الصحة والسلامة', 'health-safety', 'mdi:heart-pulse', '#FF4500', 6),
+('Digital Literacy', 'الرقمية', 'digital-literacy', 'mdi:monitor-cellphone', '#9B59B6', 7),
+('Communication Skills', 'مهارات التواصل', 'communication-skills', 'mdi:account-voice', '#E67E22', 8);
+
+-- System settings
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description) VALUES
+('site_name_en', 'CTDHR Portal', 'string', 'Site name in English'),
+('site_name_ar', 'بوابة CTDHR', 'string', 'Site name in Arabic'),
+('default_locale', 'en', 'string', 'Default language locale'),
+('auth_method', 'email', 'string', 'Authentication method: email or ldap'),
+('ldap_enabled', 'false', 'boolean', 'Enable LDAP authentication'),
+('email_from', 'noreply@du.edu.om', 'string', 'Default sender email address'),
+('email_from_name', 'CTDHR Portal', 'string', 'Default sender display name'),
+('smtp_host', '', 'string', 'SMTP server host (falls back to .env MAIL_HOST)'),
+('smtp_port', '587', 'integer', 'SMTP server port'),
+('smtp_username', '', 'string', 'SMTP username'),
+('smtp_password', '', 'string', 'SMTP password'),
+('smtp_encryption', 'tls', 'string', 'SMTP encryption: tls, ssl, or none'),
+('otp_expiry_minutes', '15', 'integer', 'OTP verification expiry in minutes'),
+('application_auto_approve', 'false', 'boolean', 'Auto-approve course applications'),
+('max_upload_size_mb', '10', 'integer', 'Maximum file upload size in MB'),
+('certificate_prefix', 'CTDHR', 'string', 'Certificate number prefix'),
+('attendance_threshold', '75', 'integer', 'Minimum attendance percentage for certificate eligibility');
+
+-- First admin user
+-- Password: Admin@123 (generated via password_hash('Admin@123', PASSWORD_DEFAULT))
+INSERT INTO users (
+    username, email, password_hash, email_verified_at,
+    full_name_en, full_name_ar, role, is_active
+) VALUES (
+    'mfaisal',
+    'mfaisal@du.edu.om',
+    '$2y$10$uqXkiWx/ABEhC6A992NdLOfdjwBNLeh2Nqze6s9/Ixw79fvepfvT.',
+    NOW(),
+    'Mohammed Faisal',
+    'محمد فيصل',
+    'admin',
+    1
+);

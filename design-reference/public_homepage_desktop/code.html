@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+
+<html dir="ltr" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>CTDHR Training Portal | Dhofar University</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-container": "#17721c",
+                    "outline": "#757683",
+                    "on-primary-fixed-variant": "#274093",
+                    "tertiary-fixed-dim": "#ffb872",
+                    "tertiary": "#6b3c00",
+                    "surface-dim": "#dcd9d9",
+                    "accent-sky": "#00B0FF",
+                    "surface-tint": "#4159ac",
+                    "surface-container-highest": "#e4e2e1",
+                    "background": "#fbf9f8",
+                    "on-tertiary": "#ffffff",
+                    "surface-container-lowest": "#ffffff",
+                    "status-cancelled": "#D32F2F",
+                    "status-progress": "#FFBF00",
+                    "status-completed": "#30872F",
+                    "on-surface": "#1b1c1c",
+                    "accent-magenta": "#D81B60",
+                    "on-error": "#ffffff",
+                    "on-surface-variant": "#444651",
+                    "on-secondary": "#ffffff",
+                    "surface-variant": "#e4e2e1",
+                    "tertiary-container": "#8d5100",
+                    "surface-gray": "#F5F5F5",
+                    "status-certified": "#D4AF37",
+                    "inverse-surface": "#303030",
+                    "primary-container": "#425aad",
+                    "secondary-container": "#9af58e",
+                    "error": "#ba1a1a",
+                    "status-announced": "#425AAD",
+                    "outline-variant": "#c5c5d3",
+                    "inverse-primary": "#b6c4ff",
+                    "status-draft": "#9E9E9E",
+                    "on-primary-fixed": "#001550",
+                    "on-tertiary-fixed-variant": "#6a3c00",
+                    "on-tertiary-container": "#ffd2aa",
+                    "tertiary-fixed": "#ffdcbf",
+                    "secondary": "#106e18",
+                    "accent-yellow": "#FFD600",
+                    "on-background": "#1b1c1c",
+                    "surface-bright": "#fbf9f8",
+                    "on-secondary-fixed": "#002202",
+                    "surface-container": "#f0eded",
+                    "on-primary": "#ffffff",
+                    "surface": "#fbf9f8",
+                    "inverse-on-surface": "#f3f0f0",
+                    "on-tertiary-fixed": "#2d1600",
+                    "status-scheduled": "#008080",
+                    "primary-fixed-dim": "#b6c4ff",
+                    "on-error-container": "#93000a",
+                    "surface-container-low": "#f6f3f2",
+                    "accent-coral": "#FF7043",
+                    "on-primary-container": "#d1d8ff",
+                    "secondary-fixed": "#9df891",
+                    "primary-fixed": "#dce1ff",
+                    "primary": "#284194",
+                    "on-secondary-fixed-variant": "#00530b",
+                    "secondary-fixed-dim": "#82db77",
+                    "error-container": "#ffdad6",
+                    "surface-container-high": "#eae8e7"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "unit-xs": "4px",
+                    "margin-mobile": "16px",
+                    "container-max": "1280px",
+                    "unit-lg": "24px",
+                    "unit-xl": "48px",
+                    "unit-md": "16px",
+                    "margin-desktop": "40px",
+                    "gutter": "24px",
+                    "unit-sm": "8px"
+            },
+            "fontFamily": {
+                    "body-lg": ["Inter"],
+                    "headline-lg-mobile": ["IBM Plex Sans"],
+                    "headline-md": ["IBM Plex Sans"],
+                    "headline-lg": ["IBM Plex Sans"],
+                    "headline-sm": ["IBM Plex Sans"],
+                    "body-md": ["Inter"],
+                    "body-sm": ["Inter"],
+                    "label-md": ["Inter"],
+                    "label-sm": ["Inter"],
+                    "headline-xl": ["IBM Plex Sans"]
+            },
+            "fontSize": {
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                    "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "label-md": ["14px", {"lineHeight": "16px", "fontWeight": "600"}],
+                    "label-sm": ["12px", {"lineHeight": "14px", "fontWeight": "500"}],
+                    "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-underline {
+            position: relative;
+        }
+        .active-underline::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background-color: #284194;
+        }
+        .rainbow-accent {
+            background: linear-gradient(90deg, #284194 0%, #106e18 50%, #425AAD 100%);
+            height: 4px;
+            width: 100%;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopNavBar -->
+<nav class="w-full sticky top-0 z-50 bg-surface shadow-sm h-16">
+<div class="max-w-[1280px] mx-auto px-margin-desktop flex justify-between items-center h-full">
+<div class="flex items-center gap-unit-md">
+<h1 class="font-headline-md text-headline-md text-primary tracking-tight">CTDHR Portal</h1>
+<div class="hidden md:flex gap-unit-lg ml-unit-xl">
+<a class="font-body-md text-body-md text-primary font-bold border-b-2 border-primary pb-1" href="#">Courses</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">About</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Contact</a>
+</div>
+</div>
+<div class="flex items-center gap-unit-md">
+<button class="flex items-center gap-unit-xs text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">language</span>
+<span class="font-label-md">العربية</span>
+</button>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary">search</span>
+<button class="bg-primary text-on-primary px-unit-lg py-2 rounded-lg font-label-md hover:opacity-90 active:scale-95 transition-all">
+                    Login
+                </button>
+</div>
+</div>
+</nav>
+<!-- Hero Section -->
+<header class="relative w-full bg-surface-container-lowest overflow-hidden">
+<div class="max-w-[1280px] mx-auto px-margin-desktop py-unit-xl grid grid-cols-1 lg:grid-cols-2 gap-unit-xl items-center">
+<div class="z-10 space-y-unit-lg">
+<div class="inline-flex items-center gap-unit-sm px-unit-md py-1 bg-secondary-container text-on-secondary-container rounded-full">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span class="font-label-sm">Official Dhofar University Training Portal</span>
+</div>
+<h2 class="font-headline-xl text-headline-xl text-primary leading-tight">
+                    Center for Training and <span class="text-secondary">Development</span> of Human Resources
+                </h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-lg">
+                    Empowering the workforce of Oman through world-class professional training, academic rigor, and practical skill development.
+                </p>
+<div class="flex flex-wrap gap-unit-md pt-unit-sm">
+<button class="bg-secondary text-on-secondary px-unit-xl py-unit-md rounded-lg font-label-md shadow-md hover:brightness-110 transition-all flex items-center gap-unit-sm">
+                        Explore Courses <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+<button class="border-2 border-primary text-primary px-unit-xl py-unit-md rounded-lg font-label-md hover:bg-primary/5 transition-all">
+                        Institutional Training
+                    </button>
+</div>
+</div>
+<div class="relative group">
+<div class="absolute -inset-4 bg-primary/5 rounded-[2rem] -rotate-2 transition-transform group-hover:rotate-0"></div>
+<div class="relative overflow-hidden rounded-[2rem] shadow-xl aspect-[1.27] bg-surface-container">
+<img alt="Prospective Students at Dhofar University" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida/AP1WRLvVSEk4g8pEFcdqm3G_buBbksqzrvJeQ741Ut93_EIL5u3ytrmCUQqeHCL5X6t6SLcGMCXwJEowReg-8vYd7q8-yjrnUclEeZDk-OUp-ukbKCE-fYqaZUTHTi5CrMqENNWrMB7huToGJDHTIQdoiapwrD3SHNlr7OHBzeGMMHxZ5EZZ5E1FLLfDglLr9HTpcjPvTo-xZcFufXacua5jqL9Oixv89vvt14Jh7nSeyOesg0S49Xl4VUkONzGe"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+</div>
+</div>
+</div>
+</header>
+<!-- Stats Section -->
+<section class="w-full bg-primary text-on-primary py-unit-xl">
+<div class="max-w-[1280px] mx-auto px-margin-desktop grid grid-cols-1 md:grid-cols-3 gap-unit-xl text-center">
+<div class="space-y-unit-xs">
+<div class="font-headline-xl text-headline-xl text-primary-fixed">150+</div>
+<div class="font-label-md text-on-primary-container uppercase tracking-widest">Active Courses</div>
+</div>
+<div class="space-y-unit-xs border-y md:border-y-0 md:border-x border-on-primary-container/20 py-unit-lg md:py-0">
+<div class="font-headline-xl text-headline-xl text-secondary-fixed">5000+</div>
+<div class="font-label-md text-on-primary-container uppercase tracking-widest">Certificates Issued</div>
+</div>
+<div class="space-y-unit-xs">
+<div class="font-headline-xl text-headline-xl text-tertiary-fixed-dim">12000+</div>
+<div class="font-label-md text-on-primary-container uppercase tracking-widest">Global Participants</div>
+</div>
+</div>
+</section>
+<!-- Active Courses Grid -->
+<section class="w-full py-unit-xl bg-surface">
+<div class="max-w-[1280px] mx-auto px-margin-desktop">
+<div class="flex flex-col md:flex-row justify-between items-end mb-unit-xl gap-unit-md">
+<div class="space-y-unit-xs">
+<h3 class="font-headline-lg text-headline-lg text-primary">Featured Training Programs</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Elevate your professional profile with our latest industry-aligned courses.</p>
+</div>
+<a class="text-primary font-label-md flex items-center gap-unit-xs group" href="#">
+                    View All Courses <span class="material-symbols-outlined group-hover:translate-x-1 transition-transform">chevron_right</span>
+</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-unit-lg">
+<!-- Course Card 1 -->
+<div class="bg-white rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col group hover:shadow-lg transition-shadow">
+<div class="rainbow-accent"></div>
+<div class="h-48 bg-surface-container relative">
+<div class="absolute top-unit-md left-unit-md bg-white/90 backdrop-blur px-3 py-1 rounded text-primary font-label-sm shadow-sm">Business</div>
+<div class="w-full h-full bg-cover bg-center" data-alt="A professional business management training session in a modern, brightly lit conference room at Dhofar University. The instructor is demonstrating strategy on a large digital screen while diverse adult learners take notes. The atmosphere is professional and scholarly with a palette of deep blues and crisp whites." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD71OGkbE5vDzuWJ7d_KquzbQzprEdfl-ZaBEhvbSbLwD8LhyjpxGaZUjLVLMrJCgWaTb29DFSCfxQL1cdxK2vCPld6X9gAkdQxW5uXQEKZPhv2Eq4heE7NMhUToPFMk3lUx-iWgwhugObX0vIBnNPZbhwOAHISnfO2PozTTKfYhK7ezi4qcIKizE4ZNixxsyEUiRGaoE_wWy4EROQZXd5PLIJ9joqKEUN7lUGV427_UMcNzgw_-YzfdBCdpkIVZtYDUms5dEFKnnnV')"></div>
+</div>
+<div class="p-unit-lg flex-grow space-y-unit-md">
+<h4 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary transition-colors">Strategic Leadership in Gulf Markets</h4>
+<div class="flex flex-wrap gap-unit-xs">
+<span class="bg-surface-gray text-on-surface-variant px-unit-sm py-unit-xs rounded text-[12px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">groups</span> Mid-Senior Managers
+                            </span>
+<span class="bg-surface-gray text-on-surface-variant px-unit-sm py-unit-xs rounded text-[12px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> 24 Hours
+                            </span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">Master the complexities of regional leadership with case studies specifically tailored for the Omani economy.</p>
+</div>
+<div class="p-unit-lg border-t border-outline-variant flex items-center justify-between">
+<span class="font-headline-sm text-primary">OMR 120</span>
+<button class="bg-secondary text-on-secondary px-unit-lg py-2 rounded font-label-md hover:bg-on-secondary-container transition-colors">Apply</button>
+</div>
+</div>
+<!-- Course Card 2 -->
+<div class="bg-white rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col group hover:shadow-lg transition-shadow">
+<div class="rainbow-accent bg-gradient-to-r from-accent-sky to-primary"></div>
+<div class="h-48 bg-surface-container relative">
+<div class="absolute top-unit-md left-unit-md bg-white/90 backdrop-blur px-3 py-1 rounded text-primary font-label-sm shadow-sm">Technology</div>
+<div class="w-full h-full bg-cover bg-center" data-alt="A futuristic technology lab setup with multiple high-end computers showing coding interfaces and data visualizations. The room features cool blue ambient lighting and sleek white ergonomic furniture. The visual style is clean, corporate, and highly technological, reflecting an advanced academic learning environment." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBO5JCp8Xx7w1heSuj4AELJs4ZGpykY14nsmY5nTv6JUyR9sX5qg8dkusWa_DicjQ-GJ2lB5l4y8uBZJzL0eNXIX3egIGyXKx2foJqxYJQvpBV-PTwF-jKdePYPYJF7nPQQQsHbUPewjvrUJy68qEhQL8y1lDvEtYj341Ybbl281Ytg2IRjVrRrybpaw4kWH8ZbR-MHa8bAoPzQXKaqCcRlk8KJBXC05Fp_FZ_2bOa4tMl1_iqmHjC6uTCa5AXsa2X7pY-uo38ic3ch')"></div>
+</div>
+<div class="p-unit-lg flex-grow space-y-unit-md">
+<h4 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary transition-colors">Cybersecurity Essentials for Governance</h4>
+<div class="flex flex-wrap gap-unit-xs">
+<span class="bg-surface-gray text-on-surface-variant px-unit-sm py-unit-xs rounded text-[12px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">groups</span> IT Professionals
+                            </span>
+<span class="bg-surface-gray text-on-surface-variant px-unit-sm py-unit-xs rounded text-[12px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> 40 Hours
+                            </span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">Protect organizational data with comprehensive training on the latest threats and mitigation strategies.</p>
+</div>
+<div class="p-unit-lg border-t border-outline-variant flex items-center justify-between">
+<span class="font-headline-sm text-primary">OMR 250</span>
+<button class="bg-secondary text-on-secondary px-unit-lg py-2 rounded font-label-md hover:bg-on-secondary-container transition-colors">Apply</button>
+</div>
+</div>
+<!-- Course Card 3 -->
+<div class="bg-white rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col group hover:shadow-lg transition-shadow">
+<div class="rainbow-accent bg-gradient-to-r from-accent-coral to-tertiary"></div>
+<div class="h-48 bg-surface-container relative">
+<div class="absolute top-unit-md left-unit-md bg-white/90 backdrop-blur px-3 py-1 rounded text-primary font-label-sm shadow-sm">Soft Skills</div>
+<div class="w-full h-full bg-cover bg-center" data-alt="A vibrant collaborative workspace with a diverse group of professionals engaged in a workshop. Large glass windows reveal a sunny university campus in the background. The lighting is soft and natural, emphasizing a high-trust and modern educational atmosphere. The color palette focuses on professional grays and Dhofar University blues." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAb-tUMr-TxDDlSYWkWGzrZUy1oBJ0y7I_sk3PtxVNDJTg6lW_FX84KZP5vIeRrvAeIZr3_x-6au62O2mMsqY6gvoCenScPD2K0_FaubEqKbzTeuTtWc2gVGaHBG0Oav9FFJi-Tsg0FTMz68bf_KXKzlWvPfCxF18uuXD6UxT9T_1gcBpA_R9elpGfiIXhHdXaRU86yHDw5ApLf2krZUJY1OguFbREMZ1eOA6IeR1bJHT3Xhk6YzBTfes65o9QsW_yGTb7IJuwN_ZiJ')"></div>
+</div>
+<div class="p-unit-lg flex-grow space-y-unit-md">
+<h4 class="font-headline-sm text-headline-sm text-primary group-hover:text-secondary transition-colors">Public Speaking &amp; Communication</h4>
+<div class="flex flex-wrap gap-unit-xs">
+<span class="bg-surface-gray text-on-surface-variant px-unit-sm py-unit-xs rounded text-[12px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">groups</span> All Levels
+                            </span>
+<span class="bg-surface-gray text-on-surface-variant px-unit-sm py-unit-xs rounded text-[12px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">schedule</span> 12 Hours
+                            </span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2">Develop the confidence to present your ideas with clarity and impact in any professional setting.</p>
+</div>
+<div class="p-unit-lg border-t border-outline-variant flex items-center justify-between">
+<span class="font-headline-sm text-primary">OMR 75</span>
+<button class="bg-secondary text-on-secondary px-unit-lg py-2 rounded font-label-md hover:bg-on-secondary-container transition-colors">Apply</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Completed Courses / Alumni Section -->
+<section class="w-full py-unit-xl bg-surface-container-low overflow-hidden">
+<div class="max-w-[1280px] mx-auto px-margin-desktop grid grid-cols-1 lg:grid-cols-2 gap-unit-xl items-center">
+<div class="order-2 lg:order-1 relative">
+<div class="absolute -bottom-6 -left-6 w-32 h-32 bg-secondary/10 rounded-full blur-3xl"></div>
+<div class="rounded-2xl overflow-hidden shadow-lg border-4 border-white aspect-[1.27]">
+<img alt="Dhofar University Alumni and Successful Graduates" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida/AP1WRLsGDuY1z-0DQf8zedibk3LN1mNEaJ3Q_EyXSMCrB2w3AMobROMUU-OkocfguyO0yc0eX3x945-YLNFPgqWBsW7c8iH0qMvBCbPdIemE8p5dv8laFL7RpAtr8j9AtJzfn5ZEjjtHxLNV_MO5aPqLF2Nr1oMXjYMe-qoomITBlWXP1wQdAZG9DQsY-kXYlshEYGadnUoFeLY7cg2zGh0GMqAITop4wSIX5l7icjZ2L_x5Mt-peejMH-N4VjQ"/>
+</div>
+<div class="absolute -top-4 -right-4 glass-card p-unit-md rounded-xl shadow-md flex items-center gap-unit-md animate-bounce">
+<div class="bg-status-certified p-unit-sm rounded-full">
+<span class="material-symbols-outlined text-white" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<div>
+<div class="font-label-md text-primary">Certified Alumni</div>
+<div class="font-body-sm text-on-surface-variant">Recognized Excellence</div>
+</div>
+</div>
+</div>
+<div class="order-1 lg:order-2 space-y-unit-lg">
+<h3 class="font-headline-lg text-headline-lg text-primary">Legacy of Excellence</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                    Our completed programs represent more than just hours of training—they signify a transformation in the professional landscape of Dhofar. We celebrate our alumni who are now leading departments, innovating in tech, and shaping the future of Oman.
+                </p>
+<div class="grid grid-cols-2 gap-unit-md">
+<div class="bg-white p-unit-md rounded-lg shadow-sm border-l-4 border-secondary">
+<div class="font-headline-sm text-secondary">98%</div>
+<div class="font-label-sm text-on-surface-variant">Career Impact Rate</div>
+</div>
+<div class="bg-white p-unit-md rounded-lg shadow-sm border-l-4 border-primary">
+<div class="font-headline-sm text-primary">450+</div>
+<div class="font-label-sm text-on-surface-variant">Partner Organizations</div>
+</div>
+</div>
+<button class="flex items-center gap-unit-sm text-primary font-label-md py-2 border-b-2 border-transparent hover:border-primary transition-all">
+                    View Success Stories <span class="material-symbols-outlined">launch</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Footer -->
+<footer class="w-full py-unit-xl bg-surface-container dark:bg-surface-container-low border-t border-outline-variant/30">
+<div class="max-w-[1280px] mx-auto px-margin-desktop flex flex-col md:flex-row justify-between items-center gap-unit-lg">
+<div class="flex flex-col items-center md:items-start gap-unit-xs">
+<div class="font-label-md text-label-md font-bold text-primary">Dhofar University CTDHR</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">© 2024 Dhofar University CTDHR Training Portal</p>
+</div>
+<div class="flex gap-unit-lg">
+<a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Terms of Service</a>
+<a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors" href="#">Help Center</a>
+</div>
+<div class="flex gap-unit-md">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary cursor-pointer hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined">share</span>
+</div>
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary cursor-pointer hover:bg-primary hover:text-white transition-all">
+<span class="material-symbols-outlined">mail</span>
+</div>
+</div>
+</div>
+</footer>
+<!-- Mobile Navigation (BottomNavBar) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 rounded-t-xl bg-surface dark:bg-surface-container-high border-t border-outline-variant shadow-lg h-16 flex justify-around items-center px-unit-md pb-safe">
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-sm text-[10px]">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-label-sm text-[10px]">Courses</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined">verified</span>
+<span class="font-label-sm text-[10px]">Certificates</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-label-sm text-[10px]">Profile</span>
+</a>
+</nav>
+<script>
+        // Micro-interactions and scroll effects
+        window.addEventListener('scroll', () => {
+            const nav = document.querySelector('nav');
+            if (window.scrollY > 20) {
+                nav.classList.add('shadow-md');
+            } else {
+                nav.classList.remove('shadow-md');
+            }
+        });
+
+        // Add simple interaction to Apply buttons
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mousedown', () => btn.classList.add('scale-95'));
+            btn.addEventListener('mouseup', () => btn.classList.remove('scale-95'));
+            btn.addEventListener('mouseleave', () => btn.classList.remove('scale-95'));
+        });
+    </script>
+</body></html>

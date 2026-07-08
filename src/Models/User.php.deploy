@@ -1,0 +1,503 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class User
+{
+    private PDO $db;
+
+    public function __construct()
+    {
+        $this->db = Database::getInstance();
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch();
+
+        return $row !== false ? $row : null;
+    }
+
+    public function findByEmail(string $email): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE email = :email LIMIT 1');
+        $stmt->execute(['email' => strtolower(trim($email))]);
+        $row = $stmt->fetch();
+
+        return $row !== false ? $row : null;
+    }
+
+    public function findByUsername(string $username): ?array
+    {
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE username = :username LIMIT 1');
+        $stmt->execute(['username' => strtolower(trim($username))]);
+        $row = $stmt->fetch();
+
+        return $row !== false ? $row : null;
+    }
+
+    public function detectRole(string $email, ?string $department = null): string
+    {
+        $localPart = strtolower(explode('@', $email)[0] ?? '');
+
+        if (preg_match('/^a\d+$/', $localPart) === 1) {
+            return 'student';
+        }
+
+        if ($department !== null && $department !== '') {
+            $deptLower = strtolower($department);
+            if (
+                str_contains($deptLower, 'faculty')
+                || str_contains($deptLower, 'academic')
+                || str_contains($deptLower, 'كلية')
+                || str_contains($deptLower, 'أكاديم')
+            ) {
+                return 'faculty';
+            }
+        }
+
+        return 'staff';
+    }
+
+    public function extractUsername(string $email): string
+    {
+        return strtolower(explode('@', $email)[0] ?? $email);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function create(array $data): int
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO users (
+                username, email, password_hash, email_verified_at,
+                full_name_en, full_name_ar, role,
+                participant_type, account_status,
+                department_en, department_ar, organization_en, phone, is_active
+            ) VALUES (
+                :username, :email, :password_hash, :email_verified_at,
+                :full_name_en, :full_name_ar, :role,
+                :participant_type, :account_status,
+                :department_en, :department_ar, :organization_en, :phone, :is_active
+            )'
+        );
+
+        $stmt->execute([
+            'username' => $data['username'],
+            'email' => strtolower((string) $data['email']),
+            'password_hash' => $data['password_hash'] ?? null,
+            'email_verified_at' => $data['email_verified_at'] ?? date('Y-m-d H:i:s'),
+            'full_name_en' => $data['full_name_en'],
+            'full_name_ar' => $data['full_name_ar'] ?? null,
+            'role' => $data['role'] ?? 'staff',
+            'participant_type' => $data['participant_type'] ?? 'du',
+            'account_status' => $data['account_status'] ?? 'active',
+            'department_en' => $data['department_en'] ?? null,
+            'department_ar' => $data['department_ar'] ?? null,
+            'organization_en' => $data['organization_en'] ?? null,
+            'phone' => $data['phone'] ?? null,
+            'is_active' => $data['is_active'] ?? 1,
+        ]);
+
+        return (int) $this->db->lastInsertId();
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function update(int $id, array $data): bool
+    {
+        $allowed = [
+            'username', 'email', 'password_hash', 'email_verified_at',
+            'full_name_en', 'full_name_ar', 'role',
+            'participant_type', 'account_status', 'organization_en',
+            'rejection_reason', 'approved_at', 'approved_by',
+            'department_en', 'department_ar', 'college_en', 'college_ar',
+            'employee_id', 'phone', 'avatar_path', 'is_active', 'last_login_at',
+        ];
+
+        $sets = [];
+        $params = ['id' => $id];
+
+        foreach ($data as $key => $value) {
+            if (!in_array($key, $allowed, true)) {
+                continue;
+            }
+            $sets[] = "{$key} = :{$key}";
+            $params[$key] = $value;
+        }
+
+        if ($sets === []) {
+            return false;
+        }
+
+        $sql = 'UPDATE users SET ' . implode(', ', $sets) . ' WHERE id = :id';
+        $stmt = $this->db->prepare($sql);
+
+        return $stmt->execute($params);
+    }
+
+    public function updateLastLogin(int $id): bool
+    {
+        return $this->update($id, ['last_login_at' => date('Y-m-d H:i:s')]);
+    }
+
+    public function emailExists(string $email): bool
+    {
+        return $this->findByEmail($email) !== null;
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public function findAll(array $filters = [], int $page = 1, int $perPage = 20): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $where = ['1=1'];
+        $params = [];
+
+        if (!empty($filters['role'])) {
+            $where[] = 'role = ?';
+            $params[] = (string) $filters['role'];
+        }
+
+        if (!empty($filters['participant_type']) && in_array($filters['participant_type'], ['du', 'external'], true)) {
+            $where[] = 'participant_type = ?';
+            $params[] = (string) $filters['participant_type'];
+        }
+
+        if (!empty($filters['account_status']) && in_array($filters['account_status'], ['active', 'pending_admin', 'rejected'], true)) {
+            $where[] = 'account_status = ?';
+            $params[] = (string) $filters['account_status'];
+        }
+
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(full_name_en LIKE ? OR full_name_ar LIKE ? OR email LIKE ? OR username LIKE ? OR organization_en LIKE ?)';
+            array_push($params, $term, $term, $term, $term, $term);
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE {$whereSql}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $offset = ($page - 1) * $perPage;
+        $stmt = $this->db->prepare(
+            "SELECT id, username, email, full_name_en, full_name_ar, role,
+                    participant_type, account_status, organization_en, phone,
+                    department_en, is_active, last_login_at, created_at
+             FROM users WHERE {$whereSql}
+             ORDER BY created_at DESC
+             LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($params);
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
+        ];
+    }
+
+    public function countAll(): int
+    {
+        return (int) $this->db->query('SELECT COUNT(*) FROM users')->fetchColumn();
+    }
+
+    public function countPendingExternal(): int
+    {
+        $stmt = $this->db->query(
+            "SELECT COUNT(*) FROM users
+             WHERE participant_type = 'external' AND account_status = 'pending_admin'"
+        );
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @return array{pending: int, approved_week: int, rejected_week: int, oldest_wait_days: int|null}
+     */
+    public function getExternalApprovalStats(): array
+    {
+        $pending = $this->countPendingExternal();
+
+        $approvedStmt = $this->db->query(
+            "SELECT COUNT(*) FROM users
+             WHERE participant_type = 'external'
+               AND account_status = 'active'
+               AND approved_at IS NOT NULL
+               AND approved_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+        );
+        $rejectedStmt = $this->db->query(
+            "SELECT COUNT(*) FROM users
+             WHERE participant_type = 'external'
+               AND account_status = 'rejected'
+               AND updated_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)"
+        );
+        $oldestStmt = $this->db->query(
+            "SELECT MIN(created_at) FROM users
+             WHERE participant_type = 'external' AND account_status = 'pending_admin'"
+        );
+
+        $oldestCreated = $oldestStmt->fetchColumn();
+        $oldestWaitDays = null;
+        if ($pending > 0 && $oldestCreated !== false && $oldestCreated !== null) {
+            $oldestWaitDays = max(0, (int) floor((time() - strtotime((string) $oldestCreated)) / 86400));
+        }
+
+        return [
+            'pending' => $pending,
+            'approved_week' => (int) $approvedStmt->fetchColumn(),
+            'rejected_week' => (int) $rejectedStmt->fetchColumn(),
+            'oldest_wait_days' => $oldestWaitDays,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public function findPendingExternalList(array $filters = [], int $page = 1, int $perPage = 20): array
+    {
+        return $this->queryExternalUsers(
+            [
+                "participant_type = 'external'",
+                "account_status = 'pending_admin'",
+            ],
+            $filters,
+            $page,
+            $perPage,
+            'created_at ASC'
+        );
+    }
+
+    /**
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public function findRecentlyReviewedExternal(int $page = 1, int $perPage = 20): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $offset = ($page - 1) * $perPage;
+
+        $where = [
+            "u.participant_type = 'external'",
+            "(u.account_status = 'active' AND u.approved_at IS NOT NULL)
+             OR (u.account_status = 'rejected' AND u.rejection_reason IS NOT NULL)",
+            "(COALESCE(u.approved_at, u.updated_at) >= DATE_SUB(NOW(), INTERVAL 30 DAY))",
+        ];
+        $whereSql = implode(' AND ', $where);
+
+        $countSql = "SELECT COUNT(*) FROM users u WHERE {$whereSql}";
+        $total = (int) $this->db->query($countSql)->fetchColumn();
+
+        $sql = "SELECT u.id, u.username, u.email, u.full_name_en, u.full_name_ar, u.role,
+                       u.participant_type, u.account_status, u.organization_en, u.phone,
+                       u.email_verified_at, u.is_active, u.created_at, u.approved_at, u.updated_at,
+                       u.rejection_reason, u.approved_by,
+                       reviewer.full_name_en AS reviewer_name_en,
+                       reviewer.full_name_ar AS reviewer_name_ar
+                FROM users u
+                LEFT JOIN users reviewer ON reviewer.id = u.approved_by
+                WHERE {$whereSql}
+                ORDER BY COALESCE(u.approved_at, u.updated_at) DESC
+                LIMIT {$perPage} OFFSET {$offset}";
+
+        $stmt = $this->db->query($sql);
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @return array<int, array<string, mixed>>
+     */
+    public function exportPendingExternalList(array $filters = []): array
+    {
+        return $this->queryExternalUsers(
+            [
+                "participant_type = 'external'",
+                "account_status = 'pending_admin'",
+            ],
+            $filters,
+            1,
+            5000,
+            'created_at ASC',
+            true
+        )['items'];
+    }
+
+    /**
+     * @param array<int, string> $baseWhere
+     * @param array<string, mixed> $filters
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    private function queryExternalUsers(
+        array $baseWhere,
+        array $filters,
+        int $page,
+        int $perPage,
+        string $orderBy,
+        bool $exportAll = false
+    ): array {
+        $page = max(1, $page);
+        $perPage = max(1, min(5000, $perPage));
+        $where = $baseWhere;
+        $params = [];
+
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(full_name_en LIKE ? OR full_name_ar LIKE ? OR email LIKE ? OR username LIKE ? OR organization_en LIKE ?)';
+            array_push($params, $term, $term, $term, $term, $term);
+        }
+
+        $waiting = (string) ($filters['waiting'] ?? '');
+        if ($waiting === 'over_3') {
+            $where[] = 'DATEDIFF(NOW(), created_at) >= 3';
+        } elseif ($waiting === 'over_7') {
+            $where[] = 'DATEDIFF(NOW(), created_at) >= 7';
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $countStmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE {$whereSql}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $offset = ($page - 1) * $perPage;
+        $limitSql = $exportAll ? (string) $perPage : "{$perPage} OFFSET {$offset}";
+
+        $stmt = $this->db->prepare(
+            "SELECT id, username, email, full_name_en, full_name_ar, role,
+                    participant_type, account_status, organization_en, phone,
+                    email_verified_at, is_active, created_at, approved_at, approved_by
+             FROM users WHERE {$whereSql}
+             ORDER BY {$orderBy}
+             LIMIT {$limitSql}"
+        );
+        $stmt->execute($params);
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
+        ];
+    }
+
+    /**
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public function findPendingExternal(int $page = 1, int $perPage = 20): array
+    {
+        return $this->findPendingExternalList([], $page, $perPage);
+    }
+
+    public function approveExternalAccount(int $id, int $approvedBy): bool
+    {
+        $user = $this->findById($id);
+        if ($user === null) {
+            return false;
+        }
+
+        if (($user['participant_type'] ?? '') !== 'external' || ($user['account_status'] ?? '') !== 'pending_admin') {
+            return false;
+        }
+
+        $updated = $this->update($id, [
+            'account_status' => 'active',
+            'is_active' => 1,
+            'approved_at' => date('Y-m-d H:i:s'),
+            'approved_by' => $approvedBy,
+            'rejection_reason' => null,
+        ]);
+
+        if (!$updated) {
+            return false;
+        }
+
+        $fresh = $this->findById($id);
+
+        return $fresh !== null
+            && ($fresh['participant_type'] ?? '') === 'external'
+            && ($fresh['account_status'] ?? '') === 'active';
+    }
+
+    public function rejectExternalAccount(int $id, int $rejectedBy, string $reason): bool
+    {
+        $user = $this->findById($id);
+        if ($user === null) {
+            return false;
+        }
+
+        if (($user['participant_type'] ?? '') !== 'external' || ($user['account_status'] ?? '') !== 'pending_admin') {
+            return false;
+        }
+
+        $updated = $this->update($id, [
+            'account_status' => 'rejected',
+            'is_active' => 0,
+            'rejection_reason' => $reason !== '' ? $reason : null,
+            'approved_at' => date('Y-m-d H:i:s'),
+            'approved_by' => $rejectedBy,
+        ]);
+
+        if (!$updated) {
+            return false;
+        }
+
+        $fresh = $this->findById($id);
+
+        return $fresh !== null && ($fresh['account_status'] ?? '') === 'rejected';
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    public function findAdminIds(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT id FROM users WHERE role = 'admin' AND is_active = 1"
+        );
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+        return array_values(array_map('intval', $ids));
+    }
+
+    public function promoteToAdmin(int $id): bool
+    {
+        return $this->update($id, ['role' => 'admin']);
+    }
+
+    /**
+     * @return array<int, array{email: string, full_name_en: string}>
+     */
+    public function findAdminContacts(): array
+    {
+        $stmt = $this->db->query(
+            "SELECT email, full_name_en FROM users WHERE role = 'admin' AND is_active = 1"
+        );
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        return array_values(array_filter($rows, static fn (array $row): bool => ($row['email'] ?? '') !== ''));
+    }
+}

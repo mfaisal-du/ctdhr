@@ -1,0 +1,1494 @@
+<?php
+
+declare(strict_types=1);
+
+if (!function_exists('env')) {
+    function env(string $key, $default = null)
+    {
+        $value = $_ENV[$key] ?? $_SERVER[$key] ?? getenv($key);
+
+        if ($value === false || $value === null) {
+            return $default;
+        }
+
+        switch (strtolower((string) $value)) {
+            case 'true':
+            case '(true)':
+                return true;
+            case 'false':
+            case '(false)':
+                return false;
+            case 'empty':
+            case '(empty)':
+                return '';
+            case 'null':
+            case '(null)':
+                return null;
+        }
+
+        if (is_string($value) && strlen($value) >= 2) {
+            $first = $value[0];
+            $last = $value[strlen($value) - 1];
+            if (($first === '"' && $last === '"') || ($first === "'" && $last === "'")) {
+                return substr($value, 1, -1);
+            }
+        }
+
+        return $value;
+    }
+}
+
+if (!function_exists('config')) {
+    function config(string $key, $default = null)
+    {
+        $config = $GLOBALS['app_config'] ?? [];
+
+        if ($key === 'app') {
+            return $config;
+        }
+
+        $keys = explode('.', $key);
+        $value = $config;
+
+        foreach ($keys as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                return $default;
+            }
+            $value = $value[$segment];
+        }
+
+        return $value;
+    }
+}
+
+if (!function_exists('lang')) {
+    function lang(string $key, array $replace = []): string
+    {
+        static $translations = [];
+
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+
+        if (!isset($translations[$locale])) {
+            $langFile = CTDHR_LANG . '/' . $locale . '.php.deploy';
+            if (!file_exists($langFile)) {
+                $langFile = CTDHR_LANG . '/' . $locale . '.php';
+            }
+            if (file_exists($langFile)) {
+                $translations[$locale] = require $langFile;
+            } else {
+                $translations[$locale] = [];
+            }
+        }
+
+        $text = $translations[$locale][$key] ?? $translations['en'][$key] ?? $key;
+
+        foreach ($replace as $search => $value) {
+            $text = str_replace(':' . $search, (string) $value, $text);
+        }
+
+        return normalize_course_text($text);
+    }
+}
+
+if (!function_exists('csrf_token')) {
+    function csrf_token(): string
+    {
+        $tokenName = config('csrf_token_name', '_token');
+
+        if (empty($_SESSION[$tokenName])) {
+            $_SESSION[$tokenName] = bin2hex(random_bytes(32));
+        }
+
+        return $_SESSION[$tokenName];
+    }
+}
+
+if (!function_exists('csrf_field')) {
+    function csrf_field(): string
+    {
+        $tokenName = config('csrf_token_name', '_token');
+        $token = csrf_token();
+
+        return '<input type="hidden" name="' . e($tokenName) . '" value="' . e($token) . '">';
+    }
+}
+
+if (!function_exists('asset')) {
+    function asset(string $path): string
+    {
+        $baseUrl = config('url', '');
+        $path = ltrim($path, '/');
+
+        return $baseUrl . '/assets/' . $path;
+    }
+}
+
+if (!function_exists('normalize_certificate_relative_path')) {
+    function normalize_certificate_relative_path(string $pdfPath): string
+    {
+        $path = ltrim(trim($pdfPath), '/');
+        if (str_starts_with($path, 'storage/certificates/')) {
+            $path = 'uploads/certificates/' . substr($path, strlen('storage/certificates/'));
+        }
+
+        return $path;
+    }
+}
+
+if (!function_exists('resolve_certificate_disk_path')) {
+    /**
+     * Locate a certificate PDF on disk (supports .pdf, .tmp seed copies, and .deploy seeds).
+     */
+    function resolve_certificate_disk_path(string $pdfPath): ?string
+    {
+        $pdfPath = trim($pdfPath);
+        if ($pdfPath === '' || str_starts_with($pdfPath, 'http://') || str_starts_with($pdfPath, 'https://')) {
+            return null;
+        }
+
+        $relative = normalize_certificate_relative_path($pdfPath);
+        $basename = basename($relative);
+        $nameWithoutExt = preg_replace('/\.pdf$/i', '', $basename) ?? $basename;
+
+        $candidates = [
+            CTDHR_PUBLIC . '/assets/' . $relative,
+            CTDHR_ASSETS . '/' . $relative,
+            CTDHR_PUBLIC . '/assets/' . preg_replace('/\.pdf$/i', '.tmp', $relative),
+            CTDHR_ROOT . '/database/assets/certificates/demo/' . $basename . '.deploy',
+            CTDHR_ROOT . '/database/assets/certificates/demo/' . $nameWithoutExt . '.pdf.deploy',
+        ];
+
+        foreach ($candidates as $file) {
+            if (is_string($file) && is_file($file)) {
+                return $file;
+            }
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('certificate_pdf_url')) {
+    /**
+     * Resolve a certificate PDF to a downloadable URL.
+     */
+    function certificate_pdf_url(string $pdfPath, ?int $certificateId = null): string
+    {
+        if ($certificateId !== null && $certificateId > 0) {
+            return url('certificates/' . $certificateId . '/download');
+        }
+
+        $pdfPath = trim($pdfPath);
+        if ($pdfPath === '') {
+            return '';
+        }
+
+        if (str_starts_with($pdfPath, 'http://') || str_starts_with($pdfPath, 'https://')) {
+            return $pdfPath;
+        }
+
+        return asset(normalize_certificate_relative_path($pdfPath));
+    }
+}
+
+if (!function_exists('url')) {
+    function url(string $path = ''): string
+    {
+        $baseUrl = config('url', '');
+        $path = ltrim($path, '/');
+
+        return $path === '' ? $baseUrl : $baseUrl . '/' . $path;
+    }
+}
+
+if (!function_exists('flash')) {
+    function flash(string $key, $value = null)
+    {
+        if ($value === null) {
+            $message = $_SESSION['_flash'][$key] ?? null;
+            unset($_SESSION['_flash'][$key]);
+
+            return $message;
+        }
+
+        $_SESSION['_flash'][$key] = $value;
+    }
+}
+
+if (!function_exists('old')) {
+    function old(string $key, $default = '')
+    {
+        return $_SESSION['_old'][$key] ?? $default;
+    }
+}
+
+if (!function_exists('e')) {
+    function e(?string $value): string
+    {
+        return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+}
+
+if (!function_exists('view_path')) {
+    function view_path(string $path): string
+    {
+        $path = ltrim(str_replace('\\', '/', $path), '/');
+
+        if (substr($path, -7) === '.deploy') {
+            return CTDHR_VIEWS . '/' . $path;
+        }
+
+        if (substr($path, -4) === '.php') {
+            $deployPath = CTDHR_VIEWS . '/' . $path . '.deploy';
+            if (file_exists($deployPath)) {
+                return $deployPath;
+            }
+
+            return CTDHR_VIEWS . '/' . $path;
+        }
+
+        $deployPath = CTDHR_VIEWS . '/' . $path . '.php.deploy';
+        if (file_exists($deployPath)) {
+            return $deployPath;
+        }
+
+        return CTDHR_VIEWS . '/' . $path . '.php';
+    }
+}
+
+if (!function_exists('view')) {
+    function view(string $name, array $data = []): void
+    {
+        extract($data, EXTR_SKIP);
+
+        $viewPath = view_path(str_replace('.', '/', $name) . '.php');
+
+        if (!file_exists($viewPath)) {
+            http_response_code(500);
+            echo 'View not found: ' . e($name);
+            exit(1);
+        }
+
+        require $viewPath;
+    }
+}
+
+if (!function_exists('error_page')) {
+    /**
+     * @param array<string, mixed> $data
+     */
+    function error_page(int $statusCode, array $data = []): void
+    {
+        http_response_code($statusCode);
+        view('errors.error', array_merge([
+            'statusCode' => $statusCode,
+        ], $data));
+        exit;
+    }
+}
+
+if (!function_exists('recaptcha_enabled')) {
+    function recaptcha_enabled(): bool
+    {
+        static $enabled = null;
+        if ($enabled === null) {
+            $service = new \CTDHR\Services\RecaptchaService();
+            $enabled = $service->isEnabled();
+        }
+
+        return $enabled;
+    }
+}
+
+if (!function_exists('admin_view')) {
+    function admin_view(string $name, array $data = []): void
+    {
+        extract($data, EXTR_SKIP);
+
+        $viewPath = CTDHR_VIEWS . '/' . str_replace('.', '/', $name) . '.php.deploy';
+        if (!file_exists($viewPath)) {
+            $viewPath = CTDHR_VIEWS . '/' . str_replace('.', '/', $name) . '.php';
+        }
+
+        if (!file_exists($viewPath)) {
+            http_response_code(500);
+            echo 'View not found: ' . e($name);
+            exit(1);
+        }
+
+        ob_start();
+        require $viewPath;
+        $content = ob_get_clean();
+        require view_path('layouts/admin.php');
+    }
+}
+
+if (!function_exists('slugify')) {
+    function slugify(string $text): string
+    {
+        $text = strtolower(trim($text));
+        $text = preg_replace('/[^a-z0-9\s-]/', '', $text) ?? '';
+        $text = preg_replace('/[\s-]+/', '-', $text) ?? '';
+
+        return trim($text, '-');
+    }
+}
+
+if (!function_exists('dashboard_section')) {
+    function dashboard_section(): string
+    {
+        $path = trim(request_relative_path(), '/');
+        $parts = explode('/', $path);
+
+        if (($parts[0] ?? '') !== 'dashboard') {
+            return 'overview';
+        }
+
+        return $parts[1] ?? 'overview';
+    }
+}
+
+if (!function_exists('dashboard_page_header')) {
+    /**
+     * @param array{icon?: string, title?: string, subtitle?: string, accent?: string, breadcrumbs?: list<array{label: string, href?: string}>, actions?: string} $config
+     */
+    function dashboard_page_header(array $config): void
+    {
+        $title = (string) ($config['title'] ?? '');
+        $config['breadcrumbs'] = $config['breadcrumbs'] ?? [
+            ['label' => lang('dashboard'), 'href' => url('dashboard')],
+            ['label' => $title],
+        ];
+
+        admin_page_header($config);
+    }
+}
+
+if (!function_exists('admin_section')) {
+    function admin_section(): string
+    {
+        $uri = $_SERVER['REQUEST_URI'] ?? '';
+        $basePath = parse_url(config('url', ''), PHP_URL_PATH) ?? '';
+        if ($basePath !== '' && $basePath !== '/' && strpos($uri, $basePath) === 0) {
+            $uri = substr($uri, strlen($basePath)) ?: '/';
+        }
+
+        $path = trim(parse_url($uri, PHP_URL_PATH) ?? '', '/');
+        $parts = explode('/', $path);
+
+        if (($parts[0] ?? '') !== 'admin') {
+            return 'dashboard';
+        }
+
+        if (($parts[1] ?? '') === 'users' && ($parts[2] ?? '') === 'pending') {
+            return 'users-pending';
+        }
+
+        return $parts[1] ?? 'dashboard';
+    }
+}
+
+if (!function_exists('request_relative_path')) {
+    /**
+     * Resolve the current request path relative to the application base URL.
+     * Supports both /public and non-/public entry points (root .htaccess rewrite).
+     */
+    function request_relative_path(?string $requestUri = null): string
+    {
+        $uri = parse_url($requestUri ?? ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?? '/';
+        $basePath = parse_url(config('url', ''), PHP_URL_PATH) ?? '';
+
+        if ($basePath !== '' && $basePath !== '/' && str_starts_with($uri, $basePath)) {
+            $uri = substr($uri, strlen($basePath)) ?: '/';
+        } elseif ($basePath !== '' && $basePath !== '/') {
+            $altBase = preg_replace('#/public$#', '', $basePath);
+            if (is_string($altBase) && $altBase !== '' && $altBase !== $basePath && str_starts_with($uri, $altBase)) {
+                $uri = substr($uri, strlen($altBase)) ?: '/';
+            }
+        }
+
+        $uri = '/' . trim($uri, '/');
+
+        return $uri === '/' ? '/' : rtrim($uri, '/');
+    }
+}
+
+if (!function_exists('redirect')) {
+    function redirect(string $path, int $status = 303): void
+    {
+        header('Location: ' . url($path), true, $status);
+        exit;
+    }
+}
+
+if (!function_exists('is_rtl')) {
+    function is_rtl(): bool
+    {
+        $locale = $_SESSION['locale'] ?? config('locale', 'en');
+
+        return $locale === 'ar';
+    }
+}
+
+if (!function_exists('current_locale')) {
+    function current_locale(): string
+    {
+        return $_SESSION['locale'] ?? config('locale', 'en');
+    }
+}
+
+if (!function_exists('demo_logins_enabled')) {
+    function demo_logins_enabled(): bool
+    {
+        return filter_var(config('demo_logins.enabled', false), FILTER_VALIDATE_BOOLEAN);
+    }
+}
+
+if (!function_exists('demo_login_accounts')) {
+    /**
+     * @return array<int, array<string, string>>
+     */
+    function demo_login_accounts(): array
+    {
+        if (!demo_logins_enabled()) {
+            return [];
+        }
+
+        $accounts = config('demo_logins.accounts', []);
+        if (!is_array($accounts)) {
+            return [];
+        }
+
+        $resolved = [];
+
+        foreach ($accounts as $account) {
+            if (!is_array($account) || empty($account['email']) || !array_key_exists('password', $account)) {
+                continue;
+            }
+
+            $labelKey = $account['label_key'] ?? '';
+            $resolved[] = [
+                'id' => (string) ($account['id'] ?? $account['email']),
+                'label' => $labelKey !== '' ? lang($labelKey) : (string) ($account['label'] ?? $account['email']),
+                'email' => (string) $account['email'],
+                'password' => (string) $account['password'],
+                'role' => (string) ($account['role'] ?? 'user'),
+                'icon' => (string) ($account['icon'] ?? 'person'),
+            ];
+        }
+
+        return $resolved;
+    }
+}
+
+if (!function_exists('is_arabic_text_corrupted')) {
+    function is_arabic_text_corrupted(string $text): bool
+    {
+        $text = trim($text);
+        if ($text === '') {
+            return false;
+        }
+
+        return preg_match('/\?{2,}/', $text) === 1
+            || preg_match('/^[\x{003F}\s]+$/u', $text) === 1;
+    }
+}
+
+if (!function_exists('arabic_display_value')) {
+    function arabic_display_value(string $value, string $fallback = ''): string
+    {
+        $value = normalize_course_text($value);
+        if ($value !== '' && !is_arabic_text_corrupted($value)) {
+            return $value;
+        }
+
+        return $fallback !== '' ? normalize_course_text($fallback) : '';
+    }
+}
+
+if (!function_exists('localized')) {
+    /**
+     * @param array<string, mixed> $row
+     */
+    function localized(array $row, string $field): string
+    {
+        $locale = current_locale();
+        $localizedKey = $field . '_' . $locale;
+        $fallbackKey = $field . '_en';
+
+        $value = '';
+        if (!empty($row[$localizedKey])) {
+            $value = (string) $row[$localizedKey];
+            if ($locale === 'ar' && is_arabic_text_corrupted($value)) {
+                $value = !empty($row[$fallbackKey])
+                    ? (string) $row[$fallbackKey]
+                    : (string) ($row[$field] ?? '');
+            }
+        } elseif (!empty($row[$fallbackKey])) {
+            $value = (string) $row[$fallbackKey];
+        } else {
+            $value = (string) ($row[$field] ?? '');
+        }
+
+        return normalize_course_text($value);
+    }
+}
+
+if (!function_exists('du_gallery_images')) {
+    /**
+     * High-resolution images crawled from du.edu.om gallery pages.
+     *
+     * @return list<string>
+     */
+    function du_gallery_images(): array
+    {
+        return [
+            'du/2025/du2025-campus-wide.jpg',
+            'du/2025/du2025-event-02.jpg',
+            'du/2025/du2025-campus-01.jpg',
+            'du/2025/du2025-campus-02.jpg',
+            'du/2025/du2025-training-01.jpg',
+            'du/2025/du2025-training-02.jpg',
+            'du/2025/du2025-training-03.jpg',
+            'du/2025/du2025-academic-01.jpg',
+            'du/2025/du2025-event-01.jpg',
+            'du/2025/du2025-gallery-hero.jpg',
+            'du/2025/du2025-gallery-02.jpg',
+            'du/2025/du2025-gallery-03.jpg',
+            'du/2025/du2025-gallery-04.jpg',
+            'du/2025/du2025-gallery-05.jpg',
+            'du/2025/du2025-gallery-06.jpg',
+            'du/2025/du2025-gallery-07.jpg',
+            'du/2025/du2025-gallery-08.jpg',
+            'du/2025/du2025-gallery-09.jpg',
+            'du/2025/du2025-gallery-10.jpg',
+            'du/2025/du2025-gallery-11.jpg',
+            'du/2025/du2025-gallery-12.jpg',
+            'du/2025/du2025-gallery-13.jpg',
+            'du/2025/du2025-gallery-14.jpg',
+            'du/2025/du2025-gallery-15.jpg',
+            'du/2025/du2025-gallery-16.jpg',
+            'du/2025/du2025-gallery-17.jpg',
+            'du/2025/du2025-gallery-18.jpg',
+            'du/2025/du2025-gallery-19.jpg',
+            'du/2025/du2025-gallery-20.jpg',
+            'du/2025/du2025-gallery-21.jpg',
+            'du/graduation/graduation-main.jpg',
+            'du/graduation/graduation-ceremony-01.jpg',
+            'du/graduation/graduation-ceremony-02.jpg',
+            'du/graduation/graduation-ceremony-03.jpg',
+            'du/graduation/graduation-ceremony-04.jpg',
+            'du/graduation/graduation-ceremony-05.jpg',
+            'du/graduation/graduation-ceremony-06.jpg',
+        ];
+    }
+}
+
+if (!function_exists('design_image')) {
+    /**
+     * Curated portal images sourced from du.edu.om (2025 + graduation galleries).
+     *
+     * @return array<string, string>
+     */
+    function design_images(): array
+    {
+        return [
+            'hero' => 'du/2025/du2025-campus-wide.jpg',
+            'hero_alt' => 'du/2025/du2025-event-02.jpg',
+            'alumni' => 'du/graduation/graduation-ceremony-03.jpg',
+            'graduation' => 'du/graduation/graduation-ceremony-02.jpg',
+            'campus' => 'du/2025/du2025-campus-01.jpg',
+            'faculty' => 'du/2025/du2025-training-02.jpg',
+            'research' => 'du/2025/du2025-academic-01.jpg',
+            'university' => 'du/2025/du2025-campus-02.jpg',
+            'academic' => 'du/2025/du2025-academic-01.jpg',
+            'training' => 'du/2025/du2025-training-01.jpg',
+            'event' => 'du/2025/du2025-event-01.jpg',
+            'placeholder' => 'du/2025/du2025-training-03.jpg',
+        ];
+    }
+
+    function design_image(string $key): string
+    {
+        $images = design_images();
+        $file = $images[$key] ?? $images['placeholder'];
+
+        return asset('images/' . $file);
+    }
+}
+
+if (!function_exists('image_dimensions')) {
+    /**
+     * @return array{w: int, h: int}|null
+     */
+    function image_dimensions(string $relativePath): ?array
+    {
+        static $cache = [];
+
+        $relativePath = ltrim(str_replace('\\', '/', $relativePath), '/');
+
+        if (isset($cache[$relativePath])) {
+            return $cache[$relativePath];
+        }
+
+        $fullPath = CTDHR_PUBLIC . '/assets/images/' . $relativePath;
+
+        if (!is_file($fullPath)) {
+            $cache[$relativePath] = null;
+
+            return null;
+        }
+
+        $size = getimagesize($fullPath);
+
+        if ($size === false) {
+            $cache[$relativePath] = null;
+
+            return null;
+        }
+
+        $cache[$relativePath] = ['w' => (int) $size[0], 'h' => (int) $size[1]];
+
+        return $cache[$relativePath];
+    }
+}
+
+if (!function_exists('portal_img')) {
+    /**
+     * Renders a sharp, responsive <img> with intrinsic dimensions to prevent layout shift.
+     *
+     * Options: design|path|src, alt, class, loading, priority, sizes, cover
+     *
+     * @param array<string, mixed> $options
+     */
+    function portal_img(array $options): string
+    {
+        $relativePath = '';
+        $src = (string) ($options['src'] ?? '');
+
+        if (!empty($options['design'])) {
+            $images = design_images();
+            $relativePath = (string) ($images[$options['design']] ?? $images['placeholder']);
+            $src = asset('images/' . $relativePath);
+        } elseif (!empty($options['path'])) {
+            $relativePath = ltrim(str_replace('\\', '/', (string) $options['path']), '/');
+            $src = str_starts_with($relativePath, 'uploads/')
+                ? asset($relativePath)
+                : asset('images/' . $relativePath);
+        }
+
+        $alt = e((string) ($options['alt'] ?? ''));
+        $priority = !empty($options['priority']);
+        $loading = $priority ? 'eager' : (string) ($options['loading'] ?? 'lazy');
+        $sizes = (string) ($options['sizes'] ?? '100vw');
+        $cover = array_key_exists('cover', $options) ? (bool) $options['cover'] : true;
+
+        $classes = trim((string) ($options['class'] ?? ''));
+        $baseClass = $cover ? 'portal-img' : 'portal-img portal-img-contain';
+        $classAttr = trim($baseClass . ($classes !== '' ? ' ' . $classes : ''));
+
+        $attrs = [
+            'src' => e($src),
+            'alt' => $alt,
+            'class' => e($classAttr),
+            'decoding' => 'async',
+            'loading' => e($loading),
+        ];
+
+        if ($priority) {
+            $attrs['fetchpriority'] = 'high';
+        }
+
+        $dims = $relativePath !== '' ? image_dimensions($relativePath) : null;
+
+        if ($dims !== null) {
+            $attrs['width'] = (string) $dims['w'];
+            $attrs['height'] = (string) $dims['h'];
+            $attrs['sizes'] = e($sizes);
+            $attrs['srcset'] = e($src . ' ' . $dims['w'] . 'w');
+        }
+
+        $html = '<img';
+
+        foreach ($attrs as $name => $value) {
+            $html .= ' ' . $name . '="' . $value . '"';
+        }
+
+        return $html . '>';
+    }
+}
+
+if (!function_exists('course_cover_spec')) {
+    /**
+     * Recommended cover dimensions (matches public course card 16:10 ratio).
+     *
+     * @return array{width: int, height: int, ratio: string}
+     */
+    function course_cover_spec(): array
+    {
+        return [
+            'width' => 1200,
+            'height' => 750,
+            'ratio' => '16:10',
+        ];
+    }
+}
+
+if (!function_exists('course_cover_relative')) {
+    /**
+     * @param array<string, mixed> $course
+     */
+    function course_cover_relative(array $course, int $fallbackIndex = 0): ?string
+    {
+        $path = trim((string) ($course['cover_image_path'] ?? ''));
+
+        if ($path === '') {
+            $gallery = du_gallery_images();
+            $id = (int) ($course['id'] ?? 0);
+            $index = $id > 0 ? ($id % count($gallery)) : ($fallbackIndex % count($gallery));
+
+            return $gallery[$index];
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return null;
+        }
+
+        $relative = ltrim(str_replace('\\', '/', $path), '/');
+
+        if (str_starts_with($relative, 'assets/')) {
+            $relative = substr($relative, 7);
+        }
+
+        if (str_starts_with($relative, 'uploads/')) {
+            return $relative;
+        }
+
+        if (str_starts_with($relative, 'images/')) {
+            return substr($relative, 7);
+        }
+
+        return $relative;
+    }
+}
+
+if (!function_exists('course_cover_asset_path')) {
+    /**
+     * Normalized asset-relative path for course cover (uploads/… or images/… segment).
+     *
+     * @param array<string, mixed> $course
+     */
+    function course_cover_asset_path(array $course, int $fallbackIndex = 0): string
+    {
+        $relative = course_cover_relative($course, $fallbackIndex);
+
+        if ($relative !== null) {
+            if (str_starts_with($relative, 'uploads/')) {
+                return $relative;
+            }
+
+            return 'images/' . ltrim($relative, '/');
+        }
+
+        $path = trim((string) ($course['cover_image_path'] ?? ''));
+
+        if ($path !== '' && (str_starts_with($path, 'http://') || str_starts_with($path, 'https://'))) {
+            return $path;
+        }
+
+        $gallery = du_gallery_images();
+        $id = (int) ($course['id'] ?? 0);
+        $index = $id > 0 ? ($id % count($gallery)) : ($fallbackIndex % count($gallery));
+
+        return 'images/' . $gallery[$index];
+    }
+}
+
+if (!function_exists('course_cover')) {
+    /**
+     * @param array<string, mixed> $course
+     */
+    function course_cover(array $course): string
+    {
+        $assetPath = course_cover_asset_path($course);
+
+        if (str_starts_with($assetPath, 'http://') || str_starts_with($assetPath, 'https://')) {
+            return $assetPath;
+        }
+
+        return asset($assetPath);
+    }
+}
+
+if (!function_exists('course_has_custom_cover')) {
+    /**
+     * @param array<string, mixed> $course
+     */
+    function course_has_custom_cover(array $course): bool
+    {
+        return trim((string) ($course['cover_image_path'] ?? '')) !== '';
+    }
+}
+
+if (!function_exists('graduation_overlay_image')) {
+    function graduation_overlay_image(): string
+    {
+        return asset('images/du/graduation/graduation-main.jpg');
+    }
+}
+
+if (!function_exists('university_logo')) {
+    function university_logo(): string
+    {
+        return asset('images/du/brand/du-emblem.jpg');
+    }
+}
+
+if (!function_exists('card_icon_svg')) {
+    /**
+     * Inline SVG icons for premium cards (avoids font/CDN dependency).
+     */
+    function card_icon_svg(string $icon): string
+    {
+        $icons = [
+            'location_on' => '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5z"/></svg>',
+            'mail' => '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5L4 8V6l8 5 8-5v2z"/></svg>',
+            'call' => '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true"><path d="M6.62 10.79a15.05 15.05 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.01-.24c1.12.37 2.33.57 3.58.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.46.57 3.58a1 1 0 0 1-.25 1.01l-2.2 2.2z"/></svg>',
+            'schedule' => '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>',
+            'workspace_premium' => '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true"><path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm-1.06 13.54L7.4 12l1.41-1.41 2.12 2.12 4.24-4.24 1.41 1.41-5.64 5.66z"/></svg>',
+            'public' => '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>',
+            'verified' => '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 16-4-4 1.41-1.41L11 14.17l6.59-6.59L19 9l-8 8z"/></svg>',
+            'trending_up' => '<svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28" aria-hidden="true"><path d="m16 6 2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/></svg>',
+        ];
+
+        return $icons[$icon] ?? '';
+    }
+}
+
+if (!function_exists('category_material_icon')) {
+    function category_material_icon(string $icon): string
+    {
+        $icon = trim($icon);
+        if ($icon === '') {
+            return 'category';
+        }
+
+        if (str_starts_with($icon, 'mdi:')) {
+            return match ($icon) {
+                'mdi:laptop' => 'computer',
+                'mdi:translate' => 'translate',
+                'mdi:briefcase-outline' => 'work',
+                'mdi:school-outline' => 'school',
+                'mdi:account-tie' => 'supervisor_account',
+                'mdi:heart-pulse' => 'health_and_safety',
+                'mdi:monitor-cellphone' => 'devices',
+                'mdi:account-voice' => 'record_voice_over',
+                default => 'category',
+            };
+        }
+
+        return $icon;
+    }
+}
+
+if (!function_exists('category_icon_element')) {
+    function category_icon_element(string $icon, string $sizeClass = 'text-[14px]'): string
+    {
+        $symbol = category_material_icon($icon);
+
+        return '<span class="material-symbols-outlined ' . e($sizeClass) . '" aria-hidden="true">' . e($symbol) . '</span>';
+    }
+}
+
+if (!function_exists('category_course_count_label')) {
+    function category_course_count_label(int $count): string
+    {
+        if ($count <= 0) {
+            return '';
+        }
+
+        return $count === 1
+            ? lang('category_one_course')
+            : lang('category_many_courses');
+    }
+}
+
+if (!function_exists('category_card_image_url')) {
+    function category_card_image_url(array $category): ?string
+    {
+        $path = trim((string) ($category['card_image_path'] ?? ''));
+        if ($path === '') {
+            return null;
+        }
+
+        return asset(ltrim($path, '/'));
+    }
+}
+
+if (!function_exists('page_hero')) {
+    /**
+     * Renders a polished inner-page hero with breadcrumbs.
+     *
+     * @param array{icon?: string, title?: string, subtitle?: string, accent?: string, breadcrumbs?: list<array{label: string, href?: string}>} $config
+     */
+    function page_hero(array $config): void
+    {
+        $pageHeroIcon = (string) ($config['icon'] ?? 'article');
+        $pageHeroTitle = (string) ($config['title'] ?? '');
+        $pageHeroSubtitle = (string) ($config['subtitle'] ?? '');
+        $pageHeroAccent = (string) ($config['accent'] ?? 'primary');
+        $pageHeroBreadcrumbs = $config['breadcrumbs'] ?? [
+            ['label' => lang('home'), 'href' => url('/')],
+            ['label' => $pageHeroTitle],
+        ];
+
+        require view_path('layouts/components/page-hero.php');
+    }
+}
+
+if (!function_exists('admin_page_header')) {
+    /**
+     * Renders a compact branded header for admin inner pages.
+     *
+     * @param array{icon?: string, title?: string, subtitle?: string, accent?: string, breadcrumbs?: list<array{label: string, href?: string}>} $config
+     */
+    function admin_page_header(array $config): void
+    {
+        $adminPageIcon = (string) ($config['icon'] ?? 'dashboard');
+        $adminPageTitle = (string) ($config['title'] ?? '');
+        $adminPageSubtitle = (string) ($config['subtitle'] ?? '');
+        $adminPageAccent = (string) ($config['accent'] ?? 'primary');
+        $adminPageActions = (string) ($config['actions'] ?? '');
+        $adminPageBreadcrumbs = $config['breadcrumbs'] ?? [
+            ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+            ['label' => $adminPageTitle],
+        ];
+
+        require view_path('layouts/components/admin-page-header.php');
+    }
+}
+
+if (!function_exists('hero_title_parts')) {
+    /** @return array{lead: string, accent: string} */
+    function hero_title_parts(): array
+    {
+        $title = lang('hero_title');
+        $locale = current_locale();
+
+        if ($locale === 'en' && str_contains($title, ' & ')) {
+            $parts = explode(' & ', $title, 2);
+
+            return [
+                'lead' => trim($parts[0]) . ' &',
+                'accent' => trim($parts[1] ?? ''),
+            ];
+        }
+
+        if ($locale === 'ar') {
+            $words = preg_split('/\s+/u', trim($title), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+            if (count($words) > 3) {
+                $mid = (int) ceil(count($words) / 2);
+
+                return [
+                    'lead' => implode(' ', array_slice($words, 0, $mid)),
+                    'accent' => implode(' ', array_slice($words, $mid)),
+                ];
+            }
+        }
+
+        return ['lead' => $title, 'accent' => ''];
+    }
+}
+
+if (!function_exists('course_is_public_status')) {
+    function course_is_public_status(string $status): bool
+    {
+        return in_array($status, [
+            'announced',
+            'accepting_applications',
+            'scheduled',
+            'in_progress',
+            'completed',
+        ], true);
+    }
+}
+
+if (!function_exists('course_status_label')) {
+    function course_status_label(string $status): string
+    {
+        $key = 'status_' . $status;
+
+        return lang($key);
+    }
+}
+
+if (!function_exists('course_status_card_overlay_class')) {
+    function course_status_card_overlay_class(string $status): string
+    {
+        return match ($status) {
+            'accepting_applications' => 'is-open',
+            'announced' => 'is-announced',
+            'scheduled' => 'is-scheduled',
+            'in_progress' => 'is-progress',
+            'completed' => 'is-completed',
+            default => 'is-announced',
+        };
+    }
+}
+
+if (!function_exists('format_date')) {
+    function format_date(?string $date): string
+    {
+        if ($date === null || $date === '') {
+            return '-';
+        }
+
+        $timestamp = strtotime($date);
+        if ($timestamp === false) {
+            return $date;
+        }
+
+        $locale = current_locale();
+        $format = $locale === 'ar' ? 'd/m/Y' : 'M j, Y';
+
+        return date($format, $timestamp);
+    }
+}
+
+if (!function_exists('pending_wait_days')) {
+    function pending_wait_days(?string $createdAt): int
+    {
+        if ($createdAt === null || $createdAt === '') {
+            return 0;
+        }
+
+        $timestamp = strtotime($createdAt);
+        if ($timestamp === false) {
+            return 0;
+        }
+
+        return max(0, (int) floor((time() - $timestamp) / 86400));
+    }
+}
+
+if (!function_exists('pending_wait_label')) {
+    function pending_wait_label(int $days): string
+    {
+        if ($days <= 0) {
+            return lang('waiting_today');
+        }
+
+        if ($days === 1) {
+            return lang('waiting_1_day');
+        }
+
+        return lang('waiting_n_days', ['days' => (string) $days]);
+    }
+}
+
+if (!function_exists('pending_wait_urgency')) {
+    /** @return 'normal'|'warning'|'critical' */
+    function pending_wait_urgency(int $days): string
+    {
+        if ($days >= 7) {
+            return 'critical';
+        }
+
+        if ($days >= 3) {
+            return 'warning';
+        }
+
+        return 'normal';
+    }
+}
+
+if (!function_exists('audience_label')) {
+    function audience_label(string $audience): string
+    {
+        return lang('audience_' . $audience);
+    }
+}
+
+if (!function_exists('participant_scope_label')) {
+    function participant_scope_label(string $scope): string
+    {
+        return lang('participant_scope_' . $scope);
+    }
+}
+
+if (!function_exists('participant_type_label')) {
+    function participant_type_label(string $type): string
+    {
+        return lang('participant_type_' . $type);
+    }
+}
+
+if (!function_exists('account_status_label')) {
+    function account_status_label(string $status): string
+    {
+        return lang('account_status_' . $status);
+    }
+}
+
+if (!function_exists('normalize_course_text')) {
+    /**
+     * Fix UTF-8 mojibake and normalize dashes in course content pulled from the database.
+     */
+    function normalize_course_text(string $text): string
+    {
+        if ($text === '') {
+            return $text;
+        }
+
+        $replacements = [
+            'ÔÇô' => '-',
+            'ÔÇö' => '-',
+            'â€“' => '-',
+            'â€”' => '-',
+            "\xE2\x80\x93" => '-',
+            "\xE2\x80\x94" => '-',
+            '–' => '-',
+            '—' => '-',
+        ];
+
+        $normalized = str_replace(array_keys($replacements), array_values($replacements), $text);
+
+        if (preg_match('/Ã|Â|Ô|â€/u', $normalized) === 1) {
+            $decoded = @mb_convert_encoding($normalized, 'UTF-8', 'Windows-1252');
+            if (is_string($decoded) && $decoded !== '' && mb_check_encoding($decoded, 'UTF-8')) {
+                $normalized = str_replace(array_keys($replacements), array_values($replacements), $decoded);
+            }
+        }
+
+        return $normalized;
+    }
+}
+
+if (!function_exists('sanitize_rich_text')) {
+    /**
+     * Allow safe HTML from the admin rich-text editor on public pages.
+     */
+    function sanitize_rich_text(string $html): string
+    {
+        if ($html === '') {
+            return '';
+        }
+
+        $allowed = '<p><br><strong><b><em><i><u><s><strike><h2><h3><ul><ol><li><a><blockquote><code><pre><span>';
+        $clean = strip_tags($html, $allowed);
+
+        return preg_replace('/\s(on\w+|style|class)\s*=\s*("|\').*?\2/i', '', $clean) ?? $clean;
+    }
+}
+
+if (!function_exists('course_description_html')) {
+    /**
+     * @param array<string, mixed> $course
+     */
+    function course_description_html(array $course): string
+    {
+        $raw = trim(localized($course, 'description'));
+        if ($raw === '') {
+            return '';
+        }
+
+        if (preg_match('/<[^>]+>/', $raw) === 1) {
+            return sanitize_rich_text($raw);
+        }
+
+        $parts = preg_split('/\n\s*\n/', $raw) ?: [];
+        $paragraphs = array_values(array_filter(array_map('trim', $parts)));
+
+        if ($paragraphs === []) {
+            return '<p>' . e($raw) . '</p>';
+        }
+
+        return implode('', array_map(
+            static fn (string $p): string => '<p>' . e($p) . '</p>',
+            $paragraphs
+        ));
+    }
+}
+
+if (!function_exists('course_description_plain')) {
+    /**
+     * Plain-text excerpt from course description (for hero / cards).
+     *
+     * @param array<string, mixed> $course
+     */
+    function course_description_plain(array $course): string
+    {
+        $raw = trim(localized($course, 'description'));
+        if ($raw === '') {
+            return '';
+        }
+
+        $text = html_entity_decode(strip_tags($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+
+        return trim($text);
+    }
+}
+
+if (!function_exists('course_description_paragraphs')) {
+    /**
+     * @param array<string, mixed> $course
+     * @return list<string>
+     */
+    function course_description_paragraphs(array $course): array
+    {
+        $plain = course_description_plain($course);
+        if ($plain === '') {
+            return [];
+        }
+
+        $raw = trim(localized($course, 'description'));
+        if (preg_match('/<[^>]+>/', $raw) === 1) {
+            return [$plain];
+        }
+
+        $parts = preg_split('/\n\s*\n/', $plain) ?: [];
+        $paragraphs = array_values(array_filter(array_map('trim', $parts)));
+
+        return $paragraphs !== [] ? $paragraphs : [$plain];
+    }
+}
+
+if (!function_exists('course_schedule_lines')) {
+    /**
+     * @param array<string, mixed> $course
+     * @return list<string>
+     */
+    function course_schedule_lines(array $course): array
+    {
+        $raw = $course['session_dates'] ?? null;
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return array_values(array_filter(array_map(
+                    static fn ($line): string => normalize_course_text(trim((string) $line)),
+                    $decoded
+                )));
+            }
+
+            return array_values(array_filter(array_map(
+                static fn (string $line): string => normalize_course_text(trim($line)),
+                preg_split('/\r\n|\r|\n/', $raw) ?: []
+            )));
+        }
+
+        if (is_array($raw)) {
+            return array_values(array_filter(array_map(
+                static fn ($line): string => normalize_course_text(trim((string) $line)),
+                $raw
+            )));
+        }
+
+        return [];
+    }
+}
+
+if (!function_exists('attendance_session_entry_from_line')) {
+    /**
+     * @return array{key: string, number: int, label: string, detail: string, date: ?string}
+     */
+    function attendance_session_entry_from_line(string $line, int $number): array
+    {
+        $line = normalize_course_text(trim($line));
+        $detail = $line;
+        $date = null;
+
+        if (preg_match('/^Session\s+\d+\s*[|\-–—]\s*(.+)$/iu', $line, $matches) === 1) {
+            $detail = trim((string) $matches[1]);
+        } elseif (preg_match('/^الجلسة\s+\d+\s*[|\-–—]\s*(.+)$/iu', $line, $matches) === 1) {
+            $detail = trim((string) $matches[1]);
+        }
+
+        if (preg_match('/^(\d{4}-\d{2}-\d{2})\b/', $line, $matches) === 1) {
+            $date = (string) $matches[1];
+            $detail = trim(substr($line, strlen($matches[0])));
+            $detail = ltrim($detail, "|–—- \t");
+        } elseif (preg_match('/\b(\d{4}-\d{2}-\d{2})\b/', $line, $matches) === 1) {
+            $date = (string) $matches[1];
+        }
+
+        $detailShort = $detail;
+        if (mb_strlen($detailShort) > 52) {
+            $detailShort = mb_substr($detailShort, 0, 49) . '…';
+        }
+
+        $label = lang('session_number', ['n' => (string) $number]);
+        if ($date !== null) {
+            $label .= ' · ' . format_date($date);
+        }
+
+        return [
+            'key' => $line,
+            'number' => $number,
+            'label' => $label,
+            'detail' => $detailShort,
+            'date' => $date,
+        ];
+    }
+}
+
+if (!function_exists('attendance_session_entries')) {
+    /**
+     * @param array<string, mixed> $course
+     * @return list<array{key: string, number: int, label: string, detail: string, date: ?string}>
+     */
+    function attendance_session_entries(array $course): array
+    {
+        $lines = course_schedule_lines($course);
+        if ($lines === [] && !empty($course['start_date'])) {
+            $lines = [normalize_course_text((string) $course['start_date'])];
+        }
+        if ($lines === []) {
+            $lines = [date('Y-m-d')];
+        }
+
+        $entries = [];
+        foreach ($lines as $index => $line) {
+            $entries[] = attendance_session_entry_from_line($line, $index + 1);
+        }
+
+        return $entries;
+    }
+}
+
+if (!function_exists('attendance_session_kpi_value')) {
+    /**
+     * @param array{key: string, number: int, label: string, detail: string, date: ?string} $entry
+     */
+    function attendance_session_kpi_value(array $entry): string
+    {
+        return lang('session_number', ['n' => (string) $entry['number']]);
+    }
+}
+
+if (!function_exists('attendance_session_option_label')) {
+    /**
+     * @param array{key: string, number: int, label: string, detail: string, date: ?string} $entry
+     */
+    function attendance_session_option_label(array $entry): string
+    {
+        $label = lang('session_number', ['n' => (string) $entry['number']]);
+
+        if ($entry['detail'] !== '') {
+            return $label . ' — ' . $entry['detail'];
+        }
+
+        if ($entry['date'] !== null) {
+            return $label . ' — ' . format_date($entry['date']);
+        }
+
+        return $label;
+    }
+}
+
+if (!function_exists('course_learning_outcomes')) {
+    /**
+     * @param array<string, mixed> $course
+     * @return list<string>
+     */
+    function course_learning_outcomes(array $course): array
+    {
+        $text = normalize_course_text(trim(localized($course, 'learning_outcomes')));
+        if ($text === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn (string $line): string => normalize_course_text(trim($line)),
+            preg_split('/\r\n|\r|\n/', $text) ?: []
+        )));
+    }
+}
+
+if (!function_exists('role_label')) {
+    function role_label(string $role): string
+    {
+        $key = 'role_' . $role;
+        $translated = lang($key);
+
+        return $translated !== $key ? $translated : ucfirst($role);
+    }
+}
+
+if (!function_exists('course_status_badge_class')) {
+    function course_status_badge_class(string $status): string
+    {
+        $base = 'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-label-sm font-semibold';
+
+        return match ($status) {
+            'draft' => $base . ' bg-status-draft/10 text-status-draft',
+            'announced', 'accepting_applications' => $base . ' bg-status-announced/10 text-status-announced',
+            'scheduled' => $base . ' bg-status-scheduled/10 text-status-scheduled',
+            'in_progress' => $base . ' bg-status-progress/10 text-status-progress',
+            'completed' => $base . ' bg-status-completed/10 text-status-completed',
+            'certified' => $base . ' bg-status-certified/10 text-status-certified',
+            'cancelled' => $base . ' bg-status-cancelled/10 text-status-cancelled',
+            default => $base . ' bg-surface-gray text-on-surface-variant',
+        };
+    }
+}
+
+if (!function_exists('course_status_dot_class')) {
+    function course_status_dot_class(string $status): string
+    {
+        return match ($status) {
+            'draft' => 'bg-status-draft',
+            'announced', 'accepting_applications' => 'bg-status-announced',
+            'scheduled' => 'bg-status-scheduled',
+            'in_progress' => 'bg-status-progress animate-pulse',
+            'completed' => 'bg-status-completed',
+            'certified' => 'bg-status-certified',
+            'cancelled' => 'bg-status-cancelled',
+            default => 'bg-outline',
+        };
+    }
+}
+
+if (!function_exists('rainbow_accent_style')) {
+    function rainbow_accent_style(int $index = 0): string
+    {
+        $gradients = [
+            '',
+            'background: linear-gradient(90deg, #425AAD 0%, #00B0FF 100%);',
+            'background: linear-gradient(90deg, #D81B60 0%, #FF7043 100%);',
+            'background: linear-gradient(90deg, #30872F 0%, #FFD600 100%);',
+        ];
+
+        return $gradients[$index % count($gradients)];
+    }
+}
+
+if (!function_exists('application_status_badge_class')) {
+    function application_status_badge_class(string $status): string
+    {
+        $base = 'inline-flex items-center px-3 py-1 rounded-full text-label-sm font-semibold';
+
+        return match ($status) {
+            'approved' => $base . ' bg-status-completed/10 text-status-completed',
+            'rejected' => $base . ' bg-status-cancelled/10 text-status-cancelled',
+            'cancelled' => $base . ' bg-status-draft/10 text-status-draft',
+            'waitlisted' => $base . ' bg-status-announced/10 text-status-announced',
+            default => $base . ' bg-status-progress/10 text-status-progress',
+        };
+    }
+}
+
+if (!function_exists('news_ticker_resolve_href')) {
+    function news_ticker_resolve_href(string $link): string
+    {
+        $link = trim($link);
+        if ($link === '') {
+            return url('/');
+        }
+        if (preg_match('#^https?://#i', $link) === 1) {
+            return $link;
+        }
+
+        return url(ltrim($link, '/'));
+    }
+}

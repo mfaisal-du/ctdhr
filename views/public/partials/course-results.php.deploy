@@ -1,0 +1,112 @@
+<?php declare(strict_types=1);
+
+/** @var array<int, array<string, mixed>> $courses */
+/** @var array<string, mixed> $pagination */
+/** @var array<string, string> $filters */
+$courses = $courses ?? [];
+$pagination = $pagination ?? ['page' => 1, 'pages' => 1, 'total' => 0];
+$filters = $filters ?? [];
+
+$queryBase = array_filter([
+    'category' => $filters['category_slug'] ?? '',
+    'status' => $filters['status'] ?? '',
+    'audience' => $filters['audience'] ?? '',
+    'language' => $filters['language'] ?? '',
+    'q' => $filters['search'] ?? '',
+], static fn ($v) => $v !== '');
+
+$buildUrl = static function (int $page) use ($queryBase): string {
+    $query = array_merge($queryBase, ['page' => $page]);
+
+    return url('courses') . '?' . http_build_query($query);
+};
+?>
+<div class="courses-results-header">
+    <div>
+        <h2 class="courses-results-title"><?= e(lang('courses')) ?></h2>
+        <p class="courses-results-count">
+            <?= e(lang('showing_results', [
+                'count' => count($courses),
+                'total' => (int) ($pagination['total'] ?? 0),
+            ])) ?>
+        </p>
+    </div>
+    <?php if (!empty(array_filter($filters))): ?>
+    <a href="<?= e(url('courses')) ?>"
+       class="courses-results-clear"
+       hx-get="<?= e(url('courses')) ?>"
+       hx-target="#course-results"
+       hx-push-url="true">
+        <span class="material-symbols-outlined text-[16px]">filter_alt_off</span>
+        <?= e(lang('clear_filters')) ?>
+    </a>
+    <?php endif; ?>
+</div>
+
+<?php if (empty($courses)): ?>
+<div class="courses-empty-state">
+    <span class="material-symbols-outlined text-[48px] text-primary/30">menu_book</span>
+    <h3 class="font-headline-sm text-primary"><?= e(lang('no_courses')) ?></h3>
+    <?php if (!empty($filters['category_slug']) && !empty($filters['category_name'])): ?>
+    <p class="font-body-sm text-on-surface-variant"><?= e(lang('category_empty_filter', ['category' => (string) $filters['category_name']])) ?></p>
+    <?php else: ?>
+    <p class="font-body-sm text-on-surface-variant"><?= e(lang('featured_courses_subtitle')) ?></p>
+    <?php endif; ?>
+    <?php if (!empty(array_filter($filters))): ?>
+    <a href="<?= e(url('courses')) ?>"
+       class="btn-outline mt-unit-sm"
+       hx-get="<?= e(url('courses')) ?>"
+       hx-target="#course-results"
+       hx-push-url="true">
+        <?= e(lang('clear_filters')) ?>
+    </a>
+    <?php endif; ?>
+</div>
+<?php else: ?>
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-unit-lg" data-stagger="80">
+    <?php foreach ($courses as $i => $course):
+        $cardIndex = $i;
+        require view_path('layouts/components/course-card.php');
+    endforeach; ?>
+</div>
+
+<?php if (($pagination['pages'] ?? 1) > 1): ?>
+<nav class="courses-pagination" aria-label="Pagination">
+    <?php $currentPage = (int) ($pagination['page'] ?? 1); ?>
+    <?php $totalPages = (int) ($pagination['pages'] ?? 1); ?>
+
+    <?php if ($currentPage > 1): ?>
+    <a href="<?= e($buildUrl($currentPage - 1)) ?>"
+       class="courses-pagination-btn"
+       hx-get="<?= e($buildUrl($currentPage - 1)) ?>"
+       hx-target="#course-results"
+       hx-push-url="true"
+       aria-label="Previous page">
+        <span class="material-symbols-outlined">chevron_left</span>
+    </a>
+    <?php endif; ?>
+
+    <?php for ($p = max(1, $currentPage - 2); $p <= min($totalPages, $currentPage + 2); $p++): ?>
+    <a href="<?= e($buildUrl($p)) ?>"
+       class="courses-pagination-page <?= $p === $currentPage ? 'is-active' : '' ?>"
+       hx-get="<?= e($buildUrl($p)) ?>"
+       hx-target="#course-results"
+       hx-push-url="true"
+       <?= $p === $currentPage ? 'aria-current="page"' : '' ?>>
+        <?= $p ?>
+    </a>
+    <?php endfor; ?>
+
+    <?php if ($currentPage < $totalPages): ?>
+    <a href="<?= e($buildUrl($currentPage + 1)) ?>"
+       class="courses-pagination-btn"
+       hx-get="<?= e($buildUrl($currentPage + 1)) ?>"
+       hx-target="#course-results"
+       hx-push-url="true"
+       aria-label="Next page">
+        <span class="material-symbols-outlined">chevron_right</span>
+    </a>
+    <?php endif; ?>
+</nav>
+<?php endif; ?>
+<?php endif; ?>

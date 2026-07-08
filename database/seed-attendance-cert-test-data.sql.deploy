@@ -1,0 +1,77 @@
+-- Repair and seed attendance / certificate demo data
+USE ctdhr_portal;
+
+-- Remove invalid placeholder sessions
+DELETE FROM attendance WHERE session_date IN ('0000-00-00', '');
+
+-- Course 4 sessions (Digital Tools — completed)
+SET @s1 = 'Session 1 | LMS Foundations — Course setup, content organisation, and student access';
+SET @s2 = 'Session 2 | Interactive Teaching — Polls, boards, and collaborative activities';
+SET @s3 = 'Session 3 | Digital Assessment — Rubrics, analytics, and continuous improvement';
+
+-- Salma (2): all present — eligible
+INSERT INTO attendance (user_id, course_id, session_date, is_present, attendance_status, marked_by, marked_at)
+VALUES
+(2, 4, @s1, 1, 'present', 1, NOW()),
+(2, 4, @s2, 1, 'present', 1, NOW()),
+(2, 4, @s3, 1, 'present', 1, NOW())
+ON DUPLICATE KEY UPDATE is_present = VALUES(is_present), attendance_status = VALUES(attendance_status), marked_by = 1, marked_at = NOW();
+
+-- Khalid (3): mixed — at risk
+INSERT INTO attendance (user_id, course_id, session_date, is_present, attendance_status, marked_by, marked_at)
+VALUES
+(3, 4, @s1, 1, 'present', 1, NOW()),
+(3, 4, @s2, 0, 'absent', 1, NOW()),
+(3, 4, @s3, 1, 'present', 1, NOW())
+ON DUPLICATE KEY UPDATE is_present = VALUES(is_present), attendance_status = VALUES(attendance_status), marked_by = 1, marked_at = NOW();
+
+-- Fatima (6): present + excused — eligible
+INSERT INTO attendance (user_id, course_id, session_date, is_present, attendance_status, marked_by, marked_at)
+VALUES
+(6, 4, @s1, 1, 'present', 1, NOW()),
+(6, 4, @s2, 1, 'present', 1, NOW()),
+(6, 4, @s3, 0, 'excused', 1, NOW())
+ON DUPLICATE KEY UPDATE is_present = VALUES(is_present), attendance_status = VALUES(attendance_status), marked_by = 1, marked_at = NOW();
+
+-- Remove legacy date-key duplicates for course 4
+DELETE FROM attendance
+WHERE course_id = 4
+  AND session_date IN ('2026-06-03', '2026-06-06');
+
+-- Course 6 — approve test participants
+INSERT INTO course_applications (user_id, course_id, status, applied_at, reviewed_at)
+SELECT 2, 6, 'approved', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM course_applications WHERE user_id = 2 AND course_id = 6);
+
+INSERT INTO course_applications (user_id, course_id, status, applied_at, reviewed_at)
+SELECT 3, 6, 'approved', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM course_applications WHERE user_id = 3 AND course_id = 6);
+
+INSERT INTO course_applications (user_id, course_id, status, applied_at, reviewed_at)
+SELECT 4, 6, 'approved', NOW(), NOW()
+WHERE NOT EXISTS (SELECT 1 FROM course_applications WHERE user_id = 4 AND course_id = 6);
+
+UPDATE course_applications SET status = 'approved', reviewed_at = NOW()
+WHERE course_id = 6 AND user_id IN (2, 3, 4) AND status <> 'approved';
+
+SET @w1 = 'Week 1 | Research Design — Questions, frameworks, and feasibility';
+SET @w2 = 'Week 2 | Ethics & Data — Consent, collection, and quality assurance';
+
+INSERT INTO attendance (user_id, course_id, session_date, is_present, attendance_status, marked_by, marked_at)
+VALUES
+(2, 6, @w1, 1, 'present', 1, NOW()),
+(2, 6, @w2, 1, 'present', 1, NOW()),
+(3, 6, @w1, 1, 'present', 1, NOW()),
+(3, 6, @w2, 0, 'absent', 1, NOW()),
+(4, 6, @w1, 1, 'present', 1, NOW()),
+(4, 6, @w2, 1, 'present', 1, NOW())
+ON DUPLICATE KEY UPDATE is_present = VALUES(is_present), attendance_status = VALUES(attendance_status), marked_by = 1, marked_at = NOW();
+
+-- Reset demo certificates for resend / bulk-email testing
+UPDATE certificates
+SET is_emailed = 0,
+    emailed_at = NULL,
+    last_email_log_id = NULL,
+    revoked_at = NULL,
+    revoke_reason = NULL
+WHERE cert_number LIKE 'CTDHR-2026-DEMO%';

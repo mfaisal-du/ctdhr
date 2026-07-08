@@ -1,0 +1,567 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
+use CTDHR\Models\Attendance;
+use CTDHR\Models\Certificate;
+use CTDHR\Models\CertificateTemplate;
+use CTDHR\Models\CourseAdmin;
+use CTDHR\Models\EmailLog;
+use CTDHR\Models\Setting;
+use PDO;
+use TCPDF;
+
+final class CertificateService
+{
+    private Setting $settings;
+    private AuditService $audit;
+
+    public function __construct()
+    {
+        $this->settings = new Setting();
+        $this->audit = new AuditService();
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     * @param array<string, mixed> $course
+     * @param array<string, mixed> $template
+     * @return array{success: bool, certificate_id?: int, message_key?: string}
+     */
+    public function generate(array $user, array $course, array $template, int $generatedBy, ?int $reissuedFromId = null): array
+    {
+        $userId = (int) $user['id'];
+        $courseId = (int) $course['id'];
+
+        if (Certificate::existsForUserCourse($userId, $courseId)) {
+            return ['success' => false, 'message_key' => 'cert_already_exists'];
+        }
+
+        $threshold = $this->settings->getInt('attendance_threshold', 75);
+        $rate = Attendance::getAttendanceRate($userId, $courseId);
+        if ($rate < $threshold) {
+            return ['success' => false, 'message_key' => 'cert_attendance_insufficient'];
+        }
+
+        $prefix = $this->settings->get('certificate_prefix', 'CTDHR') ?? 'CTDHR';
+        $certNumber = Certificate::generateCertNumber($prefix);
+        $token = bin2hex(random_bytes(32));
+        $verifyUrl = url('verify/' . $token);
+
+        $qrDir = CTDHR_UPLOADS_CERTIFICATES . '/qr';
+        if (!is_dir($qrDir)) {
+            mkdir($qrDir, 0755, true);
+        }
+
+        $qrPath = 'uploads/certificates/qr/' . $token . '.png';
+        $qrFullPath = CTDHR_PUBLIC . '/assets/' . $qrPath;
+
+        $options = new QROptions([
+            'outputType' => QRCode::OUTPUT_IMAGE_PNG,
+            'scale' => 5,
+            'imageBase64' => false,
+        ]);
+        (new QRCode($options))->render($verifyUrl, $qrFullPath);
+
+        $pdfDir = CTDHR_UPLOADS_CERTIFICATES . '/pdf';
+        if (!is_dir($pdfDir)) {
+            mkdir($pdfDir, 0755, true);
+        }
+
+        $pdfFilename = $certNumber . '.pdf';
+        $pdfPath = 'uploads/certificates/pdf/' . $pdfFilename;
+        $pdfFullPath = CTDHR_PUBLIC . '/assets/' . $pdfPath;
+
+        $this->buildPdf($template, [
+            'participant_name' => $user['full_name_en'] ?? $user['username'],
+            'participant_name_ar' => $user['full_name_ar'] ?? '',
+            'course_title' => $course['title_en'],
+            'course_title_ar' => $course['title_ar'] ?? '',
+            'cert_number' => $certNumber,
+            'completion_date' => $course['end_date'] ?? date('Y-m-d'),
+            'duration_hours' => $course['duration_hours'] ?? '',
+            'verify_url' => $verifyUrl,
+        ], $qrFullPath, $pdfFullPath);
+
+        $certId = Certificate::create([
+            'user_id' => $userId,
+            'course_id' => $courseId,
+            'template_id' => (int) $template['id'],
+            'cert_number' => $certNumber,
+            'pdf_path' => $pdfPath,
+            'qr_code_path' => $qrPath,
+            'verification_token' => $token,
+            'participant_name_en' => $user['full_name_en'] ?? $user['username'],
+            'participant_name_ar' => $user['full_name_ar'] ?? null,
+            'course_title_en' => $course['title_en'],
+            'course_title_ar' => $course['title_ar'] ?? null,
+            'completion_date' => $course['end_date'] ?? date('Y-m-d'),
+            'duration_hours' => $course['duration_hours'] ?? null,
+            'valid_until' => $this->computeValidUntil((string) ($course['end_date'] ?? date('Y-m-d'))),
+            'reissued_from_id' => $reissuedFromId,
+            'generated_by' => $generatedBy,
+        ]);
+
+        $this->audit->log('certificate.generate', 'certificate', $certId, [
+            'user_id' => $userId,
+            'course_id' => $courseId,
+            'cert_number' => $certNumber,
+        ]);
+
+        return ['success' => true, 'certificate_id' => $certId];
+    }
+
+    /**
+     * Regenerate a certificate PDF (and QR code) from an existing database record.
+     *
+     * @param array<string, mixed> $cert
+     */
+    public function regeneratePdfForRecord(array $cert, ?array $template = null): bool
+    {
+        $certId = (int) ($cert['id'] ?? 0);
+        $token = trim((string) ($cert['verification_token'] ?? ''));
+        if ($token === '') {
+            return false;
+        }
+
+        if ($template === null) {
+            $templateId = (int) ($cert['template_id'] ?? 0);
+            $template = $templateId > 0 ? CertificateTemplate::findById($templateId) : null;
+            $template = $template ?? $this->getDefaultTemplate();
+        }
+
+        if ($template === null) {
+            return false;
+        }
+
+        $verifyUrl = url('verify/' . $token);
+        $qrPath = 'uploads/certificates/qr/' . $token . '.png';
+        $qrFullPath = CTDHR_PUBLIC . '/assets/' . $qrPath;
+        $qrDir = dirname($qrFullPath);
+        if (!is_dir($qrDir)) {
+            mkdir($qrDir, 0755, true);
+        }
+
+        $options = new QROptions([
+            'outputType' => QRCode::OUTPUT_IMAGE_PNG,
+            'scale' => 5,
+            'imageBase64' => false,
+        ]);
+        (new QRCode($options))->render($verifyUrl, $qrFullPath);
+
+        $certNumber = (string) ($cert['cert_number'] ?? 'certificate');
+        $pdfRelative = normalize_certificate_relative_path((string) ($cert['pdf_path'] ?? ''));
+        if ($pdfRelative === '') {
+            $pdfRelative = 'uploads/certificates/demo/' . $certNumber . '.pdf';
+        }
+
+        $pdfFullPath = CTDHR_PUBLIC . '/assets/' . $pdfRelative;
+        $completionRaw = (string) ($cert['completion_date'] ?? '');
+        $completionFormatted = $completionRaw !== '' ? format_date($completionRaw) : date('F j, Y');
+        $duration = (string) ($cert['duration_hours'] ?? '');
+        if ($duration !== '' && !str_contains($duration, 'hour')) {
+            $duration = rtrim(rtrim($duration, '0'), '.');
+        }
+
+        $this->buildPdf($template, [
+            'participant_name' => (string) ($cert['participant_name_en'] ?? ''),
+            'participant_name_ar' => (string) ($cert['participant_name_ar'] ?? ''),
+            'course_title' => (string) ($cert['course_title_en'] ?? ''),
+            'course_title_ar' => (string) ($cert['course_title_ar'] ?? ''),
+            'cert_number' => $certNumber,
+            'completion_date' => $completionFormatted,
+            'duration_hours' => $duration,
+            'verify_url' => $verifyUrl,
+        ], $qrFullPath, $pdfFullPath);
+
+        if ($certId > 0) {
+            Certificate::updateGeneratedAssets($certId, $pdfRelative, $qrPath);
+        }
+
+        return is_file($pdfFullPath) || is_file(preg_replace('/\.pdf$/i', '.tmp', $pdfFullPath) ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function buildPdf(array $template, array $data, string $qrImagePath, string $outputPath): void
+    {
+        $width = (int) ($template['page_width'] ?? 297);
+        $height = (int) ($template['page_height'] ?? 210);
+        $orientation = $width > $height ? 'L' : 'P';
+
+        $pdf = new TCPDF($orientation, 'mm', [$width, $height], true, 'UTF-8', false);
+        $pdf->SetCreator('CTDHR Portal');
+        $pdf->SetAuthor('CTDHR - Dhofar University');
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(0, 0, 0);
+        $pdf->SetAutoPageBreak(false);
+        $pdf->AddPage();
+
+        $bgPath = (string) ($template['background_path'] ?? '');
+        if ($bgPath !== '') {
+            $fullBg = str_starts_with($bgPath, CTDHR_ROOT)
+                ? $bgPath
+                : CTDHR_PUBLIC . '/assets/' . ltrim($bgPath, '/');
+            if (file_exists($fullBg)) {
+                $pdf->Image($fullBg, 0, 0, $width, $height, '', '', '', false, 300);
+            }
+        }
+
+        $this->renderCertificateHeader($pdf, $width);
+
+        $mappings = json_decode((string) ($template['field_mappings'] ?? '{}'), true);
+        if (!is_array($mappings)) {
+            $mappings = [];
+        }
+
+        $defaultMappings = [
+            'participant_name' => ['x' => 0, 'y' => 82, 'size' => 22, 'field' => 'participant_name', 'align' => 'C', 'width' => $width],
+            'awarded_line' => ['x' => 0, 'y' => 108, 'size' => 11, 'text' => 'has successfully completed', 'align' => 'C', 'width' => $width, 'style' => ''],
+            'course_title' => ['x' => 0, 'y' => 120, 'size' => 16, 'field' => 'course_title', 'align' => 'C', 'width' => $width],
+            'duration_hours' => ['x' => 0, 'y' => 138, 'size' => 10, 'field' => 'duration_hours', 'prefix' => 'Duration: ', 'suffix' => ' hours', 'align' => 'C', 'width' => $width, 'style' => ''],
+            'completion_date' => ['x' => 0, 'y' => 152, 'size' => 10, 'field' => 'completion_date', 'prefix' => 'Completion Date: ', 'align' => 'C', 'width' => $width, 'style' => ''],
+            'cert_number' => ['x' => 0, 'y' => 168, 'size' => 10, 'field' => 'cert_number', 'prefix' => 'Certificate No: ', 'align' => 'C', 'width' => $width, 'style' => ''],
+            'qr_code' => ['x' => $width - 48, 'y' => $height - 56, 'size' => 40, 'type' => 'qr'],
+        ];
+
+        $fields = $mappings !== [] ? $mappings : $defaultMappings;
+        $hasQrMapping = false;
+
+        foreach ($fields as $key => $config) {
+            if ($key === 'qr_code' || ($config['type'] ?? '') === 'qr') {
+                $hasQrMapping = true;
+                if (file_exists($qrImagePath)) {
+                    $size = (float) ($config['size'] ?? 40);
+                    $pdf->Image(
+                        $qrImagePath,
+                        (float) ($config['x'] ?? $width - 48),
+                        (float) ($config['y'] ?? $height - 56),
+                        $size,
+                        $size
+                    );
+                }
+                continue;
+            }
+
+            $fieldKey = $config['field'] ?? $key;
+            $text = array_key_exists('text', $config)
+                ? (string) $config['text']
+                : (string) ($data[$fieldKey] ?? '');
+
+            if ($text === '' && $fieldKey !== '') {
+                continue;
+            }
+
+            $prefix = (string) ($config['prefix'] ?? '');
+            $suffix = (string) ($config['suffix'] ?? '');
+            $renderText = $prefix . $text . $suffix;
+            if (trim($renderText) === '') {
+                continue;
+            }
+
+            $style = (string) ($config['style'] ?? 'B');
+            $pdf->SetFont('dejavusans', $style, (int) ($config['size'] ?? 14));
+            $pdf->SetTextColor(30, 34, 90);
+            $pdf->SetXY((float) ($config['x'] ?? 30), (float) ($config['y'] ?? 90));
+            $cellWidth = (float) ($config['width'] ?? 0);
+            if ($cellWidth > 0) {
+                $pdf->Cell($cellWidth, 8, $renderText, 0, 1, (string) ($config['align'] ?? 'L'));
+            } else {
+                $pdf->Cell(0, 8, $renderText, 0, 1, (string) ($config['align'] ?? 'L'));
+            }
+        }
+
+        if (!$hasQrMapping && file_exists($qrImagePath)) {
+            $pdf->Image($qrImagePath, $width - 48, $height - 56, 40, 40);
+        }
+
+        if (file_exists($qrImagePath)) {
+            $pdf->SetFont('dejavusans', '', 7);
+            $pdf->SetTextColor(90, 100, 120);
+            $pdf->SetXY($width - 48, $height - 14);
+            $pdf->Cell(40, 4, 'Scan to verify authenticity', 0, 0, 'C');
+        }
+
+        $this->writePdfOutput($pdf, $outputPath);
+    }
+
+    private function renderCertificateHeader(TCPDF $pdf, int $width): void
+    {
+        $pdf->SetFont('dejavusans', 'B', 26);
+        $pdf->SetTextColor(30, 65, 148);
+        $pdf->SetXY(0, 28);
+        $pdf->Cell($width, 12, 'Certificate of Completion', 0, 1, 'C');
+
+        $pdf->SetFont('dejavusans', '', 11);
+        $pdf->SetTextColor(90, 100, 120);
+        $pdf->SetXY(0, 44);
+        $pdf->Cell($width, 6, 'Center for Training & Development in Human Resources', 0, 1, 'C');
+        $pdf->SetXY(0, 51);
+        $pdf->Cell($width, 6, 'Dhofar University', 0, 1, 'C');
+
+        $pdf->SetFont('dejavusans', '', 11);
+        $pdf->SetTextColor(60, 70, 100);
+        $pdf->SetXY(0, 66);
+        $pdf->Cell($width, 6, 'This is to certify that', 0, 1, 'C');
+    }
+
+    private function writePdfOutput(TCPDF $pdf, string $outputPath): void
+    {
+        $dir = dirname($outputPath);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $pdf->Output($outputPath, 'F');
+        if (is_file($outputPath)) {
+            return;
+        }
+
+        $tmpPath = preg_replace('/\.pdf$/i', '.tmp', $outputPath);
+        if (is_string($tmpPath) && $tmpPath !== $outputPath) {
+            $pdf->Output($tmpPath, 'F');
+        }
+    }
+
+    /**
+     * @return array{success: bool, log_id?: int, error?: string}
+     */
+    public function emailCertificateWithLog(int $certificateId, EmailService $emailService): array
+    {
+        $cert = Certificate::findById($certificateId);
+        if ($cert === null || !Certificate::isActive($cert)) {
+            return ['success' => false, 'error' => 'not_found'];
+        }
+
+        $locale = current_locale();
+        $name = (string) ($cert['participant_name_en'] ?? '');
+        $downloadUrl = certificate_pdf_url((string) $cert['pdf_path'], (int) ($cert['id'] ?? 0));
+        $courseTitle = localized($cert, 'course_title');
+
+        $subjectTpl = $locale === 'ar'
+            ? ($this->settings->get('cert_email_subject_ar') ?? 'شهادتك التدريبية - CTDHR')
+            : ($this->settings->get('cert_email_subject_en') ?? 'Your Training Certificate - CTDHR');
+        $bodyTpl = $locale === 'ar'
+            ? ($this->settings->get('cert_email_body_ar') ?? '')
+            : ($this->settings->get('cert_email_body_en') ?? '');
+
+        $replacements = [
+            ':name' => $name,
+            ':cert_number' => (string) ($cert['cert_number'] ?? ''),
+            ':download_url' => $downloadUrl,
+            ':course_title' => $courseTitle,
+        ];
+        $subject = str_replace(array_keys($replacements), array_values($replacements), (string) $subjectTpl);
+        $html = str_replace(array_keys($replacements), array_values($replacements), (string) $bodyTpl);
+        if (trim(strip_tags($html)) === '') {
+            $html = $locale === 'ar'
+                ? "<p>مرحباً {$name}،</p><p>شهادتك رقم {$cert['cert_number']} جاهزة.</p><p><a href=\"{$downloadUrl}\">تحميل الشهادة</a></p>"
+                : "<p>Hello {$name},</p><p>Your certificate #{$cert['cert_number']} is ready.</p><p><a href=\"{$downloadUrl}\">Download Certificate</a></p>";
+        }
+
+        $userEmail = $this->getUserEmail((int) $cert['user_id']);
+        if ($userEmail === null) {
+            return ['success' => false, 'error' => 'no_email'];
+        }
+
+        $logId = EmailLog::create([
+            'recipient_email' => $userEmail,
+            'recipient_name' => $name,
+            'subject_en' => $subject,
+            'subject_ar' => $subject,
+            'template_type' => 'certificate',
+            'course_id' => (int) ($cert['course_id'] ?? 0),
+            'user_id' => (int) ($cert['user_id'] ?? 0),
+            'status' => 'pending',
+        ]);
+
+        $sent = $emailService->send($userEmail, $name, $subject, $html);
+        if ($sent) {
+            EmailLog::markSent($logId);
+            Certificate::markEmailed($certificateId);
+            Certificate::linkEmailLog($certificateId, $logId);
+            $this->audit->log('certificate.email', 'certificate', $certificateId, ['log_id' => $logId]);
+
+            return ['success' => true, 'log_id' => $logId];
+        }
+
+        EmailLog::markFailed($logId, 'send_failed');
+        Certificate::linkEmailLog($certificateId, $logId);
+
+        return ['success' => false, 'log_id' => $logId, 'error' => 'send_failed'];
+    }
+
+    public function emailCertificate(int $certificateId, EmailService $emailService): bool
+    {
+        return $this->emailCertificateWithLog($certificateId, $emailService)['success'];
+    }
+
+    /**
+     * @return array{success: int, failed: int, skipped: int}
+     */
+    public function bulkEmailCertificates(array $certificateIds, EmailService $emailService): array
+    {
+        $delay = max(1, min(30, $this->settings->getInt('bulk_email_delay_seconds', 3)));
+        $success = 0;
+        $failed = 0;
+        $skipped = 0;
+
+        foreach (array_values(array_unique(array_map('intval', $certificateIds))) as $index => $certId) {
+            if ($certId <= 0) {
+                continue;
+            }
+            if ($index > 0) {
+                sleep($delay);
+            }
+            $cert = Certificate::findById($certId);
+            if ($cert === null || !Certificate::isActive($cert)) {
+                $skipped++;
+                continue;
+            }
+            $result = $this->emailCertificateWithLog($certId, $emailService);
+            if ($result['success']) {
+                $success++;
+            } else {
+                $failed++;
+            }
+        }
+
+        return ['success' => $success, 'failed' => $failed, 'skipped' => $skipped];
+    }
+
+    /**
+     * @return array{success: bool, certificate_id?: int, message_key?: string}
+     */
+    public function reissue(int $certificateId, int $generatedBy): array
+    {
+        $cert = Certificate::findById($certificateId);
+        if ($cert === null || !Certificate::isActive($cert)) {
+            return ['success' => false, 'message_key' => 'not_found'];
+        }
+
+        $db = \CTDHR\Config\Database::getInstance();
+        $stmt = $db->prepare('SELECT * FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => (int) $cert['user_id']]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        $course = CourseAdmin::findById((int) $cert['course_id']);
+        $template = CertificateTemplate::findById((int) $cert['template_id']) ?? $this->getDefaultTemplate();
+
+        if (!$user || $course === null || $template === null) {
+            return ['success' => false, 'message_key' => 'not_found'];
+        }
+
+        Certificate::revoke($certificateId, lang('cert_reissue_reason'));
+        $result = $this->generate($user, $course, $template, $generatedBy, $certificateId);
+        if ($result['success']) {
+            $this->audit->log('certificate.reissue', 'certificate', (int) ($result['certificate_id'] ?? 0), [
+                'from_id' => $certificateId,
+            ]);
+        }
+
+        return $result;
+    }
+
+    public function revoke(int $certificateId, string $reason): bool
+    {
+        if (!Certificate::revoke($certificateId, $reason)) {
+            return false;
+        }
+        $this->audit->log('certificate.revoke', 'certificate', $certificateId, ['reason' => $reason]);
+
+        return true;
+    }
+
+    /**
+     * @return array{success: int, failed: int, skipped: int}
+     */
+    public function autoGenerateForCourse(int $courseId, int $generatedBy): array
+    {
+        if (!$this->settings->getBool('certificate_auto_generate', false)) {
+            return ['success' => 0, 'failed' => 0, 'skipped' => 0];
+        }
+
+        $course = CourseAdmin::findById($courseId);
+        if ($course === null || (string) ($course['status'] ?? '') !== 'completed') {
+            return ['success' => 0, 'failed' => 0, 'skipped' => 0];
+        }
+
+        $template = $this->getDefaultTemplate();
+        if ($template === null) {
+            return ['success' => 0, 'failed' => 0, 'skipped' => 0];
+        }
+
+        $db = \CTDHR\Config\Database::getInstance();
+        $success = 0;
+        $failed = 0;
+        $skipped = 0;
+
+        foreach (Attendance::getApprovedParticipants($courseId) as $participant) {
+            $userId = (int) $participant['id'];
+            if (Certificate::existsForUserCourse($userId, $courseId)) {
+                $skipped++;
+                continue;
+            }
+            $stmt = $db->prepare('SELECT * FROM users WHERE id = :id LIMIT 1');
+            $stmt->execute(['id' => $userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$user) {
+                $failed++;
+                continue;
+            }
+            $result = $this->generate($user, $course, $template, $generatedBy);
+            if ($result['success']) {
+                $success++;
+            } else {
+                $failed++;
+            }
+        }
+
+        if ($success > 0) {
+            $this->audit->log('certificate.auto_generate', 'course', $courseId, [
+                'success' => $success,
+                'failed' => $failed,
+                'skipped' => $skipped,
+            ]);
+        }
+
+        return ['success' => $success, 'failed' => $failed, 'skipped' => $skipped];
+    }
+
+    private function computeValidUntil(string $completionDate): ?string
+    {
+        $months = $this->settings->getInt('certificate_validity_months', 0);
+        if ($months <= 0) {
+            return null;
+        }
+        $ts = strtotime($completionDate);
+        if ($ts === false) {
+            return null;
+        }
+
+        return date('Y-m-d', strtotime('+' . $months . ' months', $ts));
+    }
+
+    private function getUserEmail(int $userId): ?string
+    {
+        $db = \CTDHR\Config\Database::getInstance();
+        $stmt = $db->prepare('SELECT email FROM users WHERE id = :id LIMIT 1');
+        $stmt->execute(['id' => $userId]);
+        $row = $stmt->fetch();
+
+        return $row ? (string) $row['email'] : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getDefaultTemplate(): ?array
+    {
+        return CertificateTemplate::getDefault();
+    }
+}

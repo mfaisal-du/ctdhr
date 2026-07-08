@@ -1,0 +1,481 @@
+<?php declare(strict_types=1);
+
+$s = $settings ?? [];
+$ldapConfig = $ldapConfig ?? [];
+$tab = $activeTab ?? 'general';
+$tabs = ['general', 'smtp', 'ldap', 'attendance', 'language', 'security'];
+$tabIcons = [
+    'general' => 'tune',
+    'smtp' => 'mail',
+    'ldap' => 'group',
+    'attendance' => 'fact_check',
+    'language' => 'translate',
+    'security' => 'shield',
+];
+
+$ldapEnabled = ($s['ldap_enabled'] ?? 'false') === 'true';
+$maintenanceOn = ($s['maintenance_mode'] ?? 'false') === 'true';
+$defaultLocale = ($s['default_locale'] ?? 'en') === 'ar' ? lang('arabic') : lang('english');
+$attendanceThreshold = (string) ($s['attendance_threshold'] ?? '75');
+$certAutoGenerate = ($s['certificate_auto_generate'] ?? 'false') === 'true';
+$certValidityMonths = (string) ($s['certificate_validity_months'] ?? '0');
+$bulkEmailDelay = (string) ($s['bulk_email_delay_seconds'] ?? '3');
+$certEmailSubjectEn = (string) ($s['cert_email_subject_en'] ?? '');
+$certEmailSubjectAr = arabic_display_value((string) ($s['cert_email_subject_ar'] ?? ''), $certEmailSubjectEn);
+$certEmailBodyEn = (string) ($s['cert_email_body_en'] ?? '');
+$certEmailBodyAr = arabic_display_value((string) ($s['cert_email_body_ar'] ?? ''), $certEmailBodyEn);
+$siteNameAr = arabic_display_value((string) ($s['site_name_ar'] ?? ''), (string) ($s['site_name_en'] ?? ''));
+$maintenanceMessageAr = arabic_display_value((string) ($s['maintenance_message_ar'] ?? ''), (string) ($s['maintenance_message_en'] ?? ''));
+
+$tabSections = [
+    'general' => ['class' => 'general', 'icon' => 'tune', 'desc' => lang('settings_general_desc')],
+    'smtp' => ['class' => 'smtp', 'icon' => 'mail', 'desc' => lang('settings_smtp_desc')],
+    'ldap' => ['class' => 'ldap', 'icon' => 'group', 'desc' => lang('settings_ldap_desc')],
+    'attendance' => ['class' => 'attendance', 'icon' => 'fact_check', 'desc' => lang('settings_attendance_desc')],
+    'language' => ['class' => 'language', 'icon' => 'translate', 'desc' => lang('settings_language_desc')],
+    'security' => ['class' => 'security', 'icon' => 'shield', 'desc' => lang('settings_security_desc')],
+];
+$activeSection = $tabSections[$tab] ?? $tabSections['general'];
+?>
+
+<div class="admin-module-page admin-module-page--form">
+<?php
+admin_page_header([
+    'icon' => 'settings',
+    'title' => lang('settings'),
+    'subtitle' => lang('settings_subtitle') ?? lang('settings'),
+    'accent' => 'primary',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('settings')],
+    ],
+]);
+?>
+
+<div class="courses-kpi-grid">
+    <?php foreach ([
+        ['blue', 'group', lang('settings_kpi_ldap'), $ldapEnabled ? lang('enabled') : lang('disabled')],
+        ['gold', 'construction', lang('settings_kpi_maintenance'), $maintenanceOn ? lang('on') : lang('off')],
+        ['sky', 'translate', lang('settings_kpi_locale'), $defaultLocale],
+        ['green', 'percent', lang('settings_kpi_attendance'), $attendanceThreshold . '%'],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value courses-kpi-value--text"><?= e((string) $val) ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card courses-card--settings">
+    <nav class="courses-settings-tabs" aria-label="<?= e(lang('settings')) ?>">
+        <?php foreach ($tabs as $t): ?>
+        <a href="<?= e(url('admin/settings?tab=' . $t)) ?>"
+           class="courses-settings-tab<?= $tab === $t ? ' is-active' : '' ?>">
+            <span class="material-symbols-outlined" aria-hidden="true"><?= e($tabIcons[$t] ?? 'settings') ?></span>
+            <?= e(lang('settings_tab_' . $t)) ?>
+        </a>
+        <?php endforeach; ?>
+    </nav>
+
+    <div class="courses-settings-body">
+        <?php if ($tab === 'general'): ?>
+        <form method="POST" action="<?= e(url('admin/settings/general')) ?>" class="courses-form-card">
+            <?= csrf_field() ?>
+            <section class="courses-form-section courses-form-section--<?= e($activeSection['class']) ?>">
+                <header class="courses-form-section-head">
+                    <span class="courses-form-section-icon material-symbols-outlined"><?= e($activeSection['icon']) ?></span>
+                    <div>
+                        <h2><?= e(lang('settings_tab_general')) ?></h2>
+                        <p><?= e($activeSection['desc']) ?></p>
+                    </div>
+                </header>
+                <div class="courses-form-section-body">
+                    <div class="courses-form-grid courses-form-grid--single">
+                        <div class="courses-field">
+                            <label class="courses-label" for="site_name_en"><?= e(lang('site_name')) ?> (EN)</label>
+                            <input type="text" id="site_name_en" name="site_name_en" value="<?= e($s['site_name_en'] ?? '') ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="site_name_ar"><?= e(lang('site_name')) ?> (AR)</label>
+                            <input type="text" id="site_name_ar" name="site_name_ar" value="<?= e($siteNameAr) ?>" dir="rtl" class="courses-input">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="certificate_prefix"><?= e(lang('certificate_prefix')) ?></label>
+                            <input type="text" id="certificate_prefix" name="certificate_prefix" value="<?= e($s['certificate_prefix'] ?? 'CTDHR') ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="max_upload_size_mb"><?= e(lang('max_upload_mb')) ?></label>
+                            <input type="number" id="max_upload_size_mb" name="max_upload_size_mb" min="1" max="100" value="<?= e($s['max_upload_size_mb'] ?? '10') ?>" class="courses-input">
+                        </div>
+                        <label class="courses-toggle-card">
+                            <input type="checkbox" name="application_auto_approve" class="courses-checkbox" <?= ($s['application_auto_approve'] ?? '') === 'true' ? 'checked' : '' ?>>
+                            <span class="courses-toggle-card__text">
+                                <strong><?= e(lang('auto_approve_applications')) ?></strong>
+                                <span><?= e(lang('settings_auto_approve_desc')) ?></span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+            <div class="courses-form-action-bar">
+                <div></div>
+                <div class="courses-form-action-bar__actions">
+                    <button type="submit" class="courses-btn-save">
+                        <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                        <?= e(lang('save')) ?>
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <?php elseif ($tab === 'smtp'): ?>
+        <form method="POST" action="<?= e(url('admin/settings/smtp')) ?>" class="courses-form-card">
+            <?= csrf_field() ?>
+            <section class="courses-form-section courses-form-section--smtp">
+                <header class="courses-form-section-head">
+                    <span class="courses-form-section-icon material-symbols-outlined">mail</span>
+                    <div>
+                        <h2><?= e(lang('settings_tab_smtp')) ?></h2>
+                        <p><?= e($activeSection['desc']) ?></p>
+                    </div>
+                </header>
+                <div class="courses-form-section-body">
+                    <div class="courses-form-grid courses-form-grid--single">
+                        <div class="courses-field">
+                            <label class="courses-label" for="smtp_host"><?= e(lang('smtp_host')) ?></label>
+                            <input type="text" id="smtp_host" name="smtp_host" value="<?= e($s['smtp_host'] ?? '') ?>" class="courses-input" placeholder="smtp.example.com">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="smtp_port"><?= e(lang('smtp_port')) ?></label>
+                            <input type="number" id="smtp_port" name="smtp_port" value="<?= e($s['smtp_port'] ?? '587') ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="smtp_username"><?= e(lang('smtp_username')) ?></label>
+                            <input type="text" id="smtp_username" name="smtp_username" value="<?= e($s['smtp_username'] ?? '') ?>" class="courses-input" autocomplete="off">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="smtp_password"><?= e(lang('smtp_password')) ?></label>
+                            <input type="password" id="smtp_password" name="smtp_password" value="" class="courses-input" autocomplete="new-password" placeholder="<?= !empty($s['smtp_password']) ? '••••••••' : '' ?>">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="smtp_encryption"><?= e(lang('smtp_encryption')) ?></label>
+                            <div class="admin-select-wrap">
+                                <select id="smtp_encryption" name="smtp_encryption" class="admin-form-select">
+                                    <?php foreach (['tls', 'ssl', 'none'] as $enc): ?>
+                                    <option value="<?= e($enc) ?>" <?= ($s['smtp_encryption'] ?? 'tls') === $enc ? 'selected' : '' ?>><?= e(strtoupper($enc)) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="email_from"><?= e(lang('email_from')) ?></label>
+                            <input type="email" id="email_from" name="email_from" value="<?= e($s['email_from'] ?? '') ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="email_from_name"><?= e(lang('email_from_name')) ?></label>
+                            <input type="text" id="email_from_name" name="email_from_name" value="<?= e($s['email_from_name'] ?? '') ?>" class="courses-input">
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <div class="courses-form-action-bar">
+                <div></div>
+                <div class="courses-form-action-bar__actions">
+                    <button type="submit" class="courses-btn-save">
+                        <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                        <?= e(lang('save')) ?>
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <form method="POST" action="<?= e(url('admin/settings/smtp/test')) ?>" class="courses-test-panel">
+            <?= csrf_field() ?>
+            <h3>
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">science</span>
+                <?= e(lang('test_email')) ?>
+            </h3>
+            <p><?= e(lang('settings_smtp_test_desc')) ?></p>
+            <div class="courses-inline">
+                <input type="email" name="test_email" placeholder="<?= e(lang('test_email_address')) ?>" value="<?= e($_SESSION['user_email'] ?? '') ?>" required class="courses-input">
+                <button type="submit" class="courses-btn-save">
+                    <span class="material-symbols-outlined courses-btn-icon text-[18px]">send</span>
+                    <?= e(lang('send_test')) ?>
+                </button>
+            </div>
+        </form>
+
+        <?php elseif ($tab === 'ldap'): ?>
+        <form method="POST" action="<?= e(url('admin/settings/ldap')) ?>" class="courses-form-card">
+            <?= csrf_field() ?>
+            <section class="courses-form-section courses-form-section--ldap">
+                <header class="courses-form-section-head">
+                    <span class="courses-form-section-icon material-symbols-outlined">group</span>
+                    <div>
+                        <h2><?= e(lang('settings_tab_ldap')) ?></h2>
+                        <p><?= e($activeSection['desc']) ?></p>
+                    </div>
+                </header>
+                <div class="courses-form-section-body">
+                    <div class="courses-form-grid courses-form-grid--single">
+                        <label class="courses-toggle-card">
+                            <input type="checkbox" name="ldap_enabled" class="courses-checkbox" <?= $ldapEnabled ? 'checked' : '' ?>>
+                            <span class="courses-toggle-card__text">
+                                <strong><?= e(lang('ldap_enable')) ?></strong>
+                                <span><?= e(lang('ldap_enable_desc')) ?></span>
+                            </span>
+                        </label>
+                        <div class="courses-field">
+                            <label class="courses-label" for="ldap_host"><?= e(lang('ldap_host')) ?></label>
+                            <input type="text" id="ldap_host" name="ldap_host" value="<?= e($s['ldap_host'] ?? $ldapConfig['host'] ?? '') ?>" placeholder="ldap://du.edu.om" class="courses-input">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="ldap_port"><?= e(lang('ldap_port')) ?></label>
+                            <input type="number" id="ldap_port" name="ldap_port" value="<?= e($s['ldap_port'] ?? (string) ($ldapConfig['port'] ?? 389)) ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="ldap_base_dn"><?= e(lang('ldap_base_dn')) ?></label>
+                            <input type="text" id="ldap_base_dn" name="ldap_base_dn" value="<?= e($s['ldap_base_dn'] ?? $ldapConfig['base_dn'] ?? '') ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="ldap_bind_dn"><?= e(lang('ldap_bind_dn')) ?></label>
+                            <input type="text" id="ldap_bind_dn" name="ldap_bind_dn" value="<?= e($s['ldap_bind_dn'] ?? $ldapConfig['bind_dn'] ?? '') ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="ldap_bind_password"><?= e(lang('ldap_bind_password')) ?></label>
+                            <input type="password" id="ldap_bind_password" name="ldap_bind_password" value="<?= e($s['ldap_bind_password'] ?? '') ?>" class="courses-input" autocomplete="new-password">
+                        </div>
+                        <label class="courses-toggle-card courses-toggle-card--inline">
+                            <input type="checkbox" name="ldap_use_tls" class="courses-checkbox" <?= ($s['ldap_use_tls'] ?? 'false') === 'true' || !empty($ldapConfig['use_tls']) ? 'checked' : '' ?>>
+                            <span class="courses-toggle-card__text">
+                                <strong><?= e(lang('ldap_use_tls')) ?></strong>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+            <div class="courses-form-action-bar">
+                <div></div>
+                <div class="courses-form-action-bar__actions">
+                    <button type="submit" class="courses-btn-save">
+                        <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                        <?= e(lang('save')) ?>
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <form method="POST" action="<?= e(url('admin/settings/ldap/test')) ?>" class="courses-test-panel">
+            <?= csrf_field() ?>
+            <input type="hidden" name="ldap_enabled" value="1">
+            <input type="hidden" name="ldap_host" value="<?= e($s['ldap_host'] ?? $ldapConfig['host'] ?? '') ?>">
+            <input type="hidden" name="ldap_port" value="<?= e($s['ldap_port'] ?? (string) ($ldapConfig['port'] ?? 389)) ?>">
+            <input type="hidden" name="ldap_bind_dn" value="<?= e($s['ldap_bind_dn'] ?? $ldapConfig['bind_dn'] ?? '') ?>">
+            <h3>
+                <span class="material-symbols-outlined text-[20px]" aria-hidden="true">lan</span>
+                <?= e(lang('test_ldap_connection')) ?>
+            </h3>
+            <p><?= e(lang('test_ldap_desc')) ?></p>
+            <button type="submit" class="courses-btn-save">
+                <span class="material-symbols-outlined courses-btn-icon text-[18px]">network_check</span>
+                <?= e(lang('test_connection')) ?>
+            </button>
+        </form>
+
+        <?php elseif ($tab === 'attendance'): ?>
+        <form method="POST" action="<?= e(url('admin/settings/attendance')) ?>" class="courses-form-card">
+            <?= csrf_field() ?>
+            <section class="courses-form-section courses-form-section--attendance">
+                <header class="courses-form-section-head">
+                    <span class="courses-form-section-icon material-symbols-outlined">fact_check</span>
+                    <div>
+                        <h2><?= e(lang('settings_tab_attendance')) ?></h2>
+                        <p><?= e($activeSection['desc']) ?></p>
+                    </div>
+                </header>
+                <div class="courses-form-section-body">
+                    <div class="courses-form-grid courses-form-grid--single">
+                        <div class="courses-field courses-field--full" style="max-width:20rem">
+                            <label class="courses-label" for="attendance_threshold"><?= e(lang('attendance_threshold')) ?></label>
+                            <input type="number" id="attendance_threshold" name="attendance_threshold" min="0" max="100" value="<?= e($attendanceThreshold) ?>" class="courses-input">
+                            <p class="courses-field-hint"><?= e(lang('attendance_threshold_desc')) ?></p>
+                        </div>
+                        <div class="courses-field courses-field--full" style="max-width:20rem">
+                            <label class="courses-label" for="certificate_validity_months"><?= e(lang('certificate_validity_months')) ?></label>
+                            <input type="number" id="certificate_validity_months" name="certificate_validity_months" min="0" max="120" value="<?= e($certValidityMonths) ?>" class="courses-input">
+                            <p class="courses-field-hint"><?= e(lang('certificate_validity_months_desc')) ?></p>
+                        </div>
+                        <div class="courses-field courses-field--full" style="max-width:20rem">
+                            <label class="courses-label" for="bulk_email_delay_seconds"><?= e(lang('bulk_email_delay_seconds')) ?></label>
+                            <input type="number" id="bulk_email_delay_seconds" name="bulk_email_delay_seconds" min="1" max="30" value="<?= e($bulkEmailDelay) ?>" class="courses-input">
+                            <p class="courses-field-hint"><?= e(lang('bulk_email_delay_desc')) ?></p>
+                        </div>
+                        <label class="courses-check courses-field--full">
+                            <input type="checkbox" name="certificate_auto_generate" class="courses-checkbox"<?= $certAutoGenerate ? ' checked' : '' ?>>
+                            <span><?= e(lang('certificate_auto_generate')) ?></span>
+                        </label>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="cert_email_subject_en"><?= e(lang('cert_email_subject_en')) ?></label>
+                            <input type="text" id="cert_email_subject_en" name="cert_email_subject_en" value="<?= e($certEmailSubjectEn) ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="cert_email_subject_ar"><?= e(lang('cert_email_subject_ar')) ?></label>
+                            <input type="text" id="cert_email_subject_ar" name="cert_email_subject_ar" value="<?= e($certEmailSubjectAr) ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="cert_email_body_en"><?= e(lang('cert_email_body_en')) ?></label>
+                            <textarea id="cert_email_body_en" name="cert_email_body_en" rows="4" class="courses-input"><?= e($certEmailBodyEn) ?></textarea>
+                            <p class="courses-field-hint"><?= e(lang('cert_email_placeholders')) ?></p>
+                        </div>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="cert_email_body_ar"><?= e(lang('cert_email_body_ar')) ?></label>
+                            <textarea id="cert_email_body_ar" name="cert_email_body_ar" rows="4" class="courses-input"><?= e($certEmailBodyAr) ?></textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <div class="courses-form-action-bar">
+                <div></div>
+                <div class="courses-form-action-bar__actions">
+                    <button type="submit" class="courses-btn-save">
+                        <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                        <?= e(lang('save')) ?>
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <?php elseif ($tab === 'language'): ?>
+        <form method="POST" action="<?= e(url('admin/settings/language')) ?>" class="courses-form-card">
+            <?= csrf_field() ?>
+            <section class="courses-form-section courses-form-section--language">
+                <header class="courses-form-section-head">
+                    <span class="courses-form-section-icon material-symbols-outlined">translate</span>
+                    <div>
+                        <h2><?= e(lang('settings_tab_language')) ?></h2>
+                        <p><?= e($activeSection['desc']) ?></p>
+                    </div>
+                </header>
+                <div class="courses-form-section-body">
+                    <div class="courses-form-grid courses-form-grid--single">
+                        <div class="courses-field" style="max-width:20rem">
+                            <label class="courses-label" for="default_locale"><?= e(lang('default_locale')) ?></label>
+                            <div class="admin-select-wrap">
+                                <select id="default_locale" name="default_locale" class="admin-form-select">
+                                    <option value="en" <?= ($s['default_locale'] ?? 'en') === 'en' ? 'selected' : '' ?>><?= e(lang('english')) ?></option>
+                                    <option value="ar" <?= ($s['default_locale'] ?? '') === 'ar' ? 'selected' : '' ?>><?= e(lang('arabic')) ?></option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <div class="courses-form-action-bar">
+                <div></div>
+                <div class="courses-form-action-bar__actions">
+                    <button type="submit" class="courses-btn-save">
+                        <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                        <?= e(lang('save')) ?>
+                    </button>
+                </div>
+            </div>
+        </form>
+
+        <?php elseif ($tab === 'security'): ?>
+        <form method="POST" action="<?= e(url('admin/settings/security')) ?>" class="courses-form-card">
+            <?= csrf_field() ?>
+            <section class="courses-form-section courses-form-section--security-warn">
+                <header class="courses-form-section-head">
+                    <span class="courses-form-section-icon material-symbols-outlined">construction</span>
+                    <div>
+                        <h2><?= e(lang('maintenance_mode')) ?></h2>
+                        <p><?= e(lang('maintenance_mode_desc')) ?></p>
+                    </div>
+                </header>
+                <div class="courses-form-section-body">
+                    <div class="courses-form-grid courses-form-grid--single">
+                        <label class="courses-toggle-card courses-toggle-card--warn">
+                            <input type="checkbox" name="maintenance_mode" class="courses-checkbox" <?= $maintenanceOn ? 'checked' : '' ?>>
+                            <span class="courses-toggle-card__text">
+                                <strong><?= e(lang('maintenance_mode')) ?></strong>
+                                <span><?= e(lang('maintenance_mode_desc')) ?></span>
+                            </span>
+                        </label>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="maintenance_message_en"><?= e(lang('maintenance_message')) ?> (EN)</label>
+                            <textarea id="maintenance_message_en" name="maintenance_message_en" rows="2" class="courses-input courses-textarea"><?= e($s['maintenance_message_en'] ?? '') ?></textarea>
+                        </div>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="maintenance_message_ar"><?= e(lang('maintenance_message')) ?> (AR)</label>
+                            <textarea id="maintenance_message_ar" name="maintenance_message_ar" rows="2" dir="rtl" class="courses-input courses-textarea"><?= e($maintenanceMessageAr) ?></textarea>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="courses-form-section courses-form-section--security">
+                <header class="courses-form-section-head">
+                    <span class="courses-form-section-icon material-symbols-outlined">verified_user</span>
+                    <div>
+                        <h2><?= e(lang('recaptcha_settings')) ?></h2>
+                        <p><?= e(lang('settings_recaptcha_desc')) ?></p>
+                    </div>
+                </header>
+                <div class="courses-form-section-body">
+                    <div class="courses-form-grid courses-form-grid--single">
+                        <div class="courses-field">
+                            <label class="courses-label" for="recaptcha_site_key"><?= e(lang('recaptcha_site_key')) ?></label>
+                            <input type="text" id="recaptcha_site_key" name="recaptcha_site_key" value="<?= e($s['recaptcha_site_key'] ?? '') ?>" class="courses-input" autocomplete="off">
+                        </div>
+                        <div class="courses-field">
+                            <label class="courses-label" for="recaptcha_secret_key"><?= e(lang('recaptcha_secret_key')) ?></label>
+                            <input type="password" id="recaptcha_secret_key" name="recaptcha_secret_key" value="<?= e($s['recaptcha_secret_key'] ?? '') ?>" class="courses-input" autocomplete="new-password">
+                        </div>
+                        <div class="courses-field" style="max-width:12rem">
+                            <label class="courses-label" for="recaptcha_score_threshold"><?= e(lang('recaptcha_score_threshold')) ?></label>
+                            <input type="number" id="recaptcha_score_threshold" name="recaptcha_score_threshold" min="0" max="1" step="0.1" value="<?= e($s['recaptcha_score_threshold'] ?? '0.5') ?>" class="courses-input">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="courses-form-section courses-form-section--general">
+                <header class="courses-form-section-head">
+                    <span class="courses-form-section-icon material-symbols-outlined">admin_panel_settings</span>
+                    <div>
+                        <h2><?= e(lang('settings_access_title')) ?></h2>
+                        <p><?= e(lang('settings_access_desc')) ?></p>
+                    </div>
+                </header>
+                <div class="courses-form-section-body">
+                    <div class="courses-form-grid courses-form-grid--single">
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="contact_email"><?= e(lang('contact_email')) ?></label>
+                            <input type="email" id="contact_email" name="contact_email" value="<?= e($s['contact_email'] ?? 'ctdhr@du.edu.om') ?>" class="courses-input">
+                        </div>
+                        <div class="courses-field courses-field--full">
+                            <label class="courses-label" for="admin_ip_whitelist"><?= e(lang('admin_ip_whitelist')) ?></label>
+                            <input type="text" id="admin_ip_whitelist" name="admin_ip_whitelist" value="<?= e($s['admin_ip_whitelist'] ?? '') ?>" placeholder="192.168.1.1, 10.0.0.5" class="courses-input">
+                            <p class="courses-field-hint"><?= e(lang('admin_ip_whitelist_desc')) ?></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="courses-form-action-bar">
+                <div></div>
+                <div class="courses-form-action-bar__actions">
+                    <button type="submit" class="courses-btn-save">
+                        <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                        <?= e(lang('save')) ?>
+                    </button>
+                </div>
+            </div>
+        </form>
+        <?php endif; ?>
+    </div>
+</div>
+</div>

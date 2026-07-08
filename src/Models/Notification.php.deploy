@@ -1,0 +1,139 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class Notification
+{
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function create(array $data): int
+    {
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            'INSERT INTO notifications (
+                user_id, type, title_en, title_ar,
+                message_en, message_ar, link, is_read, created_at
+            ) VALUES (
+                :user_id, :type, :title_en, :title_ar,
+                :message_en, :message_ar, :link, 0, NOW()
+            )'
+        );
+
+        $stmt->execute([
+            'user_id' => (int) $data['user_id'],
+            'type' => (string) $data['type'],
+            'title_en' => (string) $data['title_en'],
+            'title_ar' => (string) $data['title_ar'],
+            'message_en' => $data['message_en'] ?? null,
+            'message_ar' => $data['message_ar'] ?? null,
+            'link' => $data['link'] ?? null,
+        ]);
+
+        return (int) $db->lastInsertId();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function findByUser(int $userId, int $limit = 50): array
+    {
+        $db = Database::getInstance();
+        $limit = max(1, min(200, $limit));
+
+        $stmt = $db->prepare(
+            "SELECT * FROM notifications
+             WHERE user_id = :user_id
+             ORDER BY created_at DESC
+             LIMIT {$limit}"
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public static function markRead(int $id, int $userId): bool
+    {
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            'UPDATE notifications
+             SET is_read = 1
+             WHERE id = :id AND user_id = :user_id'
+        );
+
+        return $stmt->execute([
+            'id' => $id,
+            'user_id' => $userId,
+        ]);
+    }
+
+    public static function markAllRead(int $userId): bool
+    {
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            'UPDATE notifications
+             SET is_read = 1
+             WHERE user_id = :user_id AND is_read = 0'
+        );
+
+        return $stmt->execute(['user_id' => $userId]);
+    }
+
+    public static function unreadCount(int $userId): int
+    {
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            'SELECT COUNT(*) FROM notifications
+             WHERE user_id = :user_id AND is_read = 0'
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    public static function markExternalAccountReviewed(int $externalUserId, ?string $email = null): int
+    {
+        $db = Database::getInstance();
+        $linkPattern = '%account=' . $externalUserId . '%';
+        $marked = 0;
+
+        $stmt = $db->prepare(
+            'UPDATE notifications
+             SET is_read = 1
+             WHERE type = :type AND is_read = 0 AND link LIKE :link_pattern'
+        );
+        $stmt->execute([
+            'type' => 'admin_new_external_account',
+            'link_pattern' => $linkPattern,
+        ]);
+        $marked += $stmt->rowCount();
+
+        $email = strtolower(trim((string) $email));
+        if ($email !== '') {
+            $emailPattern = '%' . $email . '%';
+            $emailStmt = $db->prepare(
+                'UPDATE notifications
+                 SET is_read = 1
+                 WHERE type = :type_email AND is_read = 0
+                   AND (message_en LIKE :email_pattern_en OR message_ar LIKE :email_pattern_ar)'
+            );
+            $emailStmt->execute([
+                'type_email' => 'admin_new_external_account',
+                'email_pattern_en' => $emailPattern,
+                'email_pattern_ar' => $emailPattern,
+            ]);
+            $marked += $emailStmt->rowCount();
+        }
+
+        return $marked;
+    }
+}

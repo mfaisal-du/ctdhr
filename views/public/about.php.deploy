@@ -1,0 +1,195 @@
+<?php declare(strict_types=1);
+
+$aboutHighlights = [
+    ['key' => 'about_highlight_1', 'icon' => 'workspace_premium', 'tone' => 'primary'],
+    ['key' => 'about_highlight_2', 'icon' => 'public', 'tone' => 'sky'],
+    ['key' => 'about_highlight_3', 'icon' => 'verified', 'tone' => 'secondary'],
+    ['key' => 'about_highlight_4', 'icon' => 'trending_up', 'tone' => 'magenta'],
+];
+$valueKeys = [
+    ['title' => 'value_excellence', 'desc' => 'value_excellence_desc', 'icon' => 'military_tech'],
+    ['title' => 'value_integrity', 'desc' => 'value_integrity_desc', 'icon' => 'balance'],
+    ['title' => 'value_collaboration', 'desc' => 'value_collaboration_desc', 'icon' => 'groups'],
+    ['title' => 'value_innovation', 'desc' => 'value_innovation_desc', 'icon' => 'lightbulb'],
+];
+
+ob_start();
+?>
+
+<?php
+page_hero([
+    'icon' => 'school',
+    'title' => lang('about_title'),
+    'subtitle' => lang('about_subtitle'),
+    'accent' => 'secondary',
+    'breadcrumbs' => [
+        ['label' => lang('home'), 'href' => url('/')],
+        ['label' => lang('about')],
+    ],
+]);
+?>
+
+<!-- Our Mission -->
+<section class="about-mission-section py-unit-xl relative">
+    <div class="about-mission-section-bg" aria-hidden="true"></div>
+    <div class="about-mission-section-orb about-mission-section-orb-1" aria-hidden="true"></div>
+    <div class="about-mission-section-orb about-mission-section-orb-2" aria-hidden="true"></div>
+    <div class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop relative">
+        <div class="about-mission-intro reveal-scale" data-reveal>
+            <div class="rainbow-accent absolute top-0 left-0 w-full rounded-t-3xl" aria-hidden="true"></div>
+            <div class="about-mission-intro-inner">
+                <div class="inline-flex items-center gap-2 px-unit-md py-1.5 rounded-full bg-primary/10 border border-primary/20 mb-unit-md">
+                    <img src="<?= e(university_logo()) ?>" alt="" class="w-5 h-5 rounded-full" width="20" height="20">
+                    <span class="font-label-sm text-primary"><?= e(lang('university')) ?> · CTDHR</span>
+                </div>
+                <h2 class="font-headline-md text-headline-md text-primary mb-unit-md"><?= e(lang('our_mission')) ?></h2>
+                <p class="about-mission-text"><?= e(lang('about_paragraph_1')) ?></p>
+                <a href="<?= e(url('courses')) ?>" class="btn-primary inline-flex gap-2">
+                    <span class="material-symbols-outlined text-[18px]">explore</span>
+                    <?= e(lang('browse_courses')) ?>
+                </a>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-unit-md mt-unit-xl" data-stagger="60">
+            <?php foreach ($aboutHighlights as $i => $item): ?>
+            <div class="about-mission-card about-mission-card--<?= e($item['tone']) ?> reveal-fade-up" data-reveal data-reveal-delay="<?= e((string) ($i * 60)) ?>">
+                <div class="about-mission-card-shine" aria-hidden="true"></div>
+                <div class="about-mission-card-icon">
+                    <?= card_icon_svg($item['icon']) ?>
+                </div>
+                <p><?= e(lang($item['key'])) ?></p>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+
+<!-- Story + offer -->
+<section class="py-unit-xl bg-surface-container-low">
+    <div class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+        <div class="lg:col-span-6 reveal-slide-right" data-reveal>
+            <div class="about-offer-frame">
+                <?= portal_img(['path' => 'du/2025/du2025-training-02.jpg', 'alt' => lang('university'), 'sizes' => '(min-width: 1024px) 45vw, 100vw', 'class' => 'portal-img-cover about-offer-img']) ?>
+            </div>
+        </div>
+        <div class="lg:col-span-6 space-y-unit-xl">
+            <div class="reveal-fade-up" data-reveal>
+                <h2 class="font-headline-md text-headline-md text-primary mb-unit-md"><?= e(lang('what_we_offer')) ?></h2>
+                <p class="text-on-surface-variant font-body-md leading-relaxed mb-unit-md"><?= e(lang('about_paragraph_2')) ?></p>
+                <p class="text-on-surface-variant font-body-md leading-relaxed"><?= e(lang('about_paragraph_3')) ?></p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-unit-md" data-stagger="60">
+                <?php foreach (['about_point_1', 'about_point_2', 'about_point_3', 'about_point_4'] as $point): ?>
+                <div class="about-value-card" data-stagger-item>
+                    <span class="material-symbols-outlined text-primary mb-unit-sm">check_circle</span>
+                    <p class="font-body-md text-on-surface"><?= e(lang($point)) ?></p>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Core values -->
+<section class="py-unit-xl">
+    <div class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop">
+        <div class="text-center mb-unit-xl reveal-fade-up" data-reveal>
+            <h2 class="font-headline-md text-headline-md text-primary mb-unit-sm"><?= e(lang('core_values')) ?></h2>
+            <p class="text-on-surface-variant max-w-2xl mx-auto font-body-md"><?= e(lang('about_subtitle')) ?></p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-gutter" data-stagger="80">
+            <?php foreach ($valueKeys as $value): ?>
+            <div class="about-stat-pill" data-stagger-item>
+                <div class="w-14 h-14 rounded-2xl bg-primary-container/30 flex items-center justify-center mx-auto mb-unit-md">
+                    <span class="material-symbols-outlined text-primary text-2xl"><?= e($value['icon']) ?></span>
+                </div>
+                <h3 class="font-label-md text-primary mb-unit-xs"><?= e(lang($value['title'])) ?></h3>
+                <p class="text-body-sm text-on-surface-variant leading-relaxed"><?= e(lang($value['desc'])) ?></p>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+
+<!-- Campus gallery -->
+<?php
+$galleryPaths = array_slice(du_gallery_images(), 0, 8);
+$galleryUrls = array_map(static fn (string $path): string => asset('images/' . $path), $galleryPaths);
+?>
+<section class="py-unit-xl bg-gradient-to-b from-surface-container-low to-background relative">
+    <div class="absolute inset-0 opacity-40 pointer-events-none overflow-hidden" aria-hidden="true"
+         style="background: radial-gradient(circle at 80% 20%, rgba(0,176,255,0.08) 0%, transparent 50%), radial-gradient(circle at 10% 80%, rgba(48,135,47,0.08) 0%, transparent 45%);"></div>
+    <div class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop relative">
+        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-unit-md mb-unit-xl reveal-fade-up" data-reveal>
+            <div>
+                <h2 class="font-headline-md text-headline-md text-primary mb-unit-sm"><?= e(lang('campus_life')) ?></h2>
+                <p class="font-body-md text-on-surface-variant max-w-xl"><?= e(lang('about_gallery_subtitle')) ?></p>
+            </div>
+            <a href="<?= e(url('contact')) ?>" class="btn-outline shrink-0"><?= e(lang('contact_us_cta')) ?></a>
+        </div>
+        <div id="campus-gallery"
+             class="grid grid-cols-2 md:grid-cols-4 gap-unit-md"
+             data-images="<?= e(json_encode($galleryUrls, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT)) ?>"
+             data-stagger="50">
+            <?php foreach ($galleryPaths as $i => $imagePath): ?>
+            <button type="button"
+                    class="about-gallery-item text-left <?= $i === 0 ? 'md:col-span-2 md:row-span-2' : '' ?>"
+                    data-stagger-item
+                    data-gallery-index="<?= (int) $i ?>"
+                    aria-label="<?= e(lang('campus_life')) ?> — <?= (int) ($i + 1) ?>">
+                <?= portal_img(['path' => $imagePath, 'alt' => lang('university'), 'sizes' => '(min-width: 768px) 25vw, 50vw', 'class' => 'portal-img-cover']) ?>
+                <div class="about-gallery-item-overlay">
+                    <span class="text-white text-label-sm font-medium"><?= e(lang('campus_life')) ?></span>
+                    <span class="material-symbols-outlined text-white text-[20px]">zoom_in</span>
+                </div>
+            </button>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+
+<div id="campus-gallery-lightbox"
+     class="gallery-lightbox is-hidden"
+     role="dialog"
+     aria-modal="true"
+     aria-hidden="true"
+     aria-label="<?= e(lang('campus_life')) ?>">
+    <div class="gallery-lightbox-panel">
+        <img id="campus-gallery-lightbox-img" src="" alt="" class="gallery-lightbox-img" decoding="async">
+        <button type="button" class="gallery-lightbox-nav <?= is_rtl() ? 'right-3' : 'left-3' ?>" data-gallery-prev aria-label="Previous">
+            <span class="material-symbols-outlined">chevron_<?= is_rtl() ? 'right' : 'left' ?></span>
+        </button>
+        <button type="button" class="gallery-lightbox-nav <?= is_rtl() ? 'left-3' : 'right-3' ?>" data-gallery-next aria-label="Next">
+            <span class="material-symbols-outlined">chevron_<?= is_rtl() ? 'left' : 'right' ?></span>
+        </button>
+        <button type="button" class="absolute top-3 <?= is_rtl() ? 'left-3' : 'right-3' ?> gallery-lightbox-nav" data-gallery-close aria-label="Close">
+            <span class="material-symbols-outlined">close</span>
+        </button>
+        <div id="campus-gallery-dots" class="absolute bottom-3 inset-x-0 flex justify-center gap-2"></div>
+    </div>
+</div>
+<script src="<?= e(asset('js/gallery-lightbox.js')) ?>" defer></script>
+
+<!-- CTA -->
+<section class="py-unit-xl">
+    <div class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop">
+        <div class="relative overflow-hidden rounded-3xl p-unit-xl md:p-10 text-center text-white shadow-overlay reveal-scale" data-reveal>
+            <img src="<?= e(asset('images/du/graduation/graduation-ceremony-03.jpg')) ?>" alt="" class="absolute inset-0 w-full h-full object-cover" decoding="async">
+            <div class="du-overlay-scrim absolute inset-0"></div>
+            <div class="relative z-10 max-w-2xl mx-auto">
+                <h2 class="font-headline-md text-headline-md mb-unit-sm"><?= e(lang('ready_to_learn')) ?></h2>
+                <p class="text-white/85 font-body-md mb-unit-lg"><?= e(lang('ready_to_learn_subtitle')) ?></p>
+                <div class="flex flex-wrap justify-center gap-unit-md">
+                    <a href="<?= e(url('courses')) ?>" class="btn-primary"><?= e(lang('browse_courses')) ?></a>
+                    <a href="<?= e(url('register')) ?>" class="btn-outline border-white/40 text-white hover:bg-white/10"><?= e(lang('register')) ?></a>
+                </div>
+            </div>
+            <div class="rainbow-accent absolute bottom-0 left-0 w-full"></div>
+        </div>
+    </div>
+</section>
+
+<?php
+$content = ob_get_clean();
+$pageTitle = lang('about');
+require view_path('layouts/main.php');

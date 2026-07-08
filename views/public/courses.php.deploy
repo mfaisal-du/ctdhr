@@ -1,0 +1,114 @@
+<?php declare(strict_types=1);
+
+/** @var array<int, array<string, mixed>> $courses */
+/** @var array<string, mixed> $pagination */
+/** @var array<int, array<string, mixed>> $categories */
+/** @var array<string, string> $filters */
+/** @var array<int, string> $statuses */
+
+$courses = $courses ?? [];
+$pagination = $pagination ?? ['page' => 1, 'pages' => 1, 'total' => 0];
+$categories = $categories ?? [];
+$filters = $filters ?? [];
+$statuses = $statuses ?? [];
+$totalCourses = (int) ($pagination['total'] ?? 0);
+
+ob_start();
+?>
+
+<?php
+page_hero([
+    'icon' => 'menu_book',
+    'title' => lang('courses'),
+    'subtitle' => lang('courses_catalog_subtitle'),
+    'accent' => 'primary',
+    'breadcrumbs' => [
+        ['label' => lang('home'), 'href' => url('/')],
+        ['label' => lang('courses')],
+    ],
+]);
+?>
+
+<section class="courses-catalog">
+    <div class="courses-catalog-pattern" aria-hidden="true"></div>
+
+    <div class="max-w-1280px mx-auto px-margin-mobile md:px-margin-desktop py-unit-xl relative">
+        <div class="courses-catalog-stats reveal-fade-up" data-reveal>
+            <div class="courses-catalog-stat">
+                <span class="courses-catalog-stat-value"><?= e((string) $totalCourses) ?></span>
+                <span class="courses-catalog-stat-label"><?= e(lang('total_courses')) ?></span>
+            </div>
+            <div class="courses-catalog-stat">
+                <span class="courses-catalog-stat-value"><?= e((string) count($categories)) ?></span>
+                <span class="courses-catalog-stat-label"><?= e(lang('categories')) ?></span>
+            </div>
+            <div class="courses-catalog-stat courses-catalog-stat-highlight">
+                <span class="material-symbols-outlined text-secondary text-[22px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                <span class="courses-catalog-stat-label"><?= e(lang('featured_courses_subtitle')) ?></span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter mt-unit-lg">
+            <aside class="lg:col-span-3">
+                <div class="courses-filter-panel reveal-fade-up" data-reveal data-reveal-delay="80">
+                    <div class="courses-filter-header">
+                        <span class="material-symbols-outlined text-primary">tune</span>
+                        <h2><?= e(lang('filter')) ?></h2>
+                    </div>
+
+                    <form id="course-filters"
+                          hx-get="<?= e(url('courses')) ?>"
+                          hx-target="#course-results"
+                          hx-push-url="true"
+                          hx-trigger="change, submit"
+                          class="courses-filter-form">
+
+                        <div class="courses-filter-field">
+                            <label for="filter-search"><?= e(lang('search')) ?></label>
+                            <div class="courses-filter-search">
+                                <span class="material-symbols-outlined">search</span>
+                                <input type="search" id="filter-search" name="q" value="<?= e($filters['search'] ?? '') ?>"
+                                       placeholder="<?= e(lang('search_placeholder')) ?>">
+                            </div>
+                        </div>
+
+                        <div class="courses-filter-field">
+                            <label for="filter-category"><?= e(lang('categories')) ?></label>
+                            <select id="filter-category" name="category" class="courses-filter-select">
+                                <option value=""><?= e(lang('all_categories')) ?></option>
+                                <?php foreach ($categories as $cat): ?>
+                                <option value="<?= e((string) $cat['slug']) ?>" <?= ($filters['category_slug'] ?? '') === $cat['slug'] ? 'selected' : '' ?>>
+                                    <?= e(localized($cat, 'name')) ?>
+                                </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="courses-filter-field">
+                            <label for="filter-status"><?= e(lang('status')) ?></label>
+                            <select id="filter-status" name="status" class="courses-filter-select">
+                                <option value=""><?= e(lang('all_statuses')) ?></option>
+                                <?php foreach ($statuses as $st): ?>
+                                <option value="<?= e($st) ?>" <?= ($filters['status'] ?? '') === $st ? 'selected' : '' ?>><?= e(course_status_label($st)) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="courses-filter-actions">
+                            <button type="submit" class="btn-primary w-full"><?= e(lang('filter')) ?></button>
+                            <a href="<?= e(url('courses')) ?>" class="courses-filter-clear"><?= e(lang('clear_filters')) ?></a>
+                        </div>
+                    </form>
+                </div>
+            </aside>
+
+            <div class="lg:col-span-9" id="course-results">
+                <?php require view_path('public/partials/course-results.php'); ?>
+            </div>
+        </div>
+    </div>
+</section>
+
+<?php
+$content = ob_get_clean();
+require view_path('layouts/main.php');

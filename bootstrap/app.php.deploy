@@ -1,0 +1,128 @@
+<?php
+
+declare(strict_types=1);
+
+define('CTDHR_START', microtime(true));
+define('CTDHR_ROOT', dirname(__DIR__));
+
+$autoloadPath = CTDHR_ROOT . '/vendor/autoload.php';
+if (!file_exists($autoloadPath)) {
+    http_response_code(500);
+    echo 'Composer dependencies not installed. Run: composer install';
+    exit(1);
+}
+require_once $autoloadPath;
+
+spl_autoload_register(static function (string $class): bool {
+    $prefix = 'CTDHR\\';
+    $baseDir = CTDHR_ROOT . '/src/';
+    $len = strlen($prefix);
+    if (strncmp($prefix, $class, $len) !== 0) {
+        return false;
+    }
+    $relative = substr($class, $len);
+    $path = $baseDir . str_replace('\\', '/', $relative);
+    foreach (['.deploy', '.php'] as $ext) {
+        $file = $path . $ext;
+        if (is_file($file)) {
+            require_once $file;
+            return true;
+        }
+    }
+    return false;
+}, true, true);
+
+$srcDir = CTDHR_ROOT . '/src';
+if (is_dir($srcDir)) {
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($srcDir, FilesystemIterator::SKIP_DOTS)
+    );
+    foreach ($iterator as $fileInfo) {
+        if ($fileInfo->isFile() && $fileInfo->getExtension() === 'deploy') {
+            require_once $fileInfo->getPathname();
+        }
+    }
+}
+
+$helpersDeploy = CTDHR_ROOT . '/src/Helpers/functions.php.deploy';
+$helpersPhp = CTDHR_ROOT . '/src/Helpers/functions.php';
+if (file_exists($helpersDeploy)) {
+    require_once $helpersDeploy;
+} elseif (file_exists($helpersPhp)) {
+    require_once $helpersPhp;
+}
+
+$dotenv = Dotenv\Dotenv::createImmutable(CTDHR_ROOT);
+if (file_exists(CTDHR_ROOT . '/.env')) {
+    $dotenv->load();
+} else {
+    $dotenv->safeLoad();
+}
+
+require_once CTDHR_ROOT . '/config/paths.php.deploy';
+
+$configSkip = ['paths.php.deploy', 'app.php.deploy', 'paths.php', 'app.php'];
+$configDeployFiles = glob(CTDHR_ROOT . '/config/*.deploy') ?: [];
+foreach ($configDeployFiles as $configFile) {
+    if (!in_array(basename($configFile), $configSkip, true)) {
+        require_once $configFile;
+    }
+}
+$configPhpFiles = glob(CTDHR_ROOT . '/config/*.php') ?: [];
+foreach ($configPhpFiles as $configFile) {
+    if (!in_array(basename($configFile), $configSkip, true)) {
+        require_once $configFile;
+    }
+}
+
+$appConfigFile = CTDHR_ROOT . '/config/app.php.deploy';
+if (!is_file($appConfigFile)) {
+    $appConfigFile = CTDHR_ROOT . '/config/app.php';
+}
+$appConfig = require $appConfigFile;
+date_default_timezone_set($appConfig['timezone']);
+
+if ($appConfig['debug']) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', '1');
+} else {
+    error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+    ini_set('display_errors', '0');
+}
+
+$sessionLifetime = (int) ($appConfig['session']['lifetime'] ?? 120);
+$sessionSecure = filter_var($appConfig['session']['secure'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$sessionHttpOnly = filter_var($appConfig['session']['httponly'] ?? true, FILTER_VALIDATE_BOOLEAN);
+$sessionSameSite = $appConfig['session']['samesite'] ?? 'Lax';
+
+ini_set('session.use_strict_mode', '1');
+ini_set('session.use_only_cookies', '1');
+ini_set('session.cookie_httponly', $sessionHttpOnly ? '1' : '0');
+ini_set('session.cookie_secure', $sessionSecure ? '1' : '0');
+ini_set('session.cookie_samesite', $sessionSameSite);
+ini_set('session.gc_maxlifetime', (string) ($sessionLifetime * 60));
+session_name('ctdhr_session');
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+if (empty($_SESSION['user_id']) && !empty($_COOKIE['ctdhr_remember'])) {
+    try {
+        $rememberAuth = new \CTDHR\Services\AuthService();
+        $rememberAuth->attemptRememberLogin();
+    } catch (\Throwable $e) {
+        if ($appConfig['debug']) {
+            error_log('Remember-me login failed: ' . $e->getMessage());
+        }
+    }
+}
+
+if (!isset($_SESSION['_created'])) {
+    $_SESSION['_created'] = time();
+} elseif (time() - $_SESSION['_created'] > 1800) {
+    session_regenerate_id(true);
+    $_SESSION['_created'] = time();
+}
+
+$GLOBALS['app_config'] = $appConfig;

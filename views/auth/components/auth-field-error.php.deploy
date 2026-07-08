@@ -1,0 +1,36 @@
+<?php declare(strict_types=1);
+
+/**
+ * Inline field validation error with animated reveal.
+ *
+ * @var string $show  Alpine.js expression for x-show (e.g. "emailInvalid")
+ * @var string $message
+ */
+
+$show = $show ?? 'false';
+$message = $message ?? '';
+
+if ($message === '') {
+    return;
+}
+?>
+<div x-show="<?= $show ?>"
+     x-cloak
+     x-transition:enter="auth-field-error-enter-active"
+     x-transition:enter-start="auth-field-error-enter-from"
+     x-transition:enter-end="auth-field-error-enter-to"
+     x-transition:leave="auth-field-error-leave-active"
+     x-transition:leave-start="auth-field-error-leave-from"
+     x-transition:leave-end="auth-field-error-leave-to"
+     class="auth-field-error"
+     role="alert"
+     aria-live="polite">
+    <span class="auth-field-error-accent" aria-hidden="true"></span>
+    <div class="auth-field-error-inner">
+        <span class="auth-field-error-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">error</span>
+        </span>
+        <span class="auth-field-error-text"><?= e($message) ?></span>
+    </div>
+    <span class="auth-field-error-shimmer" aria-hidden="true"></span>
+</div>

@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Course Management | CTDHR Portal</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c5c5d3;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #757683;
+        }
+        tr:hover {
+            background-color: rgba(66, 90, 173, 0.03);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-container": "#17721c",
+                        "outline": "#757683",
+                        "on-primary-fixed-variant": "#274093",
+                        "tertiary-fixed-dim": "#ffb872",
+                        "tertiary": "#6b3c00",
+                        "surface-dim": "#dcd9d9",
+                        "accent-sky": "#00B0FF",
+                        "surface-tint": "#4159ac",
+                        "surface-container-highest": "#e4e2e1",
+                        "background": "#fbf9f8",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "status-cancelled": "#D32F2F",
+                        "status-progress": "#FFBF00",
+                        "status-completed": "#30872F",
+                        "on-surface": "#1b1c1c",
+                        "accent-magenta": "#D81B60",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#444651",
+                        "on-secondary": "#ffffff",
+                        "surface-variant": "#e4e2e1",
+                        "tertiary-container": "#8d5100",
+                        "surface-gray": "#F5F5F5",
+                        "status-certified": "#D4AF37",
+                        "inverse-surface": "#303030",
+                        "primary-container": "#425aad",
+                        "secondary-container": "#9af58e",
+                        "error": "#ba1a1a",
+                        "status-announced": "#425AAD",
+                        "outline-variant": "#c5c5d3",
+                        "inverse-primary": "#b6c4ff",
+                        "status-draft": "#9E9E9E",
+                        "on-primary-fixed": "#001550",
+                        "on-tertiary-fixed-variant": "#6a3c00",
+                        "on-tertiary-container": "#ffd2aa",
+                        "tertiary-fixed": "#ffdcbf",
+                        "secondary": "#106e18",
+                        "accent-yellow": "#FFD600",
+                        "on-background": "#1b1c1c",
+                        "surface-bright": "#fbf9f8",
+                        "on-secondary-fixed": "#002202",
+                        "surface-container": "#f0eded",
+                        "on-primary": "#ffffff",
+                        "surface": "#fbf9f8",
+                        "inverse-on-surface": "#f3f0f0",
+                        "on-tertiary-fixed": "#2d1600",
+                        "status-scheduled": "#008080",
+                        "primary-fixed-dim": "#b6c4ff",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f6f3f2",
+                        "accent-coral": "#FF7043",
+                        "on-primary-container": "#d1d8ff",
+                        "secondary-fixed": "#9df891",
+                        "primary-fixed": "#dce1ff",
+                        "primary": "#284194",
+                        "on-secondary-fixed-variant": "#00530b",
+                        "secondary-fixed-dim": "#82db77",
+                        "error-container": "#ffdad6",
+                        "surface-container-high": "#eae8e7"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit-xs": "4px",
+                        "margin-mobile": "16px",
+                        "container-max": "1280px",
+                        "unit-lg": "24px",
+                        "unit-xl": "48px",
+                        "unit-md": "16px",
+                        "margin-desktop": "40px",
+                        "gutter": "24px",
+                        "unit-sm": "8px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Inter"],
+                        "headline-lg-mobile": ["IBM Plex Sans"],
+                        "headline-md": ["IBM Plex Sans"],
+                        "headline-lg": ["IBM Plex Sans"],
+                        "headline-sm": ["IBM Plex Sans"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "label-md": ["Inter"],
+                        "label-sm": ["Inter"],
+                        "headline-xl": ["IBM Plex Sans"]
+                    },
+                    "fontSize": {
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-md": ["14px", {"lineHeight": "16px", "fontWeight": "600"}],
+                        "label-sm": ["12px", {"lineHeight": "14px", "fontWeight": "500"}],
+                        "headline-xl": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container">
+<!-- Admin SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[260px] bg-inverse-surface dark:bg-surface-container-lowest shadow-md flex flex-col py-unit-lg z-50">
+<div class="px-6 mb-8">
+<h1 class="font-headline-sm text-headline-sm text-surface-bright">Admin Panel</h1>
+<p class="text-surface-variant opacity-70 font-label-sm">CTDHR Management</p>
+</div>
+<nav class="flex-1 flex flex-col px-unit-sm gap-1 overflow-y-auto custom-scrollbar">
+<!-- Active Tab: Courses -->
+<a class="flex items-center gap-3 px-4 py-3 text-primary-fixed-dim bg-primary-container/20 border-l-4 border-primary-fixed font-label-md transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">school</span>
+<span>Courses</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 font-label-md transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">category</span>
+<span>Categories</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 font-label-md transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">group</span>
+<span>Applicants</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 font-label-md transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+<span>Attendance</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 font-label-md transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span>Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-surface-variant opacity-70 hover:bg-surface-variant/10 hover:opacity-100 font-label-md transition-all duration-300 ease-in-out" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span>Settings</span>
+</a>
+</nav>
+<div class="mt-auto px-unit-sm pt-4 border-t border-outline-variant/20 flex flex-col gap-1">
+<button class="w-full mb-4 py-2 bg-primary text-on-primary font-label-md rounded-lg hover:bg-primary/90 transition-colors">
+                Add New Course
+            </button>
+<a class="flex items-center gap-3 px-4 py-2 text-surface-variant opacity-70 hover:opacity-100 font-label-md" href="#">
+<span class="material-symbols-outlined">help</span>
+<span>Help</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-surface-variant opacity-70 hover:opacity-100 font-label-md" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span>Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-[260px] min-h-screen p-unit-lg lg:p-unit-xl">
+<!-- Header & Stats Overview (Academic Rigor Pattern) -->
+<header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-unit-lg gap-4">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-primary">Course Management</h2>
+<nav class="flex text-on-surface-variant font-label-sm gap-2 mt-1">
+<a class="hover:text-primary" href="#">Dashboard</a>
+<span>/</span>
+<span class="text-outline">Courses</span>
+</nav>
+</div>
+<div class="flex gap-unit-sm">
+<button class="flex items-center gap-2 px-4 py-2 bg-white border border-outline-variant text-primary font-label-md rounded-lg hover:bg-surface-gray transition-colors">
+<span class="material-symbols-outlined text-[20px]">file_download</span>
+                    Export Data
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-secondary text-on-secondary font-label-md rounded-lg hover:opacity-90 transition-all active:scale-95">
+<span class="material-symbols-outlined text-[20px]">add</span>
+                    Create Course
+                </button>
+</div>
+</header>
+<!-- Quick Summary Mini-Widgets -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-gutter mb-unit-lg">
+<div class="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/30 flex items-center gap-4">
+<div class="p-3 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary">menu_book</span>
+</div>
+<div>
+<p class="text-outline font-label-sm">Total Courses</p>
+<h3 class="font-headline-sm text-headline-sm">42</h3>
+</div>
+</div>
+<div class="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/30 flex items-center gap-4">
+<div class="p-3 bg-status-scheduled/10 rounded-lg">
+<span class="material-symbols-outlined text-status-scheduled">event</span>
+</div>
+<div>
+<p class="text-outline font-label-sm">Scheduled</p>
+<h3 class="font-headline-sm text-headline-sm">12</h3>
+</div>
+</div>
+<div class="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/30 flex items-center gap-4">
+<div class="p-3 bg-status-progress/10 rounded-lg">
+<span class="material-symbols-outlined text-status-progress">pending</span>
+</div>
+<div>
+<p class="text-outline font-label-sm">In Progress</p>
+<h3 class="font-headline-sm text-headline-sm">8</h3>
+</div>
+</div>
+<div class="bg-white p-4 rounded-xl shadow-sm border border-outline-variant/30 flex items-center gap-4">
+<div class="p-3 bg-status-completed/10 rounded-lg">
+<span class="material-symbols-outlined text-status-completed">check_circle</span>
+</div>
+<div>
+<p class="text-outline font-label-sm">Completed</p>
+<h3 class="font-headline-sm text-headline-sm">22</h3>
+</div>
+</div>
+</div>
+<!-- Filter & Action Bar -->
+<section class="bg-white rounded-t-xl border border-outline-variant/30 p-4 flex flex-wrap items-center justify-between gap-4">
+<div class="flex flex-wrap items-center gap-3">
+<div class="relative min-w-[280px]">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-gray border-none rounded-lg text-body-sm focus:ring-2 focus:ring-primary/20 placeholder:text-outline/60" placeholder="Search by title or instructor..." type="text"/>
+</div>
+<select class="bg-surface-gray border-none rounded-lg text-body-sm py-2 px-4 focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option value="">All Categories</option>
+<option value="it">Information Technology</option>
+<option value="business">Business Admin</option>
+<option value="soft-skills">Soft Skills</option>
+</select>
+<select class="bg-surface-gray border-none rounded-lg text-body-sm py-2 px-4 focus:ring-2 focus:ring-primary/20 cursor-pointer">
+<option value="">All Statuses</option>
+<option value="scheduled">Scheduled</option>
+<option value="in-progress">In Progress</option>
+<option value="completed">Completed</option>
+</select>
+<button class="p-2 hover:bg-surface-gray rounded-lg transition-colors text-outline">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+<div class="hidden flex items-center gap-2 animate-in fade-in slide-in-from-right-4" id="bulk-actions">
+<span class="text-label-sm text-outline px-2 border-r border-outline-variant mr-1">3 selected</span>
+<button class="p-2 hover:bg-primary/10 text-primary rounded-lg transition-colors title='Email Participants'">
+<span class="material-symbols-outlined">mail</span>
+</button>
+<button class="p-2 hover:bg-primary/10 text-primary rounded-lg transition-colors title='Change Status'">
+<span class="material-symbols-outlined">published_with_changes</span>
+</button>
+<button class="p-2 hover:bg-error/10 text-error rounded-lg transition-colors title='Delete Selected'">
+<span class="material-symbols-outlined">delete</span>
+</button>
+</div>
+</section>
+<!-- High-Density Data Table -->
+<section class="bg-white rounded-b-xl border-x border-b border-outline-variant/30 overflow-hidden shadow-sm">
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-gray border-b border-outline-variant/30">
+<tr>
+<th class="p-4 w-10">
+<input class="rounded border-outline-variant text-primary focus:ring-primary/20 w-4 h-4 cursor-pointer" id="master-checkbox" type="checkbox"/>
+</th>
+<th class="p-4 font-label-sm text-outline uppercase tracking-wider">Title</th>
+<th class="p-4 font-label-sm text-outline uppercase tracking-wider">Category</th>
+<th class="p-4 font-label-sm text-outline uppercase tracking-wider">Status</th>
+<th class="p-4 font-label-sm text-outline uppercase tracking-wider">Participants</th>
+<th class="p-4 font-label-sm text-outline uppercase tracking-wider">Date</th>
+<th class="p-4 font-label-sm text-outline uppercase tracking-wider text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/20">
+<!-- Row 1: Scheduled -->
+<tr>
+<td class="p-4">
+<input class="row-checkbox rounded border-outline-variant text-primary focus:ring-primary/20 w-4 h-4 cursor-pointer" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-label-md text-primary hover:underline cursor-pointer">Advanced Data Analytics with Python</span>
+<span class="text-body-sm text-outline">Dr. Ahmed Al-Shanfari</span>
+</div>
+</td>
+<td class="p-4">
+<span class="bg-primary-container/10 text-primary px-3 py-1 rounded-full text-label-sm">IT &amp; Tech</span>
+</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1.5 bg-status-scheduled/10 text-status-scheduled px-3 py-1 rounded-full text-label-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-status-scheduled"></span>
+                                    Scheduled
+                                </span>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-body-sm">18 / 25</span>
+<div class="w-24 h-1.5 bg-surface-gray rounded-full mt-1 overflow-hidden">
+<div class="bg-status-scheduled h-full w-[72%]"></div>
+</div>
+</div>
+</td>
+<td class="p-4">
+<span class="text-body-sm text-on-surface">Oct 24, 2024</span>
+</td>
+<td class="p-4 text-right">
+<button class="p-1 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-1 hover:text-outline transition-colors ml-2">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2: In Progress -->
+<tr>
+<td class="p-4">
+<input class="row-checkbox rounded border-outline-variant text-primary focus:ring-primary/20 w-4 h-4 cursor-pointer" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-label-md text-primary hover:underline cursor-pointer">Strategic Leadership Workshop</span>
+<span class="text-body-sm text-outline">Prof. Sarah Jenkins</span>
+</div>
+</td>
+<td class="p-4">
+<span class="bg-secondary-container/10 text-secondary px-3 py-1 rounded-full text-label-sm">Business Admin</span>
+</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1.5 bg-status-progress/10 text-status-progress px-3 py-1 rounded-full text-label-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-status-progress animate-pulse"></span>
+                                    In Progress
+                                </span>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-body-sm">30 / 30</span>
+<div class="w-24 h-1.5 bg-surface-gray rounded-full mt-1 overflow-hidden">
+<div class="bg-status-progress h-full w-full"></div>
+</div>
+</div>
+</td>
+<td class="p-4">
+<span class="text-body-sm text-on-surface">Ongoing</span>
+</td>
+<td class="p-4 text-right">
+<button class="p-1 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-1 hover:text-outline transition-colors ml-2">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3: Completed -->
+<tr>
+<td class="p-4">
+<input class="row-checkbox rounded border-outline-variant text-primary focus:ring-primary/20 w-4 h-4 cursor-pointer" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-label-md text-primary hover:underline cursor-pointer">Digital Marketing Essentials</span>
+<span class="text-body-sm text-outline">Omar Ba-Omar</span>
+</div>
+</td>
+<td class="p-4">
+<span class="bg-accent-coral/10 text-accent-coral px-3 py-1 rounded-full text-label-sm">Marketing</span>
+</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1.5 bg-status-completed/10 text-status-completed px-3 py-1 rounded-full text-label-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-status-completed"></span>
+                                    Completed
+                                </span>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-body-sm">45 / 50</span>
+<div class="w-24 h-1.5 bg-surface-gray rounded-full mt-1 overflow-hidden">
+<div class="bg-status-completed h-full w-[90%]"></div>
+</div>
+</div>
+</td>
+<td class="p-4">
+<span class="text-body-sm text-on-surface">Sep 15, 2024</span>
+</td>
+<td class="p-4 text-right">
+<button class="p-1 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-1 hover:text-outline transition-colors ml-2">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4: Scheduled -->
+<tr>
+<td class="p-4">
+<input class="row-checkbox rounded border-outline-variant text-primary focus:ring-primary/20 w-4 h-4 cursor-pointer" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-label-md text-primary hover:underline cursor-pointer">Effective Communication Skills</span>
+<span class="text-body-sm text-outline">Laila Masoud</span>
+</div>
+</td>
+<td class="p-4">
+<span class="bg-accent-sky/10 text-accent-sky px-3 py-1 rounded-full text-label-sm">Soft Skills</span>
+</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1.5 bg-status-scheduled/10 text-status-scheduled px-3 py-1 rounded-full text-label-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-status-scheduled"></span>
+                                    Scheduled
+                                </span>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-body-sm">5 / 20</span>
+<div class="w-24 h-1.5 bg-surface-gray rounded-full mt-1 overflow-hidden">
+<div class="bg-status-scheduled h-full w-[25%]"></div>
+</div>
+</div>
+</td>
+<td class="p-4">
+<span class="text-body-sm text-on-surface">Nov 02, 2024</span>
+</td>
+<td class="p-4 text-right">
+<button class="p-1 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-1 hover:text-outline transition-colors ml-2">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 5: Completed -->
+<tr>
+<td class="p-4">
+<input class="row-checkbox rounded border-outline-variant text-primary focus:ring-primary/20 w-4 h-4 cursor-pointer" type="checkbox"/>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-label-md text-primary hover:underline cursor-pointer">ISO 9001:2015 Auditor Training</span>
+<span class="text-body-sm text-outline">Khalid Al-Rawas</span>
+</div>
+</td>
+<td class="p-4">
+<span class="bg-on-secondary-container/10 text-on-secondary-container px-3 py-1 rounded-full text-label-sm">Quality Assurance</span>
+</td>
+<td class="p-4">
+<span class="inline-flex items-center gap-1.5 bg-status-completed/10 text-status-completed px-3 py-1 rounded-full text-label-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-status-completed"></span>
+                                    Completed
+                                </span>
+</td>
+<td class="p-4">
+<div class="flex flex-col">
+<span class="font-body-sm">12 / 12</span>
+<div class="w-24 h-1.5 bg-surface-gray rounded-full mt-1 overflow-hidden">
+<div class="bg-status-completed h-full w-full"></div>
+</div>
+</div>
+</td>
+<td class="p-4">
+<span class="text-body-sm text-on-surface">Aug 20, 2024</span>
+</td>
+<td class="p-4 text-right">
+<button class="p-1 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-1 hover:text-outline transition-colors ml-2">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Table Footer / Pagination -->
+<footer class="p-4 bg-surface-gray border-t border-outline-variant/30 flex items-center justify-between">
+<span class="text-label-sm text-outline">Showing 1-5 of 42 courses</span>
+<div class="flex items-center gap-1">
+<button class="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-outline-variant disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center bg-primary text-on-primary rounded-lg font-label-sm">1</button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-lg font-label-sm transition-colors">2</button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-lg font-label-sm transition-colors">3</button>
+<span class="px-2 text-outline">...</span>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-white rounded-lg font-label-sm transition-colors">9</button>
+<button class="p-2 hover:bg-white rounded-lg transition-colors border border-transparent hover:border-outline-variant">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</footer>
+</section>
+</main>
+<script>
+        // Simple script to handle bulk action visibility
+        const masterCheckbox = document.getElementById('master-checkbox');
+        const rowCheckboxes = document.querySelectorAll('.row-checkbox');
+        const bulkActions = document.getElementById('bulk-actions');
+
+        function updateBulkActions() {
+            const checkedCount = Array.from(rowCheckboxes).filter(cb => cb.checked).length;
+            if (checkedCount > 0) {
+                bulkActions.classList.remove('hidden');
+                bulkActions.querySelector('span').textContent = `${checkedCount} selected`;
+            } else {
+                bulkActions.classList.add('hidden');
+            }
+        }
+
+        masterCheckbox.addEventListener('change', (e) => {
+            rowCheckboxes.forEach(cb => cb.checked = e.target.checked);
+            updateBulkActions();
+        });
+
+        rowCheckboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                updateBulkActions();
+                if (!cb.checked) masterCheckbox.checked = false;
+                if (Array.from(rowCheckboxes).every(c => c.checked)) masterCheckbox.checked = true;
+            });
+        });
+    </script>
+</body></html>

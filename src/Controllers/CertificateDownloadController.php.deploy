@@ -1,0 +1,53 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers;
+
+use CTDHR\Models\Certificate;
+
+final class CertificateDownloadController
+{
+    /**
+     * @param array<string, string> $params
+     */
+    public function download(array $params): void
+    {
+        $id = (int) ($params['id'] ?? 0);
+        if ($id <= 0) {
+            error_page(404);
+        }
+
+        $cert = Certificate::findById($id);
+        if ($cert === null) {
+            error_page(404);
+        }
+
+        $userId = (int) ($_SESSION['user_id'] ?? 0);
+        $isOwner = $userId > 0 && (int) ($cert['user_id'] ?? 0) === $userId;
+        $isAdmin = $userId > 0 && ($_SESSION['user_role'] ?? '') === 'admin';
+
+        if (!$isOwner && !$isAdmin) {
+            error_page(403, [
+                'title' => lang('access_denied'),
+                'message' => lang('access_denied_message'),
+            ]);
+        }
+
+        $fullPath = resolve_certificate_disk_path((string) ($cert['pdf_path'] ?? ''));
+        if ($fullPath === null) {
+            error_page(404, [
+                'title' => lang('error_404_title'),
+                'message' => lang('certificate_file_missing'),
+            ]);
+        }
+
+        $filename = preg_replace('/[^A-Za-z0-9._-]+/', '_', (string) ($cert['cert_number'] ?? 'certificate')) . '.pdf';
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . $filename . '"');
+        header('Content-Length: ' . (string) filesize($fullPath));
+        readfile($fullPath);
+        exit;
+    }
+}

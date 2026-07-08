@@ -1,0 +1,81 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers;
+
+use CTDHR\Models\Setting;
+use CTDHR\Services\EmailService;
+use CTDHR\Services\RecaptchaService;
+
+final class PageController
+{
+    /**
+     * @param array<string, string> $params
+     */
+    public function about(array $params = []): void
+    {
+        view('public.about', [
+            'pageTitle' => lang('about'),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function contact(array $params = []): void
+    {
+        view('public.contact', [
+            'pageTitle' => lang('contact'),
+        ]);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function submitContact(array $params = []): void
+    {
+        $recaptcha = new RecaptchaService();
+        if ($recaptcha->isEnabled() && !$recaptcha->verify($_POST['g-recaptcha-response'] ?? null, 'contact')) {
+            flash('error', lang('recaptcha_failed'));
+            redirect('contact');
+        }
+
+        $name = trim((string) ($_POST['name'] ?? ''));
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $subject = trim((string) ($_POST['subject'] ?? ''));
+        $message = trim((string) ($_POST['message'] ?? ''));
+
+        if ($name === '' || $email === '' || $message === '') {
+            flash('error', lang('contact_fields_required'));
+            redirect('contact');
+        }
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            flash('error', lang('invalid_email'));
+            redirect('contact');
+        }
+
+        if (strlen($message) > 5000) {
+            flash('error', lang('message_too_long'));
+            redirect('contact');
+        }
+
+        $settings = new Setting();
+        $recipient = trim((string) $settings->get('contact_email', 'ctdhr@du.edu.om'));
+        if ($recipient === '' || !filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+            $recipient = 'ctdhr@du.edu.om';
+        }
+
+        $emailService = new EmailService();
+        $sent = $emailService->sendContactMessage($recipient, $name, $email, $subject, $message);
+
+        if (!$sent) {
+            flash('error', lang('contact_send_failed'));
+            redirect('contact');
+        }
+
+        flash('success', lang('contact_sent_success'));
+        redirect('contact');
+    }
+}

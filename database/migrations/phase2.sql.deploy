@@ -1,0 +1,34 @@
+-- Phase 2 schema updates for CTDHR Portal
+-- Run: mysql -u root -P 3307 ctdhr_portal < database/migrations/phase2.sql.deploy
+
+SET NAMES utf8mb4;
+
+-- Remember-me persistent login tokens
+CREATE TABLE IF NOT EXISTS remember_tokens (
+    id              BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id         BIGINT UNSIGNED NOT NULL,
+    token_hash      VARCHAR(64)     NOT NULL COMMENT 'SHA-256 hash of the cookie token',
+    expires_at      DATETIME        NOT NULL,
+    ip_address      VARCHAR(45)     DEFAULT NULL,
+    user_agent      VARCHAR(500)    DEFAULT NULL,
+    created_at      DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_remember_token_hash (token_hash),
+    INDEX idx_remember_user (user_id),
+    INDEX idx_remember_expires (expires_at),
+    CONSTRAINT fk_remember_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Cancel application reason (Phase 2.1)
+ALTER TABLE course_applications ADD COLUMN cancel_reason VARCHAR(500) DEFAULT NULL AFTER admin_notes;
+
+-- Phase 2 security & maintenance settings
+INSERT INTO system_settings (setting_key, setting_value, setting_type, description) VALUES
+    ('recaptcha_site_key', '', 'string', 'Google reCAPTCHA v3 site key'),
+    ('recaptcha_secret_key', '', 'string', 'Google reCAPTCHA v3 secret key'),
+    ('recaptcha_score_threshold', '0.5', 'string', 'Minimum reCAPTCHA v3 score (0.0-1.0)'),
+    ('maintenance_mode', 'false', 'boolean', 'Enable maintenance mode for public site'),
+    ('maintenance_message_en', 'We are performing scheduled maintenance. Please check back soon.', 'text', 'Maintenance message (English)'),
+    ('maintenance_message_ar', 'نقوم حالياً بأعمال صيانة مجدولة. يرجى المحاولة لاحقاً.', 'text', 'Maintenance message (Arabic)'),
+    ('admin_ip_whitelist', '', 'text', 'Comma-separated admin IP whitelist (empty = allow all)'),
+    ('contact_email', 'ctdhr@du.edu.om', 'string', 'Contact form recipient email')
+ON DUPLICATE KEY UPDATE setting_key = setting_key;

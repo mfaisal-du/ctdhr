@@ -1,0 +1,142 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class VerifyController
+{
+    /**
+     * @param array<string, string> $params
+     */
+    public function index(array $params): void
+    {
+        $this->renderPage('', null, ['valid' => false, 'reason' => '']);
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function lookup(array $params): void
+    {
+        $code = $this->normalizeVerificationCode((string) ($_POST['token'] ?? ''));
+
+        if ($code === '' || strlen($code) > 80) {
+            flash('error', lang('verify_certificate_token_required'));
+            redirect('verify-certificate');
+
+            return;
+        }
+
+        $cert = $this->findByCode($code);
+        $this->renderPage($code, $cert, $this->verificationState($cert));
+    }
+
+    /**
+     * @param array<string, string> $params
+     */
+    public function certificate(array $params): void
+    {
+        $code = $this->normalizeVerificationCode(rawurldecode($params['token'] ?? ''));
+
+        if ($code === '' || strlen($code) > 80) {
+            $this->renderPage('', null, ['valid' => false, 'reason' => '']);
+
+            return;
+        }
+
+        $cert = $this->findByCode($code);
+        $this->renderPage($code, $cert, $this->verificationState($cert));
+    }
+
+    /**
+     * @param array<string, mixed>|null $certificate
+     * @return array{valid: bool, reason: string}
+     */
+    private function verificationState(?array $certificate): array
+    {
+        if ($certificate === null) {
+            return ['valid' => false, 'reason' => 'not_found'];
+        }
+        if (!empty($certificate['revoked_at'])) {
+            return ['valid' => false, 'reason' => 'revoked'];
+        }
+        if (!empty($certificate['valid_until']) && strtotime((string) $certificate['valid_until']) < strtotime('today')) {
+            return ['valid' => false, 'reason' => 'expired'];
+        }
+
+        return ['valid' => true, 'reason' => ''];
+    }
+
+    /**
+     * @param array<string, mixed>|null $certificate
+     * @param array{valid: bool, reason: string} $state
+     */
+    private function renderPage(string $code, ?array $certificate, array $state): void
+    {
+        view('public.verify-certificate', [
+            'pageTitle' => lang('verify_certificate'),
+            'token' => $code,
+            'certificate' => $certificate,
+            'valid' => $state['valid'],
+            'invalidReason' => $state['reason'],
+            'showForm' => $code === '',
+        ]);
+    }
+
+    private function normalizeVerificationCode(string $code): string
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return '';
+        }
+
+        $code = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $code) ?? $code;
+        $code = str_replace(
+            ["\u{2010}", "\u{2011}", "\u{2012}", "\u{2013}", "\u{2014}", "\u{2212}", '–', '—', '−'],
+            '-',
+            $code
+        );
+
+        return trim($code);
+    }
+
+    /**
+     * Find a certificate by verification token or certificate number.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function findByCode(string $code): ?array
+    {
+        try {
+            $db = Database::getInstance();
+
+            $stmt = $db->prepare(
+                'SELECT cert.*,
+                        c.slug AS course_slug,
+                        c.duration_hours AS course_duration_hours
+                 FROM certificates cert
+                 LEFT JOIN courses c ON c.id = cert.course_id
+                 WHERE cert.verification_token = :token
+                    OR UPPER(cert.cert_number) = :cert_number
+                 LIMIT 1'
+            );
+            $stmt->execute([
+                'token' => $code,
+                'cert_number' => strtoupper($code),
+            ]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            return $row !== false ? $row : null;
+        } catch (\Throwable $e) {
+            if (filter_var(env('APP_DEBUG', false), FILTER_VALIDATE_BOOLEAN)) {
+                error_log('Certificate verify lookup failed: ' . $e->getMessage());
+            }
+
+            return null;
+        }
+    }
+}

@@ -1,0 +1,110 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Config\Database;
+use CTDHR\Models\EmailLog;
+use CTDHR\Services\AuditService;
+use CTDHR\Services\EmailService;
+
+final class EmailController
+{
+    private AuditService $audit;
+    private EmailService $email;
+
+    public function __construct()
+    {
+        $this->audit = new AuditService();
+        $this->email = new EmailService();
+    }
+
+    public function index(): void
+    {
+        $page = max(1, (int) ($_GET['page'] ?? 1));
+        $filters = [
+            'search' => trim((string) ($_GET['search'] ?? '')),
+            'status' => trim((string) ($_GET['status'] ?? '')),
+        ];
+
+        admin_view('admin.emails.index', [
+            'pageTitle' => lang('emails'),
+            'result' => EmailLog::findAll($page, 25, $filters),
+            'filters' => $filters,
+        ]);
+    }
+
+    public function sendForm(): void
+    {
+        admin_view('admin.emails.send', [
+            'pageTitle' => lang('send_announcement'),
+        ]);
+    }
+
+    public function send(): void
+    {
+        $subject = trim($_POST['subject'] ?? '');
+        $body = trim($_POST['body'] ?? '');
+        $recipientType = (string) ($_POST['recipient_type'] ?? 'all');
+
+        if ($subject === '' || $body === '') {
+            flash('error', lang('required_fields_missing'));
+            redirect('admin/emails/send');
+        }
+
+        $recipients = $this->getRecipients($recipientType);
+        $sent = 0;
+        $failed = 0;
+
+        foreach ($recipients as $recipient) {
+            $logId = EmailLog::create([
+                'recipient_email' => $recipient['email'],
+                'recipient_name' => $recipient['full_name_en'],
+                'subject_en' => $subject,
+                'template_type' => 'custom',
+                'user_id' => $recipient['id'],
+                'status' => 'pending',
+            ]);
+
+            $html = '<div style="font-family:Arial,sans-serif;">' . nl2br(e($body)) . '</div>';
+            $ok = $this->email->send($recipient['email'], $recipient['full_name_en'], $subject, $html);
+
+            if ($ok) {
+                EmailLog::markSent($logId);
+                $sent++;
+            } else {
+                EmailLog::markFailed($logId, 'SMTP send failed');
+                $failed++;
+            }
+        }
+
+        $this->audit->log('email.announcement', 'email', null, [
+            'recipient_type' => $recipientType,
+            'sent' => $sent,
+            'failed' => $failed,
+        ]);
+
+        flash('success', lang('emails_sent', ['sent' => (string) $sent, 'failed' => (string) $failed]));
+        redirect('admin/emails');
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function getRecipients(string $type): array
+    {
+        $db = Database::getInstance();
+
+        if ($type === 'admins') {
+            $stmt = $db->query("SELECT id, email, full_name_en FROM users WHERE role = 'admin' AND is_active = 1");
+        } elseif (in_array($type, ['faculty', 'staff', 'student'], true)) {
+            $stmt = $db->prepare('SELECT id, email, full_name_en FROM users WHERE role = :role AND is_active = 1');
+            $stmt->execute(['role' => $type]);
+        } else {
+            $stmt = $db->query('SELECT id, email, full_name_en FROM users WHERE is_active = 1');
+        }
+
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC) ?: [];
+    }
+}

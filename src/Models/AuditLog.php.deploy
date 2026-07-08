@@ -1,0 +1,106 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Models;
+
+use CTDHR\Config\Database;
+use PDO;
+
+final class AuditLog
+{
+    /**
+     * @param array<string, mixed> $filters
+     * @return array{items: array<int, array<string, mixed>>, total: int, page: int, per_page: int, pages: int}
+     */
+    public static function findAll(array $filters = [], int $page = 1, int $perPage = 30): array
+    {
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $where = ['1=1'];
+        $params = [];
+
+        if (!empty($filters['action'])) {
+            $where[] = 'action = ?';
+            $params[] = (string) $filters['action'];
+        }
+
+        if (!empty($filters['user_id'])) {
+            $where[] = 'user_id = ?';
+            $params[] = (int) $filters['user_id'];
+        }
+
+        if (!empty($filters['search'])) {
+            $term = '%' . trim((string) $filters['search']) . '%';
+            $where[] = '(username LIKE ? OR action LIKE ? OR entity_type LIKE ?)';
+            array_push($params, $term, $term, $term);
+        }
+
+        $whereSql = implode(' AND ', $where);
+        $db = Database::getInstance();
+
+        $countStmt = $db->prepare("SELECT COUNT(*) FROM audit_logs WHERE {$whereSql}");
+        $countStmt->execute($params);
+        $total = (int) $countStmt->fetchColumn();
+
+        $offset = ($page - 1) * $perPage;
+        $stmt = $db->prepare(
+            "SELECT * FROM audit_logs WHERE {$whereSql} ORDER BY created_at DESC LIMIT {$perPage} OFFSET {$offset}"
+        );
+        $stmt->execute($params);
+
+        return [
+            'items' => $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [],
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+            'pages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public static function recent(int $limit = 10): array
+    {
+        $limit = max(1, min(50, $limit));
+        $db = Database::getInstance();
+
+        $stmt = $db->prepare(
+            "SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT {$limit}"
+        );
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /**
+     * @param array<string, mixed>|null $details
+     */
+    public static function create(
+        ?int $userId,
+        ?string $username,
+        string $action,
+        ?string $entityType = null,
+        ?int $entityId = null,
+        ?array $details = null
+    ): int {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'INSERT INTO audit_logs (user_id, username, action, entity_type, entity_id, details, ip_address, user_agent)
+             VALUES (:user_id, :username, :action, :entity_type, :entity_id, :details, :ip_address, :user_agent)'
+        );
+        $stmt->execute([
+            'user_id' => $userId,
+            'username' => $username,
+            'action' => $action,
+            'entity_type' => $entityType,
+            'entity_id' => $entityId,
+            'details' => $details !== null ? json_encode($details, JSON_UNESCAPED_UNICODE) : null,
+            'ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
+            'user_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? substr((string) $_SERVER['HTTP_USER_AGENT'], 0, 500) : null,
+        ]);
+
+        return (int) $db->lastInsertId();
+    }
+}

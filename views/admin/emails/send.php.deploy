@@ -1,0 +1,83 @@
+<?php declare(strict_types=1); ?>
+<div class="admin-module-page admin-module-page--form">
+<?php
+admin_page_header([
+    'icon' => 'send',
+    'title' => lang('send_announcement'),
+    'subtitle' => lang('email_compose_subtitle') ?? lang('send_announcement'),
+    'accent' => 'sky',
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('emails'), 'href' => url('admin/emails')],
+        ['label' => lang('send_announcement')],
+    ],
+]);
+?>
+
+<form method="POST" action="<?= e(url('admin/emails/send')) ?>" class="courses-form-card">
+    <?= csrf_field() ?>
+
+    <section class="courses-form-section courses-form-section--smtp">
+        <header class="courses-form-section-head">
+            <span class="courses-form-section-icon material-symbols-outlined">group</span>
+            <div>
+                <h2><?= e(lang('recipients')) ?></h2>
+                <p><?= e(lang('email_recipients_desc')) ?></p>
+            </div>
+        </header>
+        <div class="courses-form-section-body">
+            <div class="courses-form-grid courses-form-grid--single">
+                <div class="courses-field courses-field--full" style="max-width:28rem">
+                    <label class="courses-label" for="recipient_type"><?= e(lang('recipients')) ?></label>
+                    <div class="admin-select-wrap">
+                        <select id="recipient_type" name="recipient_type" class="admin-form-select">
+                            <option value="all"><?= e(lang('all_users')) ?></option>
+                            <option value="faculty"><?= e(lang('audience_faculty')) ?></option>
+                            <option value="staff"><?= e(lang('audience_staff')) ?></option>
+                            <option value="student"><?= e(lang('audience_students')) ?></option>
+                            <option value="admins"><?= e(lang('admins_only')) ?></option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="courses-form-section courses-form-section--content">
+        <header class="courses-form-section-head">
+            <span class="courses-form-section-icon material-symbols-outlined">edit_note</span>
+            <div>
+                <h2><?= e(lang('send_announcement')) ?></h2>
+                <p><?= e(lang('email_compose_subtitle') ?? lang('send_announcement')) ?></p>
+            </div>
+        </header>
+        <div class="courses-form-section-body">
+            <div class="courses-form-grid courses-form-grid--single">
+                <div class="courses-field courses-field--full">
+                    <label class="courses-label" for="subject"><?= e(lang('subject')) ?> <span class="courses-req">*</span></label>
+                    <input type="text" id="subject" name="subject" required class="courses-input" placeholder="<?= e(lang('email_subject_placeholder')) ?>">
+                </div>
+                <div class="courses-field courses-field--full">
+                    <label class="courses-label" for="body"><?= e(lang('message')) ?> <span class="courses-req">*</span></label>
+                    <textarea id="body" name="body" rows="10" required class="courses-input courses-textarea" placeholder="<?= e(lang('email_message_placeholder')) ?>"></textarea>
+                </div>
+                <div class="courses-hint courses-field--full">
+                    <span class="material-symbols-outlined text-[18px] shrink-0" aria-hidden="true">info</span>
+                    <span><?= e(lang('email_compose_hint')) ?></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="courses-form-action-bar">
+        <div></div>
+        <div class="courses-form-action-bar__actions">
+            <a href="<?= e(url('admin/emails')) ?>" class="courses-btn-cancel"><?= e(lang('cancel')) ?></a>
+            <button type="submit" class="courses-btn-save">
+                <span class="material-symbols-outlined courses-btn-icon text-[18px]">send</span>
+                <?= e(lang('send')) ?>
+            </button>
+        </div>
+    </div>
+</form>
+</div>

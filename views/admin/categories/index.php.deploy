@@ -1,0 +1,254 @@
+<?php declare(strict_types=1);
+
+$activeCount = 0;
+$inactiveCount = 0;
+foreach ($categories as $cat) {
+    if (!empty($cat['is_active'])) {
+        $activeCount++;
+    } else {
+        $inactiveCount++;
+    }
+}
+
+$createBtn = '<button type="button" onclick="openCategoryModal()" class="courses-btn-create">'
+    . '<span class="material-symbols-outlined">add_circle</span>'
+    . e(lang('add_category'))
+    . '</button>';
+?>
+
+<div class="admin-module-page">
+<?php
+admin_page_header([
+    'icon' => 'category',
+    'title' => lang('categories'),
+    'subtitle' => lang('categories_manage_subtitle'),
+    'accent' => 'gold',
+    'actions' => $createBtn,
+    'breadcrumbs' => [
+        ['label' => lang('admin_dashboard'), 'href' => url('admin')],
+        ['label' => lang('categories')],
+    ],
+]);
+?>
+
+<div class="courses-kpi-grid">
+    <?php foreach ([
+        ['blue', 'category', lang('total_categories'), count($categories)],
+        ['green', 'check_circle', lang('active'), $activeCount],
+        ['gold', 'pause_circle', lang('inactive'), $inactiveCount],
+    ] as [$theme, $icon, $label, $val]): ?>
+    <div class="courses-kpi courses-kpi--<?= e($theme) ?>">
+        <div class="courses-kpi-icon"><span class="material-symbols-outlined"><?= e($icon) ?></span></div>
+        <div class="courses-kpi-body">
+            <span class="courses-kpi-value"><?= (int) $val ?></span>
+            <span class="courses-kpi-label"><?= e($label) ?></span>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+<div class="courses-card">
+    <div class="courses-table-container">
+        <table class="courses-table courses-table--auto">
+            <thead>
+                <tr>
+                    <th><?= e(lang('name')) ?></th>
+                    <th class="courses-th-thumb"><?= e(lang('category_card_image')) ?></th>
+                    <th><?= e(lang('slug')) ?></th>
+                    <th><?= e(lang('order')) ?></th>
+                    <th><?= e(lang('status')) ?></th>
+                    <th class="courses-th-actions"><?= e(lang('actions')) ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($categories)): ?>
+                <tr>
+                    <td colspan="6" class="courses-empty">
+                        <span class="material-symbols-outlined">category</span>
+                        <p><?= e(lang('no_categories')) ?></p>
+                    </td>
+                </tr>
+                <?php else: foreach ($categories as $cat): ?>
+                <tr>
+                    <td class="courses-td-title">
+                        <span class="courses-link-title" style="cursor:default;text-decoration:none;">
+                            <?php if (!empty($cat['icon'])): ?>
+                            <span class="iconify inline-block align-middle me-1" data-icon="<?= e($cat['icon']) ?>" data-width="18" style="color:<?= e($cat['color'] ?? '#1E5AA8') ?>"></span>
+                            <?php endif; ?>
+                            <?= e(localized($cat, 'name')) ?>
+                        </span>
+                    </td>
+                    <td class="courses-td-thumb">
+                        <?php if (!empty($cat['card_image_path'])): ?>
+                        <img src="<?= e(asset(ltrim((string) $cat['card_image_path'], '/'))) ?>" alt="" class="courses-thumb courses-thumb--sm" title="<?= e(lang('category_card_image')) ?>">
+                        <?php else: ?>
+                        <span class="courses-thumb-none" aria-hidden="true">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="courses-td-muted"><?= e($cat['slug']) ?></td>
+                    <td><?= (int) $cat['display_order'] ?></td>
+                    <td>
+                        <span class="courses-badge courses-badge--<?= $cat['is_active'] ? 'active' : 'inactive' ?>">
+                            <?= $cat['is_active'] ? e(lang('active')) : e(lang('inactive')) ?>
+                        </span>
+                    </td>
+                    <td class="courses-td-actions">
+                        <div class="courses-actions-row">
+                            <button type="button" class="courses-action category-edit-btn" title="<?= e(lang('edit')) ?>"
+                                data-category="<?= e(json_encode($cat, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE)) ?>">
+                                <span class="material-symbols-outlined">edit</span>
+                            </button>
+                            <form method="POST" action="<?= e(url('admin/categories/' . $cat['id'] . '/delete')) ?>" class="courses-inline-form courses-delete-form">
+                                <?= csrf_field() ?>
+                                <button type="button" class="courses-action courses-action--delete" title="<?= e(lang('delete')) ?>"
+                                    data-title="<?= e(localized($cat, 'name')) ?>"
+                                    data-confirm="<?= e(lang('confirm_delete')) ?>"
+                                    data-warning="<?= e(lang('delete_warning')) ?>"
+                                    data-delete-label="<?= e(lang('delete')) ?>"
+                                    data-cancel-label="<?= e(lang('cancel')) ?>">
+                                    <span class="material-symbols-outlined">delete</span>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="categoryModal" class="courses-modal-backdrop is-hidden" data-modal-close>
+    <div class="courses-modal courses-modal--lg" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="courses-modal-head">
+            <h3 id="modalTitle"><?= e(lang('add_category')) ?></h3>
+        </div>
+        <div class="courses-modal-body">
+            <form id="categoryForm" method="POST" action="<?= e(url('admin/categories')) ?>">
+                <?= csrf_field() ?>
+                <div class="courses-form-grid">
+                    <div class="courses-field">
+                        <label class="courses-label"><?= e(lang('name')) ?> (EN)</label>
+                        <input type="text" name="name_en" required class="courses-input">
+                    </div>
+                    <div class="courses-field">
+                        <label class="courses-label"><?= e(lang('name')) ?> (AR)</label>
+                        <input type="text" name="name_ar" required dir="rtl" class="courses-input">
+                    </div>
+                    <div class="courses-field courses-field--full">
+                        <label class="courses-label"><?= e(lang('slug')) ?></label>
+                        <input type="text" name="slug" class="courses-input" placeholder="<?= e(lang('auto_generated')) ?>">
+                    </div>
+                    <div class="courses-field">
+                        <label class="courses-label"><?= e(lang('icon')) ?></label>
+                        <input type="text" name="icon" placeholder="mdi:laptop" class="courses-input">
+                    </div>
+                    <div class="courses-field">
+                        <label class="courses-label"><?= e(lang('color')) ?></label>
+                        <input type="color" name="color" value="#1E5AA8" class="courses-input h-10 cursor-pointer">
+                    </div>
+                    <div class="courses-field">
+                        <label class="courses-label"><?= e(lang('order')) ?></label>
+                        <input type="number" name="display_order" value="0" class="courses-input">
+                    </div>
+                    <div class="courses-field courses-field--checks">
+                        <label class="courses-check">
+                            <input type="checkbox" name="is_active" value="1" checked class="courses-checkbox">
+                            <?= e(lang('active')) ?>
+                        </label>
+                    </div>
+                </div>
+            </form>
+
+            <div id="categoryImagePanel" class="hidden mt-6 pt-6 border-t border-gray-100">
+                <h4 class="courses-label mb-2"><?= e(lang('category_card_image')) ?></h4>
+                <p class="courses-td-muted mb-3"><?= e(lang('category_card_image_hint')) ?></p>
+                <div id="categoryImagePreviewWrap" class="mb-3 hidden">
+                    <img id="categoryImagePreview" src="" alt="" class="courses-thumb courses-thumb--preview">
+                </div>
+                <form id="categoryImageForm" method="POST" action="" enctype="multipart/form-data" class="space-y-3">
+                    <?= csrf_field() ?>
+                    <input type="file" name="card_image" accept="image/jpeg,image/png,image/webp" required class="courses-input">
+                    <button type="submit" class="courses-btn-save text-sm"><?= e(lang('upload_category_card')) ?></button>
+                </form>
+            </div>
+            <p id="categoryImageSaveHint" class="courses-td-muted mt-4"><?= e(lang('category_card_image_save_first')) ?></p>
+        </div>
+        <div class="courses-modal-foot">
+            <button type="button" onclick="closeCategoryModal()" class="courses-btn-cancel"><?= e(lang('cancel')) ?></button>
+            <button type="submit" form="categoryForm" class="courses-btn-save">
+                <span class="material-symbols-outlined courses-btn-icon text-[18px]">save</span>
+                <?= e(lang('save')) ?>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openCategoryModal() {
+    const form = document.getElementById('categoryForm');
+    form.action = '<?= e(url('admin/categories')) ?>';
+    document.getElementById('modalTitle').textContent = '<?= e(lang('add_category')) ?>';
+    form.reset();
+    const activeCheck = form.querySelector('[name="is_active"]');
+    if (activeCheck) activeCheck.checked = true;
+    const colorInput = form.querySelector('[name="color"]');
+    if (colorInput) colorInput.value = '#1E5AA8';
+    document.getElementById('categoryImagePanel').classList.add('hidden');
+    document.getElementById('categoryImageSaveHint').classList.remove('hidden');
+    document.getElementById('categoryModal').classList.remove('is-hidden');
+}
+
+function closeCategoryModal() {
+    document.getElementById('categoryModal').classList.add('is-hidden');
+}
+
+function editCategory(cat) {
+    const form = document.getElementById('categoryForm');
+    form.action = '<?= e(url('admin/categories')) ?>/' + cat.id + '/update';
+    document.getElementById('modalTitle').textContent = '<?= e(lang('edit_category')) ?>';
+
+    const setField = (name, value) => {
+        const el = form.querySelector('[name="' + name + '"]');
+        if (el) el.value = value ?? '';
+    };
+
+    setField('name_en', cat.name_en);
+    setField('name_ar', cat.name_ar);
+    setField('slug', cat.slug);
+    setField('icon', cat.icon || '');
+    setField('color', cat.color || '#1E5AA8');
+    setField('display_order', cat.display_order);
+    const activeCheck = form.querySelector('[name="is_active"]');
+    if (activeCheck) activeCheck.checked = Number(cat.is_active) === 1;
+
+    const imagePanel = document.getElementById('categoryImagePanel');
+    const imageForm = document.getElementById('categoryImageForm');
+    const previewWrap = document.getElementById('categoryImagePreviewWrap');
+    const preview = document.getElementById('categoryImagePreview');
+    imageForm.action = '<?= e(url('admin/categories')) ?>/' + cat.id + '/upload-card-image';
+    imagePanel.classList.remove('hidden');
+    document.getElementById('categoryImageSaveHint').classList.add('hidden');
+
+    if (cat.card_image_path) {
+        preview.src = '<?= e(rtrim(config('url', ''), '/')) ?>/assets/' + String(cat.card_image_path).replace(/^\//, '');
+        previewWrap.classList.remove('hidden');
+    } else {
+        preview.removeAttribute('src');
+        previewWrap.classList.add('hidden');
+    }
+
+    document.getElementById('categoryModal').classList.remove('is-hidden');
+}
+
+document.querySelectorAll('.category-edit-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        try {
+            editCategory(JSON.parse(this.getAttribute('data-category') || '{}'));
+        } catch (e) {
+            console.error('Failed to open category editor', e);
+        }
+    });
+});
+</script>
+</div>

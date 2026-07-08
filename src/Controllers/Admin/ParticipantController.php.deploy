@@ -1,0 +1,80 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Controllers\Admin;
+
+use CTDHR\Config\Database;
+use CTDHR\Services\ParticipantTimelineService;
+use PDO;
+
+final class ParticipantController
+{
+    /**
+     * @param array<string, string> $params
+     */
+    public function timeline(array $params): void
+    {
+        $userId = (int) ($params['userId'] ?? 0);
+        $courseId = !empty($_GET['course_id']) ? (int) $_GET['course_id'] : null;
+        $participant = $this->findParticipant($userId);
+        $course = $courseId !== null && $courseId > 0 ? $this->findCourse($courseId) : null;
+
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'participant' => $participant,
+            'course' => $course,
+            'timeline' => ParticipantTimelineService::build($userId, $courseId),
+        ], JSON_THROW_ON_ERROR);
+        exit;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function findParticipant(int $userId): ?array
+    {
+        if ($userId <= 0) {
+            return null;
+        }
+
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'SELECT id, email, full_name_en, full_name_ar FROM users WHERE id = :id LIMIT 1'
+        );
+        $stmt->execute(['id' => $userId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($row === false) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $row['id'],
+            'email' => (string) ($row['email'] ?? ''),
+            'name' => localized($row, 'full_name'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function findCourse(int $courseId): ?array
+    {
+        $db = Database::getInstance();
+        $stmt = $db->prepare(
+            'SELECT id, title_en, title_ar FROM courses WHERE id = :id AND deleted_at IS NULL LIMIT 1'
+        );
+        $stmt->execute(['id' => $courseId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($row === false) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $row['id'],
+            'title' => localized($row, 'title'),
+        ];
+    }
+}

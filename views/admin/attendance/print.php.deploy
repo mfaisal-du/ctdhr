@@ -1,0 +1,459 @@
+<?php declare(strict_types=1);
+
+$courseTitle = localized($course, 'title');
+$sessionLabel = !empty($currentSession)
+    ? attendance_session_option_label($currentSession)
+    : ($sessionDate !== '' ? $sessionDate : '—');
+$sessionDetail = (string) ($currentSession['detail'] ?? '');
+$printedAt = format_date(date('Y-m-d')) . ' · ' . date('H:i');
+$participantCount = count($participants);
+$presentCount = 0;
+$absentCount = 0;
+$excusedCount = 0;
+
+foreach ($participants as $p) {
+    $status = \CTDHR\Models\Attendance::rowStatus($attendance[(int) $p['id']] ?? []);
+    if ($status === 'present') {
+        $presentCount++;
+    } elseif ($status === 'excused') {
+        $excusedCount++;
+    } else {
+        $absentCount++;
+    }
+}
+
+$venue = localized($course, 'venue') ?: '—';
+$duration = $course['duration_hours'] ?? null;
+?>
+<!DOCTYPE html>
+<html lang="<?= e(current_locale()) ?>">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= e($pageTitle ?? lang('print_attendance_sheet')) ?></title>
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 14mm 12mm 16mm;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+            font-size: 10pt;
+            color: #1a2340;
+            background: #e8ecf5;
+            line-height: 1.45;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .sheet-wrap {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            background: #fff;
+            box-shadow: 0 8px 32px rgba(40, 65, 148, 0.12);
+        }
+
+        .sheet {
+            padding: 14mm 12mm 16mm;
+            min-height: 297mm;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sheet-rainbow {
+            height: 4px;
+            margin: -14mm -12mm 10mm;
+            background: linear-gradient(90deg, #30872F 0%, #425AAD 25%, #00B0FF 50%, #D81B60 75%, #FFD600 100%);
+        }
+
+        .sheet-toolbar {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .sheet-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.5rem 1rem;
+            border: 1px solid rgba(40, 65, 148, 0.25);
+            border-radius: 0.5rem;
+            background: #fff;
+            color: #284194;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .sheet-btn--primary {
+            background: linear-gradient(135deg, #284194, #425aad);
+            border-color: transparent;
+            color: #fff;
+        }
+
+        .sheet-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding-bottom: 0.85rem;
+            border-bottom: 2px solid #284194;
+            margin-bottom: 1rem;
+        }
+
+        .sheet-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+
+        .sheet-logo {
+            width: 52px;
+            height: 52px;
+            object-fit: contain;
+            border-radius: 0.35rem;
+        }
+
+        .sheet-org-eyebrow {
+            margin: 0;
+            font-size: 0.68rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #425aad;
+        }
+
+        .sheet-org-name {
+            margin: 0.15rem 0 0;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #152550;
+        }
+
+        .sheet-org-sub {
+            margin: 0.1rem 0 0;
+            font-size: 0.75rem;
+            color: #5c6478;
+        }
+
+        .sheet-doc-meta {
+            text-align: right;
+            font-size: 0.72rem;
+            color: #5c6478;
+        }
+
+        .sheet-doc-meta strong {
+            display: block;
+            font-size: 0.95rem;
+            color: #152550;
+            margin-bottom: 0.2rem;
+        }
+
+        .sheet-title-block {
+            margin-bottom: 1rem;
+        }
+
+        .sheet-title {
+            margin: 0 0 0.25rem;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #152550;
+        }
+
+        .sheet-subtitle {
+            margin: 0;
+            font-size: 0.82rem;
+            color: #5c6478;
+        }
+
+        .sheet-info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.55rem 1rem;
+            margin-bottom: 1rem;
+            padding: 0.75rem 0.9rem;
+            border-radius: 0.5rem;
+            background: linear-gradient(135deg, rgba(40, 65, 148, 0.06) 0%, rgba(255, 255, 255, 1) 100%);
+            border: 1px solid rgba(66, 90, 173, 0.14);
+        }
+
+        .sheet-info-item {
+            font-size: 0.76rem;
+        }
+
+        .sheet-info-label {
+            display: block;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #6b7280;
+            margin-bottom: 0.12rem;
+        }
+
+        .sheet-info-value {
+            color: #1a2340;
+            font-weight: 600;
+        }
+
+        .sheet-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.85rem;
+        }
+
+        .sheet-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.3rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
+
+        .sheet-chip--total { background: rgba(66, 90, 173, 0.1); color: #284194; }
+        .sheet-chip--present { background: rgba(16, 110, 24, 0.1); color: #106e18; }
+        .sheet-chip--absent { background: rgba(198, 40, 40, 0.08); color: #c62828; }
+        .sheet-chip--excused { background: rgba(66, 90, 173, 0.08); color: #425aad; }
+
+        .sheet-table-wrap {
+            flex: 1;
+            margin-bottom: 1rem;
+        }
+
+        table.sheet-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.78rem;
+        }
+
+        .sheet-table thead th {
+            padding: 0.55rem 0.6rem;
+            text-align: left;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #fff;
+            background: linear-gradient(135deg, #1e3578, #284194);
+            border: 1px solid #1e3578;
+        }
+
+        .sheet-table tbody td {
+            padding: 0.5rem 0.6rem;
+            border: 1px solid rgba(66, 90, 173, 0.18);
+            vertical-align: middle;
+        }
+
+        .sheet-table tbody tr:nth-child(even) {
+            background: rgba(66, 90, 173, 0.03);
+        }
+
+        .sheet-table .col-num { width: 2.2rem; text-align: center; color: #5c6478; }
+        .sheet-table .col-status { width: 6.5rem; }
+        .sheet-table .col-sig { width: 7rem; }
+
+        .status-pill {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .status-pill--present { background: rgba(16, 110, 24, 0.12); color: #106e18; }
+        .status-pill--absent { background: rgba(198, 40, 40, 0.1); color: #c62828; }
+        .status-pill--excused { background: rgba(66, 90, 173, 0.1); color: #425aad; }
+
+        .sig-line {
+            display: block;
+            height: 1.4rem;
+            border-bottom: 1px solid rgba(66, 90, 173, 0.35);
+        }
+
+        .sheet-footer {
+            margin-top: auto;
+            padding-top: 0.85rem;
+            border-top: 1px solid rgba(66, 90, 173, 0.15);
+        }
+
+        .sheet-signatures {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .sheet-sig-block label {
+            display: block;
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6b7280;
+            margin-bottom: 1.6rem;
+        }
+
+        .sheet-sig-line {
+            border-bottom: 1px solid #1a2340;
+            height: 1px;
+        }
+
+        .sheet-disclaimer {
+            margin: 0;
+            font-size: 0.68rem;
+            color: #6b7280;
+            text-align: center;
+        }
+
+        @media screen {
+            body { padding: 1.5rem 1rem 2rem; }
+        }
+
+        @media print {
+            body { background: #fff; }
+            .sheet-wrap { box-shadow: none; width: auto; min-height: auto; }
+            .no-print { display: none !important; }
+            .sheet { padding: 0; min-height: auto; }
+            .sheet-rainbow { margin: 0 0 8mm; }
+        }
+    </style>
+</head>
+<body>
+<div class="sheet-wrap">
+    <div class="sheet">
+        <div class="sheet-rainbow" aria-hidden="true"></div>
+
+        <div class="sheet-toolbar no-print">
+            <button type="button" class="sheet-btn sheet-btn--primary" onclick="window.print()">
+                <?= e(lang('print')) ?>
+            </button>
+            <button type="button" class="sheet-btn" onclick="window.close()">
+                <?= e(lang('close')) ?>
+            </button>
+        </div>
+
+        <header class="sheet-header">
+            <div class="sheet-brand">
+                <img src="<?= e(university_logo()) ?>" alt="<?= e(lang('university')) ?>" class="sheet-logo" width="52" height="52">
+                <div>
+                    <p class="sheet-org-eyebrow"><?= e(lang('app_name')) ?></p>
+                    <p class="sheet-org-name"><?= e(lang('university')) ?></p>
+                    <p class="sheet-org-sub"><?= e(lang('print_sheet_org_line')) ?></p>
+                </div>
+            </div>
+            <div class="sheet-doc-meta">
+                <strong><?= e(lang('print_attendance_sheet')) ?></strong>
+                <?= e(lang('print_sheet_ref')) ?>: ATT-<?= (int) ($course['id'] ?? 0) ?>-<?= date('Ymd') ?><br>
+                <?= e(lang('print_generated_at')) ?>: <?= e($printedAt) ?>
+            </div>
+        </header>
+
+        <section class="sheet-title-block">
+            <h1 class="sheet-title"><?= e($courseTitle) ?></h1>
+            <p class="sheet-subtitle"><?= e(lang('print_sheet_subtitle')) ?></p>
+        </section>
+
+        <section class="sheet-info-grid">
+            <div class="sheet-info-item">
+                <span class="sheet-info-label"><?= e(lang('session')) ?></span>
+                <span class="sheet-info-value"><?= e($sessionLabel) ?></span>
+            </div>
+            <?php if ($sessionDetail !== ''): ?>
+            <div class="sheet-info-item">
+                <span class="sheet-info-label"><?= e(lang('print_sheet_topic')) ?></span>
+                <span class="sheet-info-value"><?= e($sessionDetail) ?></span>
+            </div>
+            <?php endif; ?>
+            <div class="sheet-info-item">
+                <span class="sheet-info-label"><?= e(lang('venue')) ?></span>
+                <span class="sheet-info-value"><?= e($venue) ?></span>
+            </div>
+            <?php if ($duration !== null && $duration !== ''): ?>
+            <div class="sheet-info-item">
+                <span class="sheet-info-label"><?= e(lang('duration')) ?></span>
+                <span class="sheet-info-value"><?= e((string) $duration) ?> <?= e(lang('hours')) ?></span>
+            </div>
+            <?php endif; ?>
+            <div class="sheet-info-item">
+                <span class="sheet-info-label"><?= e(lang('date')) ?></span>
+                <span class="sheet-info-value"><?= e(format_date(date('Y-m-d'))) ?></span>
+            </div>
+            <div class="sheet-info-item">
+                <span class="sheet-info-label"><?= e(lang('participants')) ?></span>
+                <span class="sheet-info-value"><?= (int) $participantCount ?></span>
+            </div>
+        </section>
+
+        <div class="sheet-summary">
+            <span class="sheet-chip sheet-chip--total"><?= e(lang('participants')) ?>: <?= (int) $participantCount ?></span>
+            <span class="sheet-chip sheet-chip--present"><?= e(lang('present')) ?>: <?= $presentCount ?></span>
+            <span class="sheet-chip sheet-chip--absent"><?= e(lang('absent')) ?>: <?= $absentCount ?></span>
+            <?php if ($excusedCount > 0): ?>
+            <span class="sheet-chip sheet-chip--excused"><?= e(lang('attendance_excused')) ?>: <?= $excusedCount ?></span>
+            <?php endif; ?>
+        </div>
+
+        <div class="sheet-table-wrap">
+            <table class="sheet-table">
+                <thead>
+                    <tr>
+                        <th class="col-num">#</th>
+                        <th><?= e(lang('participant_name')) ?></th>
+                        <th><?= e(lang('email')) ?></th>
+                        <th class="col-status"><?= e(lang('attendance_status')) ?></th>
+                        <th class="col-sig"><?= e(lang('signature')) ?></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (empty($participants)): ?>
+                    <tr>
+                        <td colspan="5" style="text-align:center;padding:1.5rem;color:#6b7280;"><?= e(lang('no_participants')) ?></td>
+                    </tr>
+                    <?php else: foreach ($participants as $i => $p):
+                        $pid = (int) $p['id'];
+                        $status = \CTDHR\Models\Attendance::rowStatus($attendance[$pid] ?? []);
+                    ?>
+                    <tr>
+                        <td class="col-num"><?= $i + 1 ?></td>
+                        <td><strong><?= e(localized($p, 'full_name')) ?></strong></td>
+                        <td><?= e($p['email']) ?></td>
+                        <td class="col-status">
+                            <span class="status-pill status-pill--<?= e($status) ?>"><?= e(lang('attendance_' . $status)) ?></span>
+                        </td>
+                        <td class="col-sig"><span class="sig-line" aria-hidden="true"></span></td>
+                    </tr>
+                    <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="sheet-footer">
+            <div class="sheet-signatures">
+                <div class="sheet-sig-block">
+                    <label><?= e(lang('print_sheet_facilitator_sig')) ?></label>
+                    <div class="sheet-sig-line"></div>
+                </div>
+                <div class="sheet-sig-block">
+                    <label><?= e(lang('print_sheet_coordinator_sig')) ?></label>
+                    <div class="sheet-sig-line"></div>
+                </div>
+            </div>
+            <p class="sheet-disclaimer"><?= e(lang('print_sheet_disclaimer')) ?></p>
+        </footer>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<?php
+
+declare(strict_types=1);
+
+namespace CTDHR\Services;
+
+use CTDHR\Models\Notification;
+use CTDHR\Models\User;
+
+final class NotificationService
+{
+    /**
+     * @param array<string, mixed> $overrides
+     */
+    public static function createNotification(
+        int $userId,
+        string $type,
+        string $titleEn,
+        string $titleAr,
+        ?string $messageEn = null,
+        ?string $messageAr = null,
+        ?string $link = null,
+        array $overrides = []
+    ): int {
+        return Notification::create(array_merge([
+            'user_id' => $userId,
+            'type' => $type,
+            'title_en' => $titleEn,
+            'title_ar' => $titleAr,
+            'message_en' => $messageEn,
+            'message_ar' => $messageAr,
+            'link' => $link,
+        ], $overrides));
+    }
+
+    public static function applicationSubmitted(int $userId, string $courseTitleEn, string $courseTitleAr): int
+    {
+        return self::createNotification(
+            $userId,
+            'application_submitted',
+            'Application Submitted',
+            'تم تقديم الطلب',
+            'Your application for "' . $courseTitleEn . '" has been received and is pending review.',
+            'تم استلام طلبك للدورة "' . $courseTitleAr . '" وهو قيد المراجعة.',
+            url('dashboard/applications')
+        );
+    }
+
+    public static function applicationStatusChanged(
+        int $userId,
+        string $courseTitleEn,
+        string $courseTitleAr,
+        string $status
+    ): int {
+        $statusLabels = [
+            'approved' => ['Application Approved', 'تم قبول الطلب'],
+            'rejected' => ['Application Rejected', 'تم رفض الطلب'],
+            'cancelled' => ['Application Cancelled', 'تم إلغاء الطلب'],
+            'waitlisted' => ['Added to Waitlist', 'تمت الإضافة لقائمة الانتظار'],
+            'pending' => ['Application Pending', 'الطلب قيد الانتظار'],
+        ];
+
+        $labels = $statusLabels[$status] ?? ['Application Updated', 'تم تحديث الطلب'];
+
+        return self::createNotification(
+            $userId,
+            'application_status',
+            $labels[0],
+            $labels[1],
+            'Your application for "' . $courseTitleEn . '" is now ' . $status . '.',
+            'حالة طلبك للدورة "' . $courseTitleAr . '" أصبحت: ' . $status . '.',
+            url('dashboard/applications')
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $user
+     */
+    public static function adminNewExternalAccount(array $user): void
+    {
+        $adminIds = (new User())->findAdminIds();
+        if ($adminIds === []) {
+            return;
+        }
+
+        $userId = (int) ($user['id'] ?? 0);
+        if ($userId <= 0) {
+            return;
+        }
+
+        $nameEn = (string) ($user['full_name_en'] ?? $user['full_name_ar'] ?? 'Participant');
+        $nameAr = (string) ($user['full_name_ar'] ?? $user['full_name_en'] ?? 'مشارك');
+        $email = (string) ($user['email'] ?? '');
+        $organization = (string) ($user['organization_en'] ?? '—');
+
+        $messageEn = $nameEn . ' (' . $email . ') registered as an external participant from ' . $organization . '.';
+        $messageAr = 'سجّل ' . $nameAr . ' (' . $email . ') كمشارك خارجي من ' . $organization . '.';
+        $link = url('admin/users/pending?account=' . $userId);
+
+        foreach ($adminIds as $adminId) {
+            self::createNotification(
+                $adminId,
+                'admin_new_external_account',
+                'New External Account',
+                'حساب خارجي جديد',
+                $messageEn,
+                $messageAr,
+                $link
+            );
+        }
+    }
+
+    public static function resolveExternalAccountReview(int $externalUserId, ?string $email = null): void
+    {
+        if ($externalUserId <= 0) {
+            return;
+        }
+
+        Notification::markExternalAccountReviewed($externalUserId, $email);
+    }
+
+    public static function adminNewApplication(
+        string $applicantNameEn,
+        string $applicantNameAr,
+        string $courseTitleEn,
+        string $courseTitleAr
+    ): void {
+        $adminIds = (new User())->findAdminIds();
+        if ($adminIds === []) {
+            return;
+        }
+
+        $messageEn = $applicantNameEn . ' applied for "' . $courseTitleEn . '".';
+        $messageAr = 'قدّم ' . $applicantNameAr . ' طلباً للتسجيل في دورة "' . $courseTitleAr . '".';
+        $link = url('admin/applications?status=pending');
+
+        foreach ($adminIds as $adminId) {
+            self::createNotification(
+                $adminId,
+                'admin_new_application',
+                'New Course Application',
+                'طلب جديد للتسجيل في دورة',
+                $messageEn,
+                $messageAr,
+                $link
+            );
+        }
+    }
+}

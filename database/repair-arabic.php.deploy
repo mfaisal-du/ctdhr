@@ -1,0 +1,165 @@
+<?php
+
+declare(strict_types=1);
+
+$envFile = dirname(__DIR__) . '/.env';
+$host = '127.0.0.1';
+$port = '3307';
+$dbName = 'ctdhr_portal';
+$dbUser = 'root';
+$dbPass = '';
+
+if (is_file($envFile)) {
+    foreach (file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === '#') {
+            continue;
+        }
+        if (!str_contains($line, '=')) {
+            continue;
+        }
+        [$key, $value] = array_map('trim', explode('=', $line, 2));
+        $value = trim($value, "\"'");
+        match ($key) {
+            'DB_HOST' => $host = $value,
+            'DB_PORT' => $port = $value,
+            'DB_DATABASE' => $dbName = $value,
+            'DB_USERNAME' => $dbUser = $value,
+            'DB_PASSWORD' => $dbPass = $value,
+            default => null,
+        };
+    }
+}
+
+$dsn = sprintf('mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4', $host, $port, $dbName);
+$db = new PDO($dsn, $dbUser, $dbPass, [
+    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    PDO::MYSQL_ATTR_INIT_COMMAND => 'SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci',
+]);
+
+function is_corrupted(string $value): bool
+{
+    $value = trim($value);
+    if ($value === '') {
+        return false;
+    }
+
+    return preg_match('/\?{2,}/', $value) === 1
+        || preg_match('/^[\x{003F}\s]+$/u', $value) === 1;
+}
+
+$dataFile = __DIR__ . '/arabic-content.php.deploy';
+if (!is_file($dataFile)) {
+    $dataFile = __DIR__ . '/arabic-content.php';
+}
+
+/** @var array{categories: array<string, string>, courses: array<string, array<string, string>>, settings: array<string, string>, users: array<string, string>} $data */
+$data = require $dataFile;
+
+$settingsUpdated = 0;
+$settingsStmt = $db->prepare(
+    'UPDATE system_settings SET setting_value = :value WHERE setting_key = :key'
+);
+foreach ($data['settings'] as $key => $value) {
+    $check = $db->prepare('SELECT setting_value FROM system_settings WHERE setting_key = :key LIMIT 1');
+    $check->execute(['key' => $key]);
+    $current = (string) ($check->fetchColumn() ?: '');
+    if ($current === '' || is_corrupted($current)) {
+        $settingsStmt->execute(['key' => $key, 'value' => $value]);
+        $settingsUpdated += $settingsStmt->rowCount();
+    }
+}
+
+$usersUpdated = 0;
+$userStmt = $db->prepare(
+    'UPDATE users SET full_name_ar = :full_name_ar WHERE email = :email'
+);
+foreach ($data['users'] as $email => $fullNameAr) {
+    $check = $db->prepare('SELECT full_name_ar FROM users WHERE email = :email LIMIT 1');
+    $check->execute(['email' => $email]);
+    $current = (string) ($check->fetchColumn() ?: '');
+    if ($current === '' || is_corrupted($current)) {
+        $userStmt->execute(['email' => $email, 'full_name_ar' => $fullNameAr]);
+        $usersUpdated += $userStmt->rowCount();
+    }
+}
+
+$catStmt = $db->prepare('UPDATE course_categories SET name_ar = :name_ar WHERE slug = :slug');
+$categoriesUpdated = 0;
+foreach ($data['categories'] as $slug => $nameAr) {
+    $check = $db->prepare('SELECT name_ar FROM course_categories WHERE slug = :slug LIMIT 1');
+    $check->execute(['slug' => $slug]);
+    $current = (string) ($check->fetchColumn() ?: '');
+    if ($current === '' || is_corrupted($current)) {
+        $catStmt->execute(['name_ar' => $nameAr, 'slug' => $slug]);
+        $categoriesUpdated += $catStmt->rowCount();
+    }
+}
+
+$courseStmt = $db->prepare(
+    'UPDATE courses SET
+        title_ar = :title_ar,
+        short_description_ar = :short_description_ar,
+        description_ar = :description_ar,
+        learning_outcomes_ar = :learning_outcomes_ar,
+        instructor_names_ar = :instructor_names_ar,
+        venue_ar = :venue_ar
+     WHERE slug = :slug'
+);
+$coursesUpdated = 0;
+foreach ($data['courses'] as $slug => $fields) {
+    $check = $db->prepare('SELECT title_ar FROM courses WHERE slug = :slug LIMIT 1');
+    $check->execute(['slug' => $slug]);
+    $current = (string) ($check->fetchColumn() ?: '');
+    if ($current === '' || is_corrupted($current)) {
+        $courseStmt->execute([
+            'slug' => $slug,
+            'title_ar' => $fields['title_ar'],
+            'short_description_ar' => $fields['short_description_ar'],
+            'description_ar' => $fields['description_ar'],
+            'learning_outcomes_ar' => $fields['learning_outcomes_ar'],
+            'instructor_names_ar' => $fields['instructor_names_ar'],
+            'venue_ar' => $fields['venue_ar'],
+        ]);
+        $coursesUpdated += $courseStmt->rowCount();
+    }
+}
+
+$tickerFile = __DIR__ . '/news-ticker-arabic.php.deploy';
+if (!is_file($tickerFile)) {
+    $tickerFile = __DIR__ . '/news-ticker-arabic.php';
+}
+$tickerUpdated = 0;
+if (is_file($tickerFile)) {
+    /** @var array<int, array{title_ar: string, text_ar: string}> $tickerItems */
+    $tickerItems = require $tickerFile;
+    $tickerStmt = $db->prepare(
+        'UPDATE news_ticker_items SET title_ar = :title_ar, text_ar = :text_ar WHERE id = :id'
+    );
+    foreach ($tickerItems as $id => $fields) {
+        $check = $db->prepare('SELECT title_ar, text_ar FROM news_ticker_items WHERE id = :id LIMIT 1');
+        $check->execute(['id' => (int) $id]);
+        $row = $check->fetch(PDO::FETCH_ASSOC) ?: [];
+        $titleAr = (string) ($row['title_ar'] ?? '');
+        $textAr = (string) ($row['text_ar'] ?? '');
+        if (($titleAr === '' || is_corrupted($titleAr)) || ($textAr === '' || is_corrupted($textAr))) {
+            $tickerStmt->execute([
+                'id' => (int) $id,
+                'title_ar' => $fields['title_ar'],
+                'text_ar' => $fields['text_ar'],
+            ]);
+            if ($tickerStmt->rowCount() > 0) {
+                $tickerUpdated++;
+            }
+        }
+    }
+}
+
+echo sprintf(
+    "Arabic content repaired: %d setting(s), %d user(s), %d categor(ies), %d course(s), %d ticker item(s).\n",
+    $settingsUpdated,
+    $usersUpdated,
+    $categoriesUpdated,
+    $coursesUpdated,
+    $tickerUpdated
+);
