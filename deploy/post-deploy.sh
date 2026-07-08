@@ -4,10 +4,12 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "==> Composer install"
+COMPOSER_FLAGS=(--no-dev --optimize-autoloader --no-interaction --ignore-platform-req=ext-ldap)
+
 if command -v composer >/dev/null 2>&1; then
-    composer install --no-dev --optimize-autoloader --no-interaction
+    composer install "${COMPOSER_FLAGS[@]}"
 elif [ -f composer.phar ]; then
-    php composer.phar install --no-dev --optimize-autoloader --no-interaction
+    php composer.phar install "${COMPOSER_FLAGS[@]}"
 else
     echo "Composer not found. Install dependencies manually."
     exit 1

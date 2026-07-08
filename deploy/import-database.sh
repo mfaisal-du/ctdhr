@@ -14,7 +14,7 @@ MYSQL=(mysql -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME")
 import_sql() {
     local file="$1"
     echo "==> Importing $(basename "$file")"
-    sed -e '/^CREATE DATABASE/d' -e '/^USE /d' "$file" | "${MYSQL[@]}"
+    sed -e '/^CREATE DATABASE/,/^USE /d' -e '/^USE /d' "$file" | "${MYSQL[@]}"
 }
 
 import_sql database/schema.sql.deploy
