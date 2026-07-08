@@ -576,6 +576,8 @@ return [
     'cert_not_eligible' => 'Below Threshold',
     'attendance_threshold_hint' => 'Certificate requires at least :threshold% attendance.',
     'view_attendance' => 'View Attendance',
+    'view_sessions' => 'View sessions',
+    'hide_sessions' => 'Hide sessions',
     'attendance_progress' => 'Attendance Progress',
     'sessions' => 'sessions',
     'certificates_subtitle' => 'Your earned training certificates.',

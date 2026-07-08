@@ -576,6 +576,8 @@ return [
     'cert_not_eligible' => 'أقل من الحد الأدنى',
     'attendance_threshold_hint' => 'تتطلب الشهادة نسبة حضور لا تقل عن :threshold%.',
     'view_attendance' => 'عرض الحضور',
+    'view_sessions' => 'عرض الجلسات',
+    'hide_sessions' => 'إخفاء الجلسات',
     'attendance_progress' => 'تقدم الحضور',
     'sessions' => 'جلسات',
     'certificates_subtitle' => 'شهادات التدريب التي حصلت عليها.',

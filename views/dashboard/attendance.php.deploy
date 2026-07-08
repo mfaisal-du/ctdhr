@@ -76,56 +76,64 @@ dashboard_page_header([
         $eligibility = $course['eligibility'] ?? ['eligible' => false, 'rate' => 0.0, 'total' => 0];
         $eligible = !empty($eligibility['eligible']);
         $progressClass = $percentage >= $threshold ? 'bg-status-certified' : ($percentage >= 50 ? 'bg-status-announced' : 'bg-primary');
+        $sessionDenominator = max($total, $sessionsMarkedCourse);
     ?>
-    <section class="courses-card overflow-hidden">
-        <button
-            type="button"
-            class="w-full text-start p-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between hover:bg-surface-container-low/40 transition-colors"
-            @click="toggleCourse(<?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>)"
-            :aria-expanded="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>"
-        >
-            <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2 mb-2">
-                    <span class="courses-badge courses-badge--<?= e(str_replace('_', '-', (string) ($course['course_status'] ?? 'scheduled'))) ?>">
-                        <?= e(course_status_label((string) ($course['course_status'] ?? ''))) ?>
-                    </span>
-                    <?php if ($sessionsMarkedCourse > 0): ?>
-                    <span class="courses-badge courses-badge--published">
-                        <?= e(lang('sessions_marked')) ?>: <?= e((string) $sessionsMarkedCourse) ?>
-                    </span>
+    <section class="courses-card overflow-hidden dashboard-attendance-course">
+        <div class="dashboard-attendance-course-header">
+            <div class="dashboard-attendance-course-top">
+                <div class="dashboard-attendance-course-info">
+                    <h3 class="dashboard-attendance-course-title"><?= e(localized($course, 'title')) ?></h3>
+                    <?php if (!empty($course['start_date'])): ?>
+                    <p class="text-label-sm text-on-surface-variant">
+                        <?= e(lang('start_date')) ?>: <?= e(format_date((string) $course['start_date'])) ?>
+                    </p>
                     <?php endif; ?>
-                    <?php if ((int) ($eligibility['total'] ?? 0) > 0): ?>
-                    <span class="courses-badge courses-badge--<?= $eligible ? 'approved' : 'pending' ?>">
-                        <?= e($eligible ? lang('cert_eligible') : lang('cert_not_eligible')) ?>
-                    </span>
-                    <?php endif; ?>
+                    <div class="dashboard-attendance-course-meta">
+                        <span class="courses-badge courses-badge--<?= e(str_replace('_', '-', (string) ($course['course_status'] ?? 'scheduled'))) ?>">
+                            <?= e(course_status_label((string) ($course['course_status'] ?? ''))) ?>
+                        </span>
+                        <?php if ($sessionsMarkedCourse > 0): ?>
+                        <span class="courses-badge courses-badge--published">
+                            <?= e(lang('sessions_marked')) ?>: <?= e((string) $sessionsMarkedCourse) ?>
+                        </span>
+                        <?php endif; ?>
+                        <?php if ((int) ($eligibility['total'] ?? 0) > 0): ?>
+                        <span class="courses-badge courses-badge--<?= $eligible ? 'approved' : 'pending' ?>">
+                            <?= e($eligible ? lang('cert_eligible') : lang('cert_not_eligible')) ?>
+                        </span>
+                        <?php endif; ?>
+                    </div>
                 </div>
-                <h3 class="font-label-md text-on-surface"><?= e(localized($course, 'title')) ?></h3>
-                <?php if (!empty($course['start_date'])): ?>
-                <p class="text-label-sm text-on-surface-variant mt-1">
-                    <?= e(lang('start_date')) ?>: <?= e(format_date((string) $course['start_date'])) ?>
-                </p>
-                <?php endif; ?>
+                <button
+                    type="button"
+                    class="dashboard-attendance-course-toggle"
+                    @click="toggleCourse(<?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>)"
+                    :aria-expanded="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>"
+                    :aria-label="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?> ? <?= json_encode(lang('hide_sessions'), JSON_UNESCAPED_UNICODE) ?> : <?= json_encode(lang('view_sessions'), JSON_UNESCAPED_UNICODE) ?>"
+                >
+                    <span
+                        class="material-symbols-outlined"
+                        x-text="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?> ? 'expand_less' : 'expand_more'"
+                    ></span>
+                </button>
             </div>
 
-            <div class="w-full lg:w-72 shrink-0">
-                <div class="flex items-center justify-between text-label-sm mb-2">
+            <div class="dashboard-attendance-course-stats">
+                <div class="dashboard-attendance-course-stats-head">
                     <span class="font-label-md text-on-surface"><?= e(lang('attendance_rate')) ?></span>
-                    <span class="text-on-surface-variant">
-                        <?= e((string) $present) ?> / <?= e((string) max($total, $sessionsMarkedCourse)) ?>
+                    <span class="text-on-surface-variant whitespace-nowrap">
+                        <?= e((string) $present) ?> / <?= e((string) $sessionDenominator) ?>
                         (<?= e((string) $percentage) ?>%)
                     </span>
                 </div>
                 <div class="dashboard-progress-track">
                     <div class="dashboard-progress-fill <?= e($progressClass) ?>" style="width: <?= e((string) max(0, min(100, $percentage))) ?>%"></div>
                 </div>
-                <p class="text-label-sm text-on-surface-variant mt-2">
+                <p class="text-label-sm text-on-surface-variant">
                     <?= e(lang('attendance_threshold_hint', ['threshold' => (string) $threshold])) ?>
                 </p>
             </div>
-
-            <span class="material-symbols-outlined text-on-surface-variant shrink-0" x-text="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?> ? 'expand_less' : 'expand_more'"></span>
-        </button>
+        </div>
 
         <div
             x-show="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>"
@@ -141,12 +149,12 @@ dashboard_page_header([
             </div>
             <?php else: ?>
             <div class="courses-table-container">
-                <table class="courses-table courses-table--auto">
+                <table class="courses-table dashboard-attendance-sessions-table">
                     <thead>
                         <tr>
-                            <th><?= e(lang('session')) ?></th>
-                            <th><?= e(lang('attendance_status')) ?></th>
-                            <th class="hidden md:table-cell"><?= e(lang('marked_at')) ?></th>
+                            <th scope="col"><?= e(lang('session')) ?></th>
+                            <th scope="col"><?= e(lang('attendance_status')) ?></th>
+                            <th scope="col" class="hidden sm:table-cell"><?= e(lang('marked_at')) ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -158,20 +166,26 @@ dashboard_page_header([
                             $sessionLabel = $sessionNumber > 0
                                 ? lang('session_number', ['n' => (string) $sessionNumber])
                                 : (preg_match('/^\d{4}-\d{2}-\d{2}$/', $sessionDate) === 1 ? format_date($sessionDate) : $sessionDate);
+                            $statusBadgeClass = $sessionStatus === 'present'
+                                ? 'approved'
+                                : ($sessionStatus === 'excused' ? 'waitlisted' : 'rejected');
                         ?>
                         <tr>
                             <td>
-                                <span class="font-label-md text-on-surface"><?= e($sessionLabel) ?></span>
+                                <span class="font-label-md text-on-surface block"><?= e($sessionLabel) ?></span>
                                 <?php if ($sessionNumber > 0 && preg_match('/^\d{4}-\d{2}-\d{2}$/', $sessionDate) === 1): ?>
-                                <p class="text-label-sm text-on-surface-variant"><?= e(format_date($sessionDate)) ?></p>
+                                <span class="text-label-sm text-on-surface-variant block mt-0.5"><?= e(format_date($sessionDate)) ?></span>
                                 <?php endif; ?>
                             </td>
                             <td>
-                                <span class="courses-badge courses-badge--<?= e($sessionStatus === 'present' ? 'approved' : ($sessionStatus === 'excused' ? 'waitlisted' : 'rejected')) ?>">
+                                <span class="courses-badge courses-badge--<?= e($statusBadgeClass) ?>">
                                     <?= e(lang('attendance_' . $sessionStatus)) ?>
                                 </span>
+                                <span class="sm:hidden text-label-sm text-on-surface-variant block mt-1">
+                                    <?= e(lang('marked_at')) ?>: <?= e(format_date((string) ($session['marked_at'] ?? ''))) ?>
+                                </span>
                             </td>
-                            <td class="hidden md:table-cell text-on-surface-variant">
+                            <td class="hidden sm:table-cell text-on-surface-variant">
                                 <?= e(format_date((string) ($session['marked_at'] ?? ''))) ?>
                             </td>
                         </tr>

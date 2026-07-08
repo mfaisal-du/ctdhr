@@ -325,6 +325,81 @@
     @apply h-full rounded-full transition-all duration-500;
   }
 
+  .dashboard-attendance-course-header {
+    @apply p-5 space-y-4;
+  }
+
+  .dashboard-attendance-course-top {
+    @apply flex items-start justify-between gap-4;
+  }
+
+  .dashboard-attendance-course-info {
+    @apply min-w-0 flex-1 space-y-2;
+  }
+
+  .dashboard-attendance-course-title {
+    @apply font-label-md text-on-surface leading-snug;
+    word-break: break-word;
+  }
+
+  .dashboard-attendance-course-meta {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .dashboard-attendance-course-toggle {
+    @apply shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl border border-outline-variant/40 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary;
+  }
+
+  .dashboard-attendance-course-stats {
+    @apply rounded-xl border border-outline-variant/25 bg-surface-container-low/60 p-4 space-y-3;
+  }
+
+  .dashboard-attendance-course-stats-head {
+    @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-label-sm;
+  }
+
+  .dashboard-attendance-sessions-table th:nth-child(1),
+  .dashboard-attendance-sessions-table td:nth-child(1) {
+    width: 46%;
+    min-width: 10rem;
+  }
+
+  .dashboard-attendance-sessions-table th:nth-child(2),
+  .dashboard-attendance-sessions-table td:nth-child(2) {
+    width: 24%;
+    min-width: 6.5rem;
+  }
+
+  .dashboard-attendance-sessions-table th:nth-child(3),
+  .dashboard-attendance-sessions-table td:nth-child(3) {
+    width: 30%;
+    min-width: 7rem;
+  }
+
+  @media (max-width: 639px) {
+    .dashboard-attendance-sessions-table th:nth-child(1),
+    .dashboard-attendance-sessions-table td:nth-child(1) {
+      width: 52%;
+    }
+
+    .dashboard-attendance-sessions-table th:nth-child(2),
+    .dashboard-attendance-sessions-table td:nth-child(2) {
+      width: 48%;
+    }
+  }
+
+  .dashboard-attendance-sessions-table {
+    table-layout: fixed;
+  }
+
+  .dashboard-attendance-sessions-table th {
+    white-space: nowrap;
+  }
+
+  .dashboard-attendance-sessions-table td {
+    vertical-align: top;
+  }
+
   .dashboard-cert-grid {
     @apply grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4;
   }
