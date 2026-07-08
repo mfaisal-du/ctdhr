@@ -21,4 +21,11 @@ mkdir -p public/assets/uploads/courses public/assets/uploads/categories
 mkdir -p public/assets/uploads/certificates public/assets/uploads/profiles
 chmod -R 775 storage public/assets/uploads 2>/dev/null || true
 
+echo "==> Portal images (du.edu.om → public/assets/images)"
+if [ -f deploy/download-du-images.sh ]; then
+    bash deploy/download-du-images.sh
+else
+    echo "    download-du-images.sh not found — skip"
+fi
+
 echo "==> Post-deploy complete"
