@@ -325,37 +325,194 @@
     @apply h-full rounded-full transition-all duration-500;
   }
 
-  .dashboard-attendance-course-header {
-    @apply p-5 space-y-4;
+  .dashboard-attendance-list {
+    @apply space-y-5;
   }
 
-  .dashboard-attendance-course-top {
-    @apply flex items-start justify-between gap-4;
+  .dashboard-attendance-card {
+    @apply relative rounded-2xl border border-outline-variant/30 bg-surface-container-lowest overflow-hidden shadow-card transition-all duration-300;
   }
 
-  .dashboard-attendance-course-info {
-    @apply min-w-0 flex-1 space-y-2;
+  .dashboard-attendance-card:hover {
+    @apply shadow-overlay;
   }
 
-  .dashboard-attendance-course-title {
-    @apply font-label-md text-on-surface leading-snug;
-    word-break: break-word;
+  .dashboard-attendance-card-accent {
+    @apply h-1.5 w-full;
   }
 
-  .dashboard-attendance-course-meta {
+  .dashboard-attendance-card-body {
+    @apply p-5 sm:p-6;
+  }
+
+  .dashboard-attendance-card-layout {
+    @apply grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] xl:items-stretch;
+  }
+
+  .dashboard-attendance-card-identity {
+    @apply min-w-0 flex flex-col gap-4;
+  }
+
+  .dashboard-attendance-card-eyebrow {
     @apply flex flex-wrap items-center gap-2;
   }
 
-  .dashboard-attendance-course-toggle {
-    @apply shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-xl border border-outline-variant/40 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-primary;
+  .dashboard-attendance-category {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[0.68rem] font-label-md uppercase tracking-wide text-white;
   }
 
-  .dashboard-attendance-course-stats {
-    @apply rounded-xl border border-outline-variant/25 bg-surface-container-low/60 p-4 space-y-3;
+  .dashboard-attendance-card-title {
+    @apply font-headline-sm text-headline-sm text-on-surface leading-tight;
+    word-break: break-word;
   }
 
-  .dashboard-attendance-course-stats-head {
-    @apply flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-label-sm;
+  .dashboard-attendance-card-date {
+    @apply inline-flex items-center gap-2 text-label-sm text-on-surface-variant;
+  }
+
+  .dashboard-attendance-card-date .material-symbols-outlined {
+    @apply text-[18px];
+    color: rgba(40, 65, 148, 0.7);
+    font-variation-settings: 'FILL' 0, 'wght' 400;
+  }
+
+  .dashboard-attendance-chip-row {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .dashboard-attendance-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.72rem] font-label-md leading-none;
+  }
+
+  .dashboard-attendance-chip .material-symbols-outlined {
+    @apply text-[15px];
+    font-variation-settings: 'FILL' 1, 'wght' 500;
+  }
+
+  .dashboard-attendance-chip--status {
+    @apply text-primary;
+    border: 1px solid rgba(40, 65, 148, 0.15);
+    background: rgba(40, 65, 148, 0.08);
+  }
+
+  .dashboard-attendance-chip--status.is-in-progress {
+    @apply border-orange-200 bg-orange-50 text-orange-800;
+  }
+
+  .dashboard-attendance-chip--status.is-completed {
+    @apply border-green-200 bg-green-50 text-green-800;
+  }
+
+  .dashboard-attendance-chip--status.is-scheduled {
+    @apply border-sky-200 bg-sky-50 text-sky-800;
+  }
+
+  .dashboard-attendance-chip--sessions {
+    @apply border-outline-variant/40 bg-surface-container-low text-on-surface-variant;
+  }
+
+  .dashboard-attendance-chip--cert-ok {
+    @apply border-green-200 bg-green-50 text-green-800;
+  }
+
+  .dashboard-attendance-chip--cert-warn {
+    @apply border-amber-200 bg-amber-50 text-amber-900;
+  }
+
+  .dashboard-attendance-progress-panel {
+    @apply flex flex-col gap-4 rounded-2xl border border-outline-variant/25 p-4 sm:p-5;
+    background: linear-gradient(160deg, rgba(66, 90, 173, 0.06) 0%, rgba(255, 255, 255, 0.92) 55%);
+  }
+
+  .dashboard-attendance-progress-top {
+    @apply flex items-center justify-between gap-4;
+  }
+
+  .dashboard-attendance-rate-badge {
+    @apply shrink-0 inline-flex flex-col items-center justify-center rounded-2xl px-4 py-3 min-w-[5.5rem] text-center border;
+  }
+
+  .dashboard-attendance-rate-badge.is-good {
+    @apply border-green-200 bg-green-50 text-green-800;
+  }
+
+  .dashboard-attendance-rate-badge.is-mid {
+    @apply border-amber-200 bg-amber-50 text-amber-900;
+  }
+
+  .dashboard-attendance-rate-badge.is-low {
+    @apply border-red-200 bg-red-50 text-red-800;
+  }
+
+  .dashboard-attendance-rate-value {
+    @apply font-headline-sm text-headline-sm leading-none;
+  }
+
+  .dashboard-attendance-rate-label {
+    @apply mt-1 text-[0.62rem] font-label-md uppercase tracking-wider opacity-80;
+  }
+
+  .dashboard-attendance-progress-copy {
+    @apply min-w-0 flex-1 space-y-1;
+  }
+
+  .dashboard-attendance-progress-title {
+    @apply font-label-md text-on-surface;
+  }
+
+  .dashboard-attendance-progress-meta {
+    @apply text-label-sm text-on-surface-variant;
+  }
+
+  .dashboard-attendance-progress-track {
+    @apply w-full h-3 rounded-full overflow-hidden bg-surface-container-high border border-outline-variant/20;
+  }
+
+  .dashboard-attendance-progress-fill {
+    @apply h-full rounded-full transition-all duration-700 ease-out;
+  }
+
+  .dashboard-attendance-progress-fill.is-good {
+    background: linear-gradient(90deg, #106e18, #30872f);
+  }
+
+  .dashboard-attendance-progress-fill.is-mid {
+    background: linear-gradient(90deg, #e65100, #ff8f00);
+  }
+
+  .dashboard-attendance-progress-fill.is-low {
+    background: linear-gradient(90deg, #284194, #425aad);
+  }
+
+  .dashboard-attendance-progress-foot {
+    @apply flex items-center justify-between gap-3 text-[0.7rem] text-on-surface-variant;
+  }
+
+  .dashboard-attendance-sessions-toggle {
+    @apply inline-flex items-center justify-center gap-2 w-full rounded-xl px-4 py-2.5 text-label-sm font-label-md text-primary transition-colors;
+    border: 1px solid rgba(40, 65, 148, 0.2);
+    background: rgba(255, 255, 255, 0.8);
+  }
+
+  .dashboard-attendance-sessions-toggle:hover {
+    background: rgba(40, 65, 148, 0.05);
+    border-color: rgba(40, 65, 148, 0.35);
+  }
+
+  .dashboard-attendance-sessions-panel {
+    @apply border-t border-outline-variant/25 bg-surface-container-low/40;
+  }
+
+  .dashboard-attendance-sessions-head {
+    @apply flex items-center justify-between gap-3 px-5 py-3 border-b border-outline-variant/20;
+  }
+
+  .dashboard-attendance-sessions-title {
+    @apply font-label-md text-on-surface;
+  }
+
+  .dashboard-attendance-sessions-count {
+    @apply text-label-sm text-on-surface-variant;
   }
 
   .dashboard-attendance-sessions-table th:nth-child(1),

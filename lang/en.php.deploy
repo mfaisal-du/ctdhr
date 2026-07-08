@@ -578,6 +578,8 @@ return [
     'view_attendance' => 'View Attendance',
     'view_sessions' => 'View sessions',
     'hide_sessions' => 'Hide sessions',
+    'session_history' => 'Session History',
+    'attendance_sessions_chip' => ':marked of :total sessions',
     'attendance_progress' => 'Attendance Progress',
     'sessions' => 'sessions',
     'certificates_subtitle' => 'Your earned training certificates.',

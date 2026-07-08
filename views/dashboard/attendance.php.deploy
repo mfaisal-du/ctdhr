@@ -64,7 +64,7 @@ dashboard_page_header([
     </div>
 </div>
 <?php else: ?>
-<div class="space-y-4">
+<div class="dashboard-attendance-list">
     <?php foreach ($courses as $course): ?>
     <?php
         $slug = (string) ($course['slug'] ?? '');
@@ -75,63 +75,106 @@ dashboard_page_header([
         $sessions = $course['sessions'] ?? [];
         $eligibility = $course['eligibility'] ?? ['eligible' => false, 'rate' => 0.0, 'total' => 0];
         $eligible = !empty($eligibility['eligible']);
-        $progressClass = $percentage >= $threshold ? 'bg-status-certified' : ($percentage >= 50 ? 'bg-status-announced' : 'bg-primary');
-        $sessionDenominator = max($total, $sessionsMarkedCourse);
+        $sessionDenominator = max($total, $sessionsMarkedCourse, 1);
+        $courseStatus = (string) ($course['course_status'] ?? 'scheduled');
+        $statusClass = match ($courseStatus) {
+            'in_progress' => 'is-in-progress',
+            'completed', 'certified' => 'is-completed',
+            default => 'is-scheduled',
+        };
+        $rateClass = $percentage >= $threshold ? 'is-good' : ($percentage >= 50 ? 'is-mid' : 'is-low');
+        $accent = (string) ($course['category_color'] ?? '#284194');
+        $categoryName = localized($course, 'category_name');
     ?>
-    <section class="courses-card overflow-hidden dashboard-attendance-course">
-        <div class="dashboard-attendance-course-header">
-            <div class="dashboard-attendance-course-top">
-                <div class="dashboard-attendance-course-info">
-                    <h3 class="dashboard-attendance-course-title"><?= e(localized($course, 'title')) ?></h3>
-                    <?php if (!empty($course['start_date'])): ?>
-                    <p class="text-label-sm text-on-surface-variant">
-                        <?= e(lang('start_date')) ?>: <?= e(format_date((string) $course['start_date'])) ?>
-                    </p>
+    <section class="dashboard-attendance-card">
+        <div class="dashboard-attendance-card-accent" style="background: linear-gradient(90deg, <?= e($accent) ?>, <?= e($accent) ?>cc);"></div>
+
+        <div class="dashboard-attendance-card-body">
+            <div class="dashboard-attendance-card-layout">
+                <div class="dashboard-attendance-card-identity">
+                    <?php if ($categoryName !== ''): ?>
+                    <div class="dashboard-attendance-card-eyebrow">
+                        <span class="dashboard-attendance-category" style="background: <?= e($accent) ?>;">
+                            <span class="material-symbols-outlined text-[14px]">category</span>
+                            <?= e($categoryName) ?>
+                        </span>
+                    </div>
                     <?php endif; ?>
-                    <div class="dashboard-attendance-course-meta">
-                        <span class="courses-badge courses-badge--<?= e(str_replace('_', '-', (string) ($course['course_status'] ?? 'scheduled'))) ?>">
-                            <?= e(course_status_label((string) ($course['course_status'] ?? ''))) ?>
+
+                    <h3 class="dashboard-attendance-card-title"><?= e(localized($course, 'title')) ?></h3>
+
+                    <?php if (!empty($course['start_date'])): ?>
+                    <div class="dashboard-attendance-card-date">
+                        <span class="material-symbols-outlined" aria-hidden="true">event</span>
+                        <span>
+                            <?= e(lang('start_date')) ?>:
+                            <strong class="text-on-surface font-label-md"><?= e(format_date((string) $course['start_date'])) ?></strong>
+                            <?php if (!empty($course['end_date'])): ?>
+                            <span class="text-on-surface-variant"> · <?= e(lang('end_date')) ?>: <?= e(format_date((string) $course['end_date'])) ?></span>
+                            <?php endif; ?>
                         </span>
-                        <?php if ($sessionsMarkedCourse > 0): ?>
-                        <span class="courses-badge courses-badge--published">
-                            <?= e(lang('sessions_marked')) ?>: <?= e((string) $sessionsMarkedCourse) ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="dashboard-attendance-chip-row">
+                        <span class="dashboard-attendance-chip dashboard-attendance-chip--status <?= e($statusClass) ?>">
+                            <span class="material-symbols-outlined" aria-hidden="true">fiber_manual_record</span>
+                            <?= e(course_status_label($courseStatus)) ?>
                         </span>
-                        <?php endif; ?>
+
+                        <span class="dashboard-attendance-chip dashboard-attendance-chip--sessions">
+                            <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
+                            <?= e(lang('attendance_sessions_chip', [
+                                'marked' => (string) $sessionsMarkedCourse,
+                                'total' => (string) max($total, $sessionsMarkedCourse),
+                            ])) ?>
+                        </span>
+
                         <?php if ((int) ($eligibility['total'] ?? 0) > 0): ?>
-                        <span class="courses-badge courses-badge--<?= $eligible ? 'approved' : 'pending' ?>">
+                        <span class="dashboard-attendance-chip <?= $eligible ? 'dashboard-attendance-chip--cert-ok' : 'dashboard-attendance-chip--cert-warn' ?>">
+                            <span class="material-symbols-outlined" aria-hidden="true"><?= $eligible ? 'verified' : 'warning' ?></span>
                             <?= e($eligible ? lang('cert_eligible') : lang('cert_not_eligible')) ?>
                         </span>
                         <?php endif; ?>
                     </div>
                 </div>
-                <button
-                    type="button"
-                    class="dashboard-attendance-course-toggle"
-                    @click="toggleCourse(<?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>)"
-                    :aria-expanded="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>"
-                    :aria-label="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?> ? <?= json_encode(lang('hide_sessions'), JSON_UNESCAPED_UNICODE) ?> : <?= json_encode(lang('view_sessions'), JSON_UNESCAPED_UNICODE) ?>"
-                >
-                    <span
-                        class="material-symbols-outlined"
-                        x-text="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?> ? 'expand_less' : 'expand_more'"
-                    ></span>
-                </button>
-            </div>
 
-            <div class="dashboard-attendance-course-stats">
-                <div class="dashboard-attendance-course-stats-head">
-                    <span class="font-label-md text-on-surface"><?= e(lang('attendance_rate')) ?></span>
-                    <span class="text-on-surface-variant whitespace-nowrap">
-                        <?= e((string) $present) ?> / <?= e((string) $sessionDenominator) ?>
-                        (<?= e((string) $percentage) ?>%)
-                    </span>
+                <div class="dashboard-attendance-progress-panel">
+                    <div class="dashboard-attendance-progress-top">
+                        <div class="dashboard-attendance-rate-badge <?= e($rateClass) ?>">
+                            <span class="dashboard-attendance-rate-value"><?= e((string) $percentage) ?>%</span>
+                            <span class="dashboard-attendance-rate-label"><?= e(lang('attendance_rate')) ?></span>
+                        </div>
+                        <div class="dashboard-attendance-progress-copy">
+                            <p class="dashboard-attendance-progress-title"><?= e(lang('attendance_progress')) ?></p>
+                            <p class="dashboard-attendance-progress-meta">
+                                <?= e(lang('attendance_rate_hint', [
+                                    'present' => (string) $present,
+                                    'total' => (string) $sessionDenominator,
+                                    'rate' => (string) $percentage,
+                                ])) ?>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-attendance-progress-track" role="progressbar" aria-valuenow="<?= e((string) $percentage) ?>" aria-valuemin="0" aria-valuemax="100" aria-label="<?= e(lang('attendance_progress')) ?>">
+                        <div class="dashboard-attendance-progress-fill <?= e($rateClass) ?>" style="width: <?= e((string) max(0, min(100, $percentage))) ?>%;"></div>
+                    </div>
+
+                    <div class="dashboard-attendance-progress-foot">
+                        <span><?= e(lang('attendance_threshold_hint', ['threshold' => (string) $threshold])) ?></span>
+                    </div>
+
+                    <button
+                        type="button"
+                        class="dashboard-attendance-sessions-toggle"
+                        @click="toggleCourse(<?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>)"
+                        :aria-expanded="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?>"
+                    >
+                        <span class="material-symbols-outlined text-[18px]" x-text="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?> ? 'expand_less' : 'expand_more'"></span>
+                        <span x-text="openCourse === <?= json_encode($slug, JSON_UNESCAPED_UNICODE) ?> ? <?= json_encode(lang('hide_sessions'), JSON_UNESCAPED_UNICODE) ?> : <?= json_encode(lang('view_sessions'), JSON_UNESCAPED_UNICODE) ?>"></span>
+                    </button>
                 </div>
-                <div class="dashboard-progress-track">
-                    <div class="dashboard-progress-fill <?= e($progressClass) ?>" style="width: <?= e((string) max(0, min(100, $percentage))) ?>%"></div>
-                </div>
-                <p class="text-label-sm text-on-surface-variant">
-                    <?= e(lang('attendance_threshold_hint', ['threshold' => (string) $threshold])) ?>
-                </p>
             </div>
         </div>
 
@@ -141,10 +184,17 @@ dashboard_page_header([
             x-transition:enter-start="opacity-0"
             x-transition:enter-end="opacity-100"
             x-cloak
-            class="border-t border-outline-variant/30"
+            class="dashboard-attendance-sessions-panel"
         >
+            <div class="dashboard-attendance-sessions-head">
+                <p class="dashboard-attendance-sessions-title"><?= e(lang('session_history')) ?></p>
+                <p class="dashboard-attendance-sessions-count">
+                    <?= e(lang('sessions_marked')) ?>: <?= e((string) count($sessions)) ?>
+                </p>
+            </div>
+
             <?php if ($sessions === []): ?>
-            <div class="p-5 text-label-sm text-on-surface-variant">
+            <div class="px-5 py-6 text-label-sm text-on-surface-variant">
                 <?= e(lang('no_sessions_marked_yet')) ?>
             </div>
             <?php else: ?>

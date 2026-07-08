@@ -578,6 +578,8 @@ return [
     'view_attendance' => 'عرض الحضور',
     'view_sessions' => 'عرض الجلسات',
     'hide_sessions' => 'إخفاء الجلسات',
+    'session_history' => 'سجل الجلسات',
+    'attendance_sessions_chip' => ':marked من :total جلسات',
     'attendance_progress' => 'تقدم الحضور',
     'sessions' => 'جلسات',
     'certificates_subtitle' => 'شهادات التدريب التي حصلت عليها.',
