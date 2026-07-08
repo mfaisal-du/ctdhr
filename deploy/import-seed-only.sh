@@ -8,8 +8,15 @@ MYSQL=(mysql -h localhost -u u813653424_ctdhr -p"$DB_PASS" u813653424_ctdhr)
 
 import_sql() {
     local file="$1"
+    local optional="${2:-}"
     echo "==> $file"
-    sed -e '/^USE /d' "$file" | "${MYSQL[@]}"
+    if ! sed -e '/^USE /d' "$file" | "${MYSQL[@]}"; then
+        if [ "$optional" = "optional" ]; then
+            echo "    (skipped — may already be applied)"
+        else
+            return 1
+        fi
+    fi
 }
 
 category_count="$("${MYSQL[@]}" -N -e "SELECT COUNT(*) FROM course_categories" 2>/dev/null || echo 0)"
@@ -24,7 +31,12 @@ for f in \
   database/migrations/attendance-cert-features.sql.deploy \
   database/migrations/category-card-image.sql.deploy \
   database/migrations/news-ticker.sql.deploy \
-  database/migrate-participant-types.sql.deploy \
+  database/migrate-participant-types.sql.deploy
+do
+  import_sql "$f" optional
+done
+
+for f in \
   database/seed-demo.sql.deploy \
   database/seed-category-card-images.sql.deploy
 do
