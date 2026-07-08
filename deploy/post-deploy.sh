@@ -28,4 +28,9 @@ else
     echo "    download-du-images.sh not found — skip"
 fi
 
+if [ "${RUN_SEED_IMPORT:-}" = "1" ] && [ -f deploy/import-seed-only.sh ]; then
+    echo "==> Database seed (RUN_SEED_IMPORT=1)"
+    bash deploy/import-seed-only.sh
+fi
+
 echo "==> Post-deploy complete"

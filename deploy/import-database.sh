@@ -24,5 +24,16 @@ import_sql database/migrations/attendance-cert-features.sql.deploy
 import_sql database/migrations/category-card-image.sql.deploy
 import_sql database/migrations/news-ticker.sql.deploy
 import_sql database/migrate-participant-types.sql.deploy
+import_sql database/seed-demo.sql.deploy
+import_sql database/seed-category-card-images.sql.deploy
+
+echo "==> Demo certificate PDF assets"
+demo_dir="public/assets/uploads/certificates/demo"
+mkdir -p "$demo_dir" public/assets/uploads/certificates/qr public/assets/uploads/certificates/templates
+for pdf in database/assets/certificates/demo/*.pdf.deploy; do
+  [ -f "$pdf" ] || continue
+  base="$(basename "$pdf" .pdf.deploy)"
+  cp "$pdf" "$demo_dir/$base.pdf"
+done
 
 echo "==> Database import complete"
