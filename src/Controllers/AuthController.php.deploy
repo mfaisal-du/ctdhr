@@ -92,8 +92,13 @@ final class AuthController
         $this->clearOldInput();
         flash('success', lang('login_success'));
 
-        $redirectTo = $_SESSION['intended_url'] ?? '/';
+        $redirectTo = $_SESSION['intended_url'] ?? null;
         unset($_SESSION['intended_url']);
+
+        if ($redirectTo === null || $redirectTo === '' || $redirectTo === '/') {
+            $redirectTo = ($_SESSION['user_role'] ?? '') === 'admin' ? 'admin' : '/';
+        }
+
         redirect(ltrim($redirectTo, '/'));
     }
 
